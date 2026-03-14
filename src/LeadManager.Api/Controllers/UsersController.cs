@@ -33,7 +33,9 @@ public class UsersController : ControllerBase
                 Email: user.Email!,
                 FirstName: user.FirstName,
                 LastName: user.LastName,
-                Role: roles.FirstOrDefault() ?? "User"
+                Role: roles.FirstOrDefault() ?? "User",
+                IsActive: user.IsActive,
+                CreatedAt: user.CreatedAt
             ));
         }
 
@@ -66,7 +68,9 @@ public class UsersController : ControllerBase
             Email: user.Email!,
             FirstName: user.FirstName,
             LastName: user.LastName,
-            Role: request.Role
+            Role: request.Role,
+            IsActive: user.IsActive,
+            CreatedAt: user.CreatedAt
         ));
     }
 
@@ -101,7 +105,9 @@ public class UsersController : ControllerBase
             Email: user.Email!,
             FirstName: user.FirstName,
             LastName: user.LastName,
-            Role: roles.FirstOrDefault() ?? "User"
+            Role: roles.FirstOrDefault() ?? "User",
+            IsActive: user.IsActive,
+            CreatedAt: user.CreatedAt
         ));
     }
 

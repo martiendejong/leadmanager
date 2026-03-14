@@ -52,7 +52,9 @@ public class AuthController : ControllerBase
                 Email: user.Email!,
                 FirstName: user.FirstName,
                 LastName: user.LastName,
-                Role: roles.FirstOrDefault() ?? "User"
+                Role: roles.FirstOrDefault() ?? "User",
+                IsActive: user.IsActive,
+                CreatedAt: user.CreatedAt
             )
         ));
     }
@@ -78,7 +80,9 @@ public class AuthController : ControllerBase
             Email: user.Email!,
             FirstName: user.FirstName,
             LastName: user.LastName,
-            Role: roles.FirstOrDefault() ?? "User"
+            Role: roles.FirstOrDefault() ?? "User",
+            IsActive: user.IsActive,
+            CreatedAt: user.CreatedAt
         ));
     }
 }
