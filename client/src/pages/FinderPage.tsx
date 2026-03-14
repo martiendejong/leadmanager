@@ -73,6 +73,10 @@ export default function FinderPage() {
           phone: r.phone,
           email: r.email,
           source: r.source,
+          ownerName: r.ownerName ?? null,
+          description: r.description ?? null,
+          services: r.services ?? null,
+          targetAudience: r.targetAudience ?? null,
         }))
       const result: ImportResultDto = await importSearchResults(toImport as any)
       showToast(`${result.imported} leads geïmporteerd, ${result.skipped} overgeslagen`)

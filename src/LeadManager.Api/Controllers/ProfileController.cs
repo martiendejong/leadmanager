@@ -113,8 +113,16 @@ public class ProfileController : ControllerBase
         if (profile == null)
             return BadRequest(new { message = "Maak eerst een bedrijfsprofiel aan." });
 
-        // Run search synchronously (for simplicity — can be made async/streaming later)
-        var results = await _smartSearch.SearchAndQualifyAsync(profile);
+        // Build dedup set from existing user leads (name|domain)
+        var existingLeads = await _db.Leads
+            .Where(l => l.ImportedByUserId == userId)
+            .Select(l => new { l.Name, l.Website })
+            .ToListAsync();
+        var existingKeys = existingLeads
+            .Select(l => SmartSearchService.MakeKey(l.Name, l.Website))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var results = await _smartSearch.SearchAndQualifyAsync(profile, existingKeys);
 
         return Ok(results.Select(r => new
         {
@@ -126,7 +134,11 @@ public class ProfileController : ControllerBase
             email = r.Email,
             source = r.Source,
             confidenceScore = r.ConfidenceScore,
-            qualificationReason = r.QualificationReason
+            qualificationReason = r.QualificationReason,
+            ownerName = r.OwnerName,
+            description = r.Description,
+            services = r.Services,
+            targetAudience = r.TargetAudience
         }));
     }
 
