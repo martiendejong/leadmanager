@@ -3,6 +3,7 @@ using LeadManager.Api.Models;
 using LeadManager.Api.Services.Enrichment;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace LeadManager.Api.Controllers;
 
@@ -28,10 +29,19 @@ public class EnrichmentController : ControllerBase
 
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
 
+        // Only allow enriching leads owned by this user
+        var validIds = await _db.Leads
+            .Where(l => request.Ids.Contains(l.Id) && l.ImportedByUserId == userId)
+            .Select(l => l.Id)
+            .ToListAsync();
+
+        if (validIds.Count == 0)
+            return BadRequest("None of the provided lead IDs belong to your account.");
+
         var job = new EnrichmentJob
         {
-            LeadIds = request.Ids.ToList(),
-            TotalLeads = request.Ids.Length,
+            LeadIds = validIds,
+            TotalLeads = validIds.Count,
             RequestedByUserId = userId
         };
 

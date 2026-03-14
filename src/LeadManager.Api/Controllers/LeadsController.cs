@@ -23,11 +23,15 @@ public class LeadsController : ControllerBase
         _search = search;
     }
 
+    private string? GetCurrentUserId() =>
+        User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
     // GET /api/leads
     [HttpGet]
     public async Task<IActionResult> GetLeads([FromQuery] LeadFilterParams filters)
     {
-        var query = _db.Leads.AsQueryable();
+        var userId = GetCurrentUserId();
+        var query = _db.Leads.Where(l => l.ImportedByUserId == userId);
 
         if (filters.Enriched.HasValue)
             query = query.Where(l => l.IsEnriched == filters.Enriched.Value);
@@ -64,8 +68,10 @@ public class LeadsController : ControllerBase
     [HttpGet("stats")]
     public async Task<IActionResult> GetStats()
     {
-        var total = await _db.Leads.CountAsync();
-        var enriched = await _db.Leads.CountAsync(l => l.IsEnriched);
+        var userId = GetCurrentUserId();
+        var userLeads = _db.Leads.Where(l => l.ImportedByUserId == userId);
+        var total = await userLeads.CountAsync();
+        var enriched = await userLeads.CountAsync(l => l.IsEnriched);
         return Ok(new LeadStatsDto(total, enriched, total - enriched));
     }
 
@@ -73,7 +79,8 @@ public class LeadsController : ControllerBase
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetLead(Guid id)
     {
-        var lead = await _db.Leads.FindAsync(id);
+        var userId = GetCurrentUserId();
+        var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == userId);
         if (lead == null) return NotFound();
         return Ok(ToDto(lead));
     }
@@ -82,7 +89,8 @@ public class LeadsController : ControllerBase
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> UpdateLead(Guid id, [FromBody] UpdateLeadDto dto)
     {
-        var lead = await _db.Leads.FindAsync(id);
+        var userId = GetCurrentUserId();
+        var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == userId);
         if (lead == null) return NotFound();
 
         lead.Name = dto.Name;
@@ -106,7 +114,8 @@ public class LeadsController : ControllerBase
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> DeleteLead(Guid id)
     {
-        var lead = await _db.Leads.FindAsync(id);
+        var userId = GetCurrentUserId();
+        var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == userId);
         if (lead == null) return NotFound();
 
         _db.Leads.Remove(lead);
@@ -157,8 +166,9 @@ public class LeadsController : ControllerBase
         int totalRows = worksheet.Dimension?.Rows ?? 1;
         var leadsToInsert = new List<Lead>();
 
-        // Load existing (name, website) pairs for dedup check
+        // Load existing (name, website) pairs for dedup check — scoped to this user
         var existingList = await _db.Leads
+            .Where(l => l.ImportedByUserId == userId)
             .Select(l => new { NameLower = l.Name.ToLower(), WebsiteLower = l.Website.ToLower() })
             .ToListAsync();
         var existing = existingList.ToHashSet();
@@ -239,8 +249,9 @@ public class LeadsController : ControllerBase
 
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
 
-        // Load existing pairs for dedup
+        // Load existing pairs for dedup — scoped to this user
         var existingList = await _db.Leads
+            .Where(l => l.ImportedByUserId == userId)
             .Select(l => new { NameLower = l.Name.ToLower(), WebsiteLower = l.Website.ToLower() })
             .ToListAsync();
         var existing = existingList.ToHashSet();
