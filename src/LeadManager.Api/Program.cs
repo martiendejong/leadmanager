@@ -3,6 +3,7 @@ using LeadManager.Api.Hubs;
 using LeadManager.Api.Models;
 using LeadManager.Api.Services;
 using LeadManager.Api.Services.Enrichment;
+using LeadManager.Api.Services.Profile;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -82,6 +83,10 @@ builder.Services.AddScoped<JwtService>();
 
 // Search service
 builder.Services.AddScoped<SearchService>();
+
+// Profile + Smart Search services
+builder.Services.AddScoped<CompanyProfileService>();
+builder.Services.AddScoped<SmartSearchService>();
 
 // Enrichment services
 builder.Services.AddSingleton<EnrichmentChannel>();

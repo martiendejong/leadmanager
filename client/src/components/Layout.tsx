@@ -29,6 +29,9 @@ export default function Layout() {
             <NavLink to="/leads/zoeken" className={linkClass}>
               Leads zoeken
             </NavLink>
+            <NavLink to="/profile" className={linkClass}>
+              Profiel
+            </NavLink>
             {user?.role === 'Admin' && (
               <NavLink to="/admin/users" className={linkClass}>
                 Gebruikers
