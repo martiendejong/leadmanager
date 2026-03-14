@@ -122,6 +122,20 @@ export default function LeadDetailPanel({ lead, onClose }: Props) {
 
             {/* Scrollable body */}
             <div className="flex-1 overflow-y-auto p-5 space-y-6">
+
+              {/* AI Summary — prominent card */}
+              {lead.aiSummary && (
+                <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m1.636 6.364l.707-.707M6.343 6.343l-.707-.707M12 21v-1" />
+                    </svg>
+                    <span className="text-xs font-semibold text-indigo-700 uppercase tracking-wide">AI Samenvatting</span>
+                  </div>
+                  <p className="text-sm text-indigo-900 leading-relaxed">{lead.aiSummary}</p>
+                </div>
+              )}
+
               <Section title="Bedrijfsinfo">
                 <Field label="Naam" value={lead.name} />
                 <Field label="Sector" value={lead.sector} />

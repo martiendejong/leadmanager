@@ -28,6 +28,7 @@ export interface Lead {
   enrichmentVersion?: number
   pagesCrawled?: number
   chunksIndexed?: number
+  aiSummary?: string | null
 }
 
 export interface LeadsResponse {

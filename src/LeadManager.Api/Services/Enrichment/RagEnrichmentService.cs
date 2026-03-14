@@ -66,7 +66,73 @@ public class RagEnrichmentService
             }
         }
 
+        // Generate a polished summary using all extracted data + top website chunks
+        try
+        {
+            answers.AiSummary = await GenerateSummaryAsync(db, lead, answers);
+        }
+        catch { /* non-fatal */ }
+
         return answers;
+    }
+
+    private async Task<string?> GenerateSummaryAsync(LeadManagerDbContext db, Lead lead, EnrichmentAnswers answers)
+    {
+        // Gather top chunks from the website for broader context
+        var overviewEmbedding = await _embedding.EmbedAsync("wat doet dit bedrijf, wie zijn ze, wat zijn hun diensten");
+        var chunks = await _vectorSearch.SearchAsync(db, lead.Id, overviewEmbedding, topK: 5);
+        if (chunks.Count == 0) return null;
+
+        var websiteContext = string.Join("\n\n---\n\n", chunks);
+
+        var knownFacts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(answers.Description))    knownFacts.Add($"Omschrijving: {answers.Description}");
+        if (!string.IsNullOrWhiteSpace(answers.Services))       knownFacts.Add($"Diensten: {answers.Services}");
+        if (!string.IsNullOrWhiteSpace(answers.TargetAudience)) knownFacts.Add($"Doelgroep: {answers.TargetAudience}");
+        if (!string.IsNullOrWhiteSpace(answers.OwnerName))      knownFacts.Add($"Eigenaar: {answers.OwnerName}{(string.IsNullOrWhiteSpace(answers.OwnerTitle) ? "" : $" ({answers.OwnerTitle})")}");
+
+        var factsSection = knownFacts.Count > 0
+            ? $"\n\nAl geëxtraheerde feiten:\n{string.Join("\n", knownFacts)}"
+            : "";
+
+        var prompt = $"""
+Je bent een B2B sales-analist. Schrijf een beknopte, professionele samenvatting van dit bedrijf voor gebruik door een salesteam.
+
+Bedrijf: {lead.Name}
+Website: {lead.Website}{factsSection}
+
+Website-inhoud:
+{websiteContext}
+
+Schrijf een samenvatting van 3 tot 5 zinnen die antwoord geeft op:
+- Wat doet dit bedrijf?
+- Voor wie?
+- Wat maakt hen interessant als lead?
+
+Schrijf in lopende tekst, zakelijk maar leesbaar. Geen opsomming, geen headers. Alleen de samenvatting.
+""";
+
+        var requestBody = new
+        {
+            model = "gpt-4o-mini",
+            messages = new[] { new { role = "user", content = prompt } },
+            max_tokens = 300
+        };
+
+        var json = JsonSerializer.Serialize(requestBody);
+        var content = new StringContent(json, Encoding.UTF8, "application/json");
+        var response = await _http.PostAsync("https://api.openai.com/v1/chat/completions", content);
+        response.EnsureSuccessStatusCode();
+
+        var responseJson = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(responseJson);
+        var text = doc.RootElement
+            .GetProperty("choices")[0]
+            .GetProperty("message")
+            .GetProperty("content")
+            .GetString()?.Trim();
+
+        return string.IsNullOrWhiteSpace(text) ? null : text;
     }
 
     private async Task<string?> AskGptAsync(string companyName, string question, string context)
@@ -121,4 +187,5 @@ public class EnrichmentAnswers
     public string? Description { get; set; }
     public string? Services { get; set; }
     public string? TargetAudience { get; set; }
+    public string? AiSummary { get; set; }
 }

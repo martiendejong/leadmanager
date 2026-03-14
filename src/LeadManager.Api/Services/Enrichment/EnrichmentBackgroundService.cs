@@ -244,6 +244,9 @@ public class EnrichmentBackgroundService : BackgroundService
             if (!string.IsNullOrWhiteSpace(answers.TargetAudience))
                 finalLead.TargetAudience = answers.TargetAudience;
 
+            if (!string.IsNullOrWhiteSpace(answers.AiSummary))
+                finalLead.AiSummary = answers.AiSummary;
+
             finalLead.WebsiteStatus = WebsiteStatus.Reachable;
             finalLead.ResolvedUrl = resolvedUrl;
             finalLead.CrawledAt = DateTime.UtcNow;
