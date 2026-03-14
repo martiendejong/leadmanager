@@ -127,7 +127,7 @@ export default function FinderPage() {
           </p>
           <Link
             to="/profile"
-            className="inline-block px-5 py-2 bg-indigo-600 text-white rounded-md text-sm font-medium hover:bg-indigo-700"
+            className="inline-block px-5 py-2 bg-amber-600 text-white rounded-md text-sm font-medium hover:bg-amber-700"
           >
             Profiel aanmaken
           </Link>
