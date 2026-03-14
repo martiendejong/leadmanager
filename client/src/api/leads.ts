@@ -72,3 +72,38 @@ export async function enrichLeads(ids: string[]): Promise<{ jobId: string }> {
   const res = await apiClient.post<{ jobId: string }>('/api/leads/enrich', { ids })
   return res.data
 }
+
+export interface LeadSearchResult {
+  name: string
+  website: string
+  city: string
+  sector: string
+  phone: string
+  email: string
+  source: string
+}
+
+export interface ImportResultDto {
+  imported: number
+  skipped: number
+  errors: number
+  errorDetails: string[]
+}
+
+export async function searchLeads(
+  sector: string,
+  location: string,
+  limit: number
+): Promise<LeadSearchResult[]> {
+  const res = await apiClient.post<LeadSearchResult[]>('/api/leads/search', {
+    sector,
+    location,
+    limit,
+  })
+  return res.data
+}
+
+export async function importSearchResults(leads: LeadSearchResult[]): Promise<ImportResultDto> {
+  const res = await apiClient.post<ImportResultDto>('/api/leads/search/import', { leads })
+  return res.data
+}

@@ -56,3 +56,7 @@ public record LeadFilterParams(
 public record LeadStatsDto(int Total, int Enriched, int NotEnriched);
 
 public record ImportResultDto(int Imported, int Skipped, int Errors, List<string> ErrorDetails);
+
+public record LeadSearchRequest(string Sector, string? Location, int Limit = 25);
+public record LeadSearchResult(string Name, string Website, string City, string Sector, string Phone, string Email, string Source);
+public record LeadSearchImportRequest(List<LeadSearchResult> Leads);

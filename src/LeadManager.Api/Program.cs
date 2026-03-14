@@ -80,6 +80,9 @@ builder.Services.AddAuthorization();
 // JWT service
 builder.Services.AddScoped<JwtService>();
 
+// Search service
+builder.Services.AddScoped<SearchService>();
+
 // Enrichment services
 builder.Services.AddSingleton<EnrichmentChannel>();
 builder.Services.AddHostedService<EnrichmentBackgroundService>();

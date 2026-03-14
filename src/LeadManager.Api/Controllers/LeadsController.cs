@@ -1,6 +1,7 @@
 using LeadManager.Api.Data;
 using LeadManager.Api.DTOs;
 using LeadManager.Api.Models;
+using LeadManager.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -14,10 +15,12 @@ namespace LeadManager.Api.Controllers;
 public class LeadsController : ControllerBase
 {
     private readonly LeadManagerDbContext _db;
+    private readonly SearchService _search;
 
-    public LeadsController(LeadManagerDbContext db)
+    public LeadsController(LeadManagerDbContext db, SearchService search)
     {
         _db = db;
+        _search = search;
     }
 
     // GET /api/leads
@@ -211,6 +214,73 @@ public class LeadsController : ControllerBase
         }
 
         return Ok(new ImportResultDto(imported, skipped, errors, errorDetails));
+    }
+
+    // POST /api/leads/search
+    [HttpPost("search")]
+    public async Task<IActionResult> SearchLeads([FromBody] LeadSearchRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Sector))
+            return BadRequest("Sector is required.");
+
+        var location = string.IsNullOrWhiteSpace(request.Location) ? "nederland" : request.Location;
+        var query = $"{request.Sector} {location} eigenaar directeur";
+
+        var results = await _search.SearchAsync(query, request.Sector, request.Limit);
+        return Ok(results);
+    }
+
+    // POST /api/leads/search/import
+    [HttpPost("search/import")]
+    public async Task<IActionResult> ImportSearchResults([FromBody] LeadSearchImportRequest request)
+    {
+        if (request.Leads == null || request.Leads.Count == 0)
+            return BadRequest("No leads provided.");
+
+        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        // Load existing pairs for dedup
+        var existingList = await _db.Leads
+            .Select(l => new { NameLower = l.Name.ToLower(), WebsiteLower = l.Website.ToLower() })
+            .ToListAsync();
+        var existing = existingList.ToHashSet();
+
+        var toInsert = new List<Lead>();
+        int skipped = 0;
+
+        foreach (var item in request.Leads)
+        {
+            var key = new { NameLower = item.Name.ToLower(), WebsiteLower = item.Website.ToLower() };
+            if (existing.Any(e => e.NameLower == key.NameLower && e.WebsiteLower == key.WebsiteLower))
+            {
+                skipped++;
+                continue;
+            }
+
+            toInsert.Add(new Lead
+            {
+                Name = item.Name,
+                Website = item.Website,
+                City = item.City,
+                Sector = item.Sector,
+                Phone = item.Phone,
+                CompanyEmail = item.Email,
+                Source = item.Source,
+                ImportedByUserId = userId,
+                ImportedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow
+            });
+
+            existing.Add(key);
+        }
+
+        if (toInsert.Count > 0)
+        {
+            _db.Leads.AddRange(toInsert);
+            await _db.SaveChangesAsync();
+        }
+
+        return Ok(new ImportResultDto(toInsert.Count, skipped, 0, []));
     }
 
     private static LeadDto ToDto(Lead l) => new(
