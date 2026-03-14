@@ -1,6 +1,8 @@
 using LeadManager.Api.Data;
+using LeadManager.Api.Hubs;
 using LeadManager.Api.Models;
 using LeadManager.Api.Services;
+using LeadManager.Api.Services.Enrichment;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -77,6 +79,10 @@ builder.Services.AddAuthorization();
 
 // JWT service
 builder.Services.AddScoped<JwtService>();
+
+// Enrichment services
+builder.Services.AddSingleton<EnrichmentChannel>();
+builder.Services.AddHostedService<EnrichmentBackgroundService>();
 
 // Controllers
 builder.Services.AddControllers();
@@ -168,6 +174,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<EnrichmentHub>("/hubs/enrichment");
 
 // Health endpoint
 app.MapGet("/api/health", () => Results.Ok(new { status = "ok", timestamp = DateTime.UtcNow }))

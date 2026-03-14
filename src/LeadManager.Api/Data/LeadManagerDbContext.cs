@@ -12,10 +12,18 @@ public class LeadManagerDbContext : IdentityDbContext<ApplicationUser>
     }
 
     public DbSet<Lead> Leads { get; set; }
+    public DbSet<EnrichmentJob> EnrichmentJobs { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+
+        builder.Entity<EnrichmentJob>()
+            .Property(e => e.LeadIds)
+            .HasConversion(
+                v => System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions?)null),
+                v => System.Text.Json.JsonSerializer.Deserialize<List<Guid>>(v, (System.Text.Json.JsonSerializerOptions?)null) ?? new List<Guid>()
+            );
 
         // Seed roles with fixed GUIDs so they don't change on every migration
         builder.Entity<IdentityRole>().HasData(
