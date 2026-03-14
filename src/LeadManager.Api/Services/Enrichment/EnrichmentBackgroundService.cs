@@ -133,6 +133,11 @@ public class EnrichmentBackgroundService : BackgroundService
         var embeddingService = new EmbeddingService(_configuration);
         var ragService = new RagEnrichmentService(_configuration);
 
+        // Load the seller's company profile (for sales pitch generation)
+        var sellerProfile = lead.ImportedByUserId != null
+            ? await db.CompanyProfiles.FirstOrDefaultAsync(p => p.UserId == lead.ImportedByUserId, stoppingToken)
+            : null;
+
         // Step 1: Normalize URL + reachability check
         var (resolvedUrl, websiteStatus) = await urlNormalizer.NormalizeAndCheckAsync(lead.Website);
 
@@ -211,8 +216,8 @@ public class EnrichmentBackgroundService : BackgroundService
             await db.SaveChangesAsync(stoppingToken);
         }
 
-        // Step 5: RAG Q&A
-        var answers = await ragService.EnrichAsync(db, lead);
+        // Step 5: RAG Q&A + sales pitch generation
+        var answers = await ragService.EnrichAsync(db, lead, sellerProfile);
 
         // Step 6: Persist results
         var finalLead = await db.Leads.FindAsync(new object[] { lead.Id }, stoppingToken);
@@ -246,6 +251,9 @@ public class EnrichmentBackgroundService : BackgroundService
 
             if (!string.IsNullOrWhiteSpace(answers.AiSummary))
                 finalLead.AiSummary = answers.AiSummary;
+
+            if (!string.IsNullOrWhiteSpace(answers.SalesPitch))
+                finalLead.SalesPitch = answers.SalesPitch;
 
             finalLead.WebsiteStatus = WebsiteStatus.Reachable;
             finalLead.ResolvedUrl = resolvedUrl;

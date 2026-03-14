@@ -29,6 +29,7 @@ export interface Lead {
   pagesCrawled?: number
   chunksIndexed?: number
   aiSummary?: string | null
+  salesPitch?: string | null
 }
 
 export interface LeadsResponse {

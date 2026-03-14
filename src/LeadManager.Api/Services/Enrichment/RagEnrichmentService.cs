@@ -33,7 +33,7 @@ public class RagEnrichmentService
         new RagQuestion("targetAudience","Wie is de doelgroep van dit bedrijf?"),
     };
 
-    public async Task<EnrichmentAnswers> EnrichAsync(LeadManagerDbContext db, Lead lead)
+    public async Task<EnrichmentAnswers> EnrichAsync(LeadManagerDbContext db, Lead lead, CompanyProfile? sellerProfile = null)
     {
         var answers = new EnrichmentAnswers();
 
@@ -72,6 +72,16 @@ public class RagEnrichmentService
             answers.AiSummary = await GenerateSummaryAsync(db, lead, answers);
         }
         catch { /* non-fatal */ }
+
+        // Generate a personalized sales pitch if we have a seller profile
+        if (sellerProfile != null)
+        {
+            try
+            {
+                answers.SalesPitch = await GenerateSalesPitchAsync(db, lead, answers, sellerProfile);
+            }
+            catch { /* non-fatal */ }
+        }
 
         return answers;
     }
@@ -117,6 +127,75 @@ Schrijf in lopende tekst, zakelijk maar leesbaar. Geen opsomming, geen headers. 
             model = "gpt-4o-mini",
             messages = new[] { new { role = "user", content = prompt } },
             max_tokens = 300
+        };
+
+        var json = JsonSerializer.Serialize(requestBody);
+        var content = new StringContent(json, Encoding.UTF8, "application/json");
+        var response = await _http.PostAsync("https://api.openai.com/v1/chat/completions", content);
+        response.EnsureSuccessStatusCode();
+
+        var responseJson = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(responseJson);
+        var text = doc.RootElement
+            .GetProperty("choices")[0]
+            .GetProperty("message")
+            .GetProperty("content")
+            .GetString()?.Trim();
+
+        return string.IsNullOrWhiteSpace(text) ? null : text;
+    }
+
+    private async Task<string?> GenerateSalesPitchAsync(LeadManagerDbContext db, Lead lead, EnrichmentAnswers answers, CompanyProfile sellerProfile)
+    {
+        // Get relevant website chunks for context
+        var pitchEmbedding = await _embedding.EmbedAsync("bedrijfsdoelen uitdagingen processen software automatisering");
+        var chunks = await _vectorSearch.SearchAsync(db, lead.Id, pitchEmbedding, topK: 6);
+        if (chunks.Count == 0 && string.IsNullOrWhiteSpace(answers.Description)) return null;
+
+        var websiteContext = chunks.Count > 0 ? string.Join("\n\n---\n\n", chunks) : "";
+
+        var ownerGreeting = !string.IsNullOrWhiteSpace(answers.OwnerName)
+            ? answers.OwnerName!.Split(' ')[0]
+            : null;
+
+        var leadFacts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(answers.Description))    leadFacts.Add($"Wat ze doen: {answers.Description}");
+        if (!string.IsNullOrWhiteSpace(answers.Services))       leadFacts.Add($"Diensten: {answers.Services}");
+        if (!string.IsNullOrWhiteSpace(answers.TargetAudience)) leadFacts.Add($"Doelgroep: {answers.TargetAudience}");
+
+        var prompt = $"""
+Je bent een B2B sales expert die persoonlijke, overtuigende salespitches schrijft.
+
+VERKOPER (degene die de pitch stuurt):
+Bedrijf: {sellerProfile.CompanyName}
+Wat zij doen: {sellerProfile.WhatTheyDo}
+Ideale klant: {sellerProfile.IdealCustomerProfile}
+
+LEAD (ontvanger van de pitch):
+Bedrijf: {lead.Name}
+Website: {lead.Website}
+{(leadFacts.Count > 0 ? string.Join("\n", leadFacts) : "")}
+
+Website-inhoud van de lead:
+{(string.IsNullOrWhiteSpace(websiteContext) ? "(niet beschikbaar)" : websiteContext)}
+
+Schrijf een korte, persoonlijke salespitch van 3-5 zinnen.{(ownerGreeting != null ? $" Begin met 'Hallo {ownerGreeting},'." : "")}
+
+Eisen:
+- Toon dat je hun website hebt bekeken: noem 1-2 specifieke dingen die je zag
+- Leg concreet uit WHY {sellerProfile.CompanyName} relevant is voor {lead.Name}
+- Eindig met een lichte call-to-action (niet opdringerig)
+- Schrijf in het Nederlands, informeel maar professioneel
+- Geen vage algemeenheden — wees specifiek
+
+Schrijf alleen de pitch, geen intro of uitleg.
+""";
+
+        var requestBody = new
+        {
+            model = "gpt-4o-mini",
+            messages = new[] { new { role = "user", content = prompt } },
+            max_tokens = 400
         };
 
         var json = JsonSerializer.Serialize(requestBody);
@@ -188,4 +267,5 @@ public class EnrichmentAnswers
     public string? Services { get; set; }
     public string? TargetAudience { get; set; }
     public string? AiSummary { get; set; }
+    public string? SalesPitch { get; set; }
 }

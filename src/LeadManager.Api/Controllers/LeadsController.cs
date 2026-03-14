@@ -328,5 +328,6 @@ public class LeadsController : ControllerBase
         l.EnrichmentVersion,
         l.PagesCrawled,
         l.ChunksIndexed,
-        l.AiSummary);
+        l.AiSummary,
+        l.SalesPitch);
 }

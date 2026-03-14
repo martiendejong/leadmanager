@@ -31,7 +31,8 @@ public record LeadDto(
     int EnrichmentVersion,
     int PagesCrawled,
     int ChunksIndexed,
-    string? AiSummary);
+    string? AiSummary,
+    string? SalesPitch);
 
 public record CreateLeadDto(
     string Name,

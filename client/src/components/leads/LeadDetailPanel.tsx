@@ -123,7 +123,20 @@ export default function LeadDetailPanel({ lead, onClose }: Props) {
             {/* Scrollable body */}
             <div className="flex-1 overflow-y-auto p-5 space-y-6">
 
-              {/* AI Summary — prominent card */}
+              {/* Sales Pitch — most prominent, top of panel */}
+              {lead.salesPitch && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                    </svg>
+                    <span className="text-xs font-semibold text-green-700 uppercase tracking-wide">Salespitch</span>
+                  </div>
+                  <p className="text-sm text-green-900 leading-relaxed whitespace-pre-wrap">{lead.salesPitch}</p>
+                </div>
+              )}
+
+              {/* AI Summary */}
               {lead.aiSummary && (
                 <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
                   <div className="flex items-center gap-1.5 mb-2">
