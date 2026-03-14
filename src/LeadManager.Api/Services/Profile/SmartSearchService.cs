@@ -15,7 +15,11 @@ public record QualifiedLead(
     string Email,
     string Source,
     int ConfidenceScore,
-    string QualificationReason
+    string QualificationReason,
+    string? OwnerName = null,
+    string? Description = null,
+    string? Services = null,
+    string? TargetAudience = null
 );
 
 public class SmartSearchService
@@ -92,6 +96,7 @@ Geef antwoord als JSON:
 
     public async Task<List<QualifiedLead>> SearchAndQualifyAsync(
         CompanyProfile profile,
+        HashSet<string>? existingLeadKeys = null,
         IProgress<QualifiedLead>? progress = null,
         CancellationToken cancellationToken = default)
     {
@@ -119,8 +124,19 @@ Geef antwoord als JSON:
             catch (OperationCanceledException) { break; }
             catch (Exception ex)
             {
-                _logger.LogWarning("Query failed: {Query} — {Error}", query, ex.Message);
+                _logger.LogWarning("Query failed: {Query} - {Error}", query, ex.Message);
             }
+        }
+
+        // Filter out leads that are already in the user's list
+        if (existingLeadKeys != null && existingLeadKeys.Count > 0)
+        {
+            var before = allResults.Count;
+            allResults = allResults
+                .Where(r => !existingLeadKeys.Contains(MakeKey(r.Name, r.Website)))
+                .ToList();
+            _logger.LogInformation("Dedup: filtered {Removed} already-imported leads, {Remaining} remaining",
+                before - allResults.Count, allResults.Count);
         }
 
         _logger.LogInformation("Found {Count} unique results across all queries", allResults.Count);
@@ -147,7 +163,10 @@ Geef antwoord als JSON:
     private async Task<List<QualifiedLead>> QualifyBatchAsync(CompanyProfile profile, LeadSearchResult[] batch)
     {
         var resultLines = batch.Select((r, i) =>
-            $"{i + 1}. Naam: {r.Name} | Website: {r.Website} | Stad: {r.City} | Snippet beschikbaar: ja").ToList();
+        {
+            var snippetPart = string.IsNullOrWhiteSpace(r.Snippet) ? "" : $" | Snippet: {r.Snippet}";
+            return $"{i + 1}. Naam: {r.Name} | Website: {r.Website} | Stad: {r.City}{snippetPart}";
+        }).ToList();
 
         var prompt = $@"Je bent een lead kwalificatie expert.
 
@@ -157,6 +176,7 @@ Wat ze doen: {profile.WhatTheyDo}
 Ideale klant (ICP): {profile.IdealCustomerProfile}
 
 Beoordeel elk zoekresultaat: is dit een echt bedrijf dat klant zou kunnen worden?
+Extraheer ook zoveel mogelijk bedrijfsinformatie uit de snippet.
 
 Zoekresultaten:
 {string.Join("\n", resultLines)}
@@ -165,12 +185,13 @@ Regels:
 - Score 0-100 (>= 60 = relevant)
 - Geef 0 voor directories, sociale media, nieuwssites, portals
 - Geef hoge score alleen als het echt een bedrijf is dat bij het ICP past
-- Wees kritisch — kwaliteit boven kwantiteit
+- Wees kritisch - kwaliteit boven kwantiteit
+- Extraheer ownerName, description, services, targetAudience als ze herkenbaar zijn in de snippet (anders null)
 
 JSON antwoord:
 {{""results"": [
-  {{""index"": 1, ""isCompany"": true, ""confidenceScore"": 75, ""reason"": ""MKB bedrijf in doelregio""}},
-  {{""index"": 2, ""isCompany"": false, ""confidenceScore"": 0, ""reason"": ""Directory website""}}
+  {{""index"": 1, ""isCompany"": true, ""confidenceScore"": 75, ""reason"": ""MKB bedrijf in doelregio"", ""ownerName"": ""Jan de Vries"", ""description"": ""Loodgietersbedrijf actief in Utrecht"", ""services"": ""Loodgieterswerk, installaties"", ""targetAudience"": ""Particulieren en bedrijven""}},
+  {{""index"": 2, ""isCompany"": false, ""confidenceScore"": 0, ""reason"": ""Directory website"", ""ownerName"": null, ""description"": null, ""services"": null, ""targetAudience"": null}}
 ]}}";
 
         try
@@ -180,7 +201,7 @@ JSON antwoord:
                 model = "gpt-4o-mini",
                 messages = new[] { new { role = "user", content = prompt } },
                 response_format = new { type = "json_object" },
-                max_tokens = 800
+                max_tokens = 1200
             };
 
             var json = JsonSerializer.Serialize(requestBody);
@@ -212,7 +233,12 @@ JSON antwoord:
                     if (score >= 60)
                     {
                         var r = batch[idx];
-                        results.Add(new QualifiedLead(r.Name, r.Website, r.City, r.Sector, r.Phone, r.Email, r.Source, score, reason));
+                        var ownerName = item.TryGetProperty("ownerName", out var owEl) && owEl.ValueKind == JsonValueKind.String ? owEl.GetString() : null;
+                        var description = item.TryGetProperty("description", out var descEl) && descEl.ValueKind == JsonValueKind.String ? descEl.GetString() : null;
+                        var services = item.TryGetProperty("services", out var svcEl) && svcEl.ValueKind == JsonValueKind.String ? svcEl.GetString() : null;
+                        var targetAudience = item.TryGetProperty("targetAudience", out var taEl) && taEl.ValueKind == JsonValueKind.String ? taEl.GetString() : null;
+
+                        results.Add(new QualifiedLead(r.Name, r.Website, r.City, r.Sector, r.Phone, r.Email, r.Source, score, reason, ownerName, description, services, targetAudience));
                     }
                 }
             }
@@ -225,6 +251,9 @@ JSON antwoord:
             return [];
         }
     }
+
+    public static string MakeKey(string name, string website) =>
+        $"{name.Trim().ToLowerInvariant()}|{ExtractDomain(website)}";
 
     private static string ExtractDomain(string url)
     {

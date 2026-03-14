@@ -277,6 +277,10 @@ public class LeadsController : ControllerBase
                 Phone = item.Phone,
                 CompanyEmail = item.Email,
                 Source = item.Source,
+                OwnerName = item.OwnerName ?? "",
+                Description = item.Description ?? "",
+                Services = item.Services ?? "",
+                TargetAudience = item.TargetAudience ?? "",
                 ImportedByUserId = userId,
                 ImportedAt = DateTime.UtcNow,
                 CreatedAt = DateTime.UtcNow

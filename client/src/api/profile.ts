@@ -27,6 +27,10 @@ export interface QualifiedLead {
   source: string
   confidenceScore: number
   qualificationReason: string
+  ownerName?: string | null
+  description?: string | null
+  services?: string | null
+  targetAudience?: string | null
 }
 
 export async function getProfile(): Promise<CompanyProfile | null> {
