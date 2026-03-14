@@ -1,3 +1,4 @@
+using System.Text.Json;
 using LeadManager.Api.Data;
 using LeadManager.Api.Hubs;
 using LeadManager.Api.Models;
@@ -62,10 +63,7 @@ public class EnrichmentBackgroundService : BackgroundService
             .Where(l => job.LeadIds.Contains(l.Id))
             .ToListAsync(stoppingToken);
 
-        var scraper = new ScraperService();
-        var nameExtractor = new NameExtractorService(_configuration);
-
-        var semaphore = new SemaphoreSlim(5);
+        var semaphore = new SemaphoreSlim(3); // parallel but conservative for API rate limits
 
         var tasks = leads.Select(async lead =>
         {
@@ -73,25 +71,13 @@ public class EnrichmentBackgroundService : BackgroundService
             try
             {
                 bool isSuccess = false;
-                string firstName = "";
-                string lastName = "";
+                string displayName = "";
 
                 try
                 {
-                    var text = await scraper.ScrapeOwnerTextAsync(lead.Name, lead.Website, lead.LinkedInUrl);
-                    (firstName, lastName) = await nameExtractor.ExtractOwnerNameAsync(lead.Name, text);
-
-                    if (!string.IsNullOrWhiteSpace(firstName) || !string.IsNullOrWhiteSpace(lastName))
-                    {
-                        lead.OwnerFirstName = firstName;
-                        lead.OwnerLastName = lastName;
-                        lead.OwnerName = $"{firstName} {lastName}".Trim();
-                        lead.IsEnriched = true;
-                        lead.EnrichedAt = DateTime.UtcNow;
-                        isSuccess = true;
-                    }
-
+                    displayName = await EnrichLeadAsync(lead, jobId, stoppingToken);
                     job.SuccessCount++;
+                    isSuccess = true;
                 }
                 catch (Exception ex)
                 {
@@ -105,38 +91,11 @@ public class EnrichmentBackgroundService : BackgroundService
                 {
                     jobId = jobId.ToString(),
                     leadId = lead.Id.ToString(),
-                    name = $"{firstName} {lastName}".Trim(),
+                    name = displayName,
                     processed = job.ProcessedLeads,
                     total = job.TotalLeads,
                     isSuccess
                 }, stoppingToken);
-
-                // Persist lead changes and job progress
-                using var innerScope = _scopeFactory.CreateScope();
-                var innerDb = innerScope.ServiceProvider.GetRequiredService<LeadManagerDbContext>();
-
-                if (isSuccess)
-                {
-                    var dbLead = await innerDb.Leads.FindAsync(new object[] { lead.Id }, stoppingToken);
-                    if (dbLead != null)
-                    {
-                        dbLead.OwnerFirstName = lead.OwnerFirstName;
-                        dbLead.OwnerLastName = lead.OwnerLastName;
-                        dbLead.OwnerName = lead.OwnerName;
-                        dbLead.IsEnriched = true;
-                        dbLead.EnrichedAt = lead.EnrichedAt;
-                    }
-                }
-
-                var dbJob = await innerDb.EnrichmentJobs.FindAsync(new object[] { jobId }, stoppingToken);
-                if (dbJob != null)
-                {
-                    dbJob.ProcessedLeads = job.ProcessedLeads;
-                    dbJob.SuccessCount = job.SuccessCount;
-                    dbJob.ErrorCount = job.ErrorCount;
-                }
-
-                await innerDb.SaveChangesAsync(stoppingToken);
             }
             finally
             {
@@ -154,9 +113,149 @@ public class EnrichmentBackgroundService : BackgroundService
         {
             finalJob.Status = "Completed";
             finalJob.CompletedAt = DateTime.UtcNow;
+            finalJob.ProcessedLeads = job.ProcessedLeads;
+            finalJob.SuccessCount = job.SuccessCount;
+            finalJob.ErrorCount = job.ErrorCount;
             await finalDb.SaveChangesAsync(stoppingToken);
         }
 
         _logger.LogInformation("Enrichment job {JobId} completed: {Success} success, {Error} errors", jobId, job.SuccessCount, job.ErrorCount);
+    }
+
+    private async Task<string> EnrichLeadAsync(Lead lead, Guid jobId, CancellationToken stoppingToken)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<LeadManagerDbContext>();
+
+        var urlNormalizer = new UrlNormalizerService();
+        var sitemapService = new SitemapService();
+        var pageFetcher = new PageFetcherService();
+        var embeddingService = new EmbeddingService(_configuration);
+        var ragService = new RagEnrichmentService(_configuration);
+
+        // Step 1: Normalize URL + reachability check
+        var (resolvedUrl, websiteStatus) = await urlNormalizer.NormalizeAndCheckAsync(lead.Website);
+
+        if (websiteStatus == WebsiteStatus.Unreachable)
+        {
+            var dbLead = await db.Leads.FindAsync(new object[] { lead.Id }, stoppingToken);
+            if (dbLead != null)
+            {
+                dbLead.WebsiteStatus = WebsiteStatus.Unreachable;
+                dbLead.ResolvedUrl = resolvedUrl;
+                dbLead.EnrichmentVersion = 2;
+                dbLead.IsEnriched = true;
+                dbLead.EnrichedAt = DateTime.UtcNow;
+                await db.SaveChangesAsync(stoppingToken);
+            }
+            return "";
+        }
+
+        // Step 2: Discover sitemap URLs
+        var pageUrls = await sitemapService.DiscoverUrlsAsync(resolvedUrl, maxPages: 50);
+
+        // Step 3: Fetch + strip page content
+        // Remove existing page content for this lead (re-enrichment)
+        var existingContent = db.LeadPageContents.Where(p => p.LeadId == lead.Id);
+        db.LeadPageContents.RemoveRange(existingContent);
+        var existingChunks = db.LeadDocumentChunks.Where(c => c.LeadId == lead.Id);
+        db.LeadDocumentChunks.RemoveRange(existingChunks);
+        await db.SaveChangesAsync(stoppingToken);
+
+        var pageContents = new List<LeadPageContent>();
+        foreach (var url in pageUrls)
+        {
+            if (stoppingToken.IsCancellationRequested) break;
+            var (text, httpStatus) = await pageFetcher.FetchAndStripAsync(url);
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                pageContents.Add(new LeadPageContent
+                {
+                    LeadId = lead.Id,
+                    Url = url,
+                    RawText = text,
+                    HttpStatus = httpStatus
+                });
+            }
+        }
+
+        db.LeadPageContents.AddRange(pageContents);
+        await db.SaveChangesAsync(stoppingToken);
+
+        // Step 4: Chunk + embed
+        var allChunks = new List<(LeadPageContent page, string chunkText, int chunkIndex)>();
+        foreach (var page in pageContents)
+        {
+            var chunks = embeddingService.ChunkText(page.RawText);
+            for (int i = 0; i < chunks.Count; i++)
+                allChunks.Add((page, chunks[i], i));
+        }
+
+        if (allChunks.Count > 0)
+        {
+            var chunkTexts = allChunks.Select(c => c.chunkText).ToList();
+            var embeddings = await embeddingService.EmbedBatchAsync(chunkTexts);
+
+            var docChunks = allChunks.Select((c, i) => new LeadDocumentChunk
+            {
+                LeadId = lead.Id,
+                PageContentId = c.page.Id,
+                ChunkIndex = c.chunkIndex,
+                ChunkText = c.chunkText,
+                EmbeddingJson = i < embeddings.Count
+                    ? JsonSerializer.Serialize(embeddings[i])
+                    : "[]"
+            }).ToList();
+
+            db.LeadDocumentChunks.AddRange(docChunks);
+            await db.SaveChangesAsync(stoppingToken);
+        }
+
+        // Step 5: RAG Q&A
+        var answers = await ragService.EnrichAsync(db, lead);
+
+        // Step 6: Persist results
+        var finalLead = await db.Leads.FindAsync(new object[] { lead.Id }, stoppingToken);
+        if (finalLead != null)
+        {
+            if (!string.IsNullOrWhiteSpace(answers.OwnerName))
+            {
+                var parts = answers.OwnerName.Trim().Split(' ', 2);
+                finalLead.OwnerFirstName = parts[0];
+                finalLead.OwnerLastName = parts.Length > 1 ? parts[1] : "";
+                finalLead.OwnerName = answers.OwnerName;
+            }
+
+            if (!string.IsNullOrWhiteSpace(answers.OwnerTitle))
+                finalLead.OwnerTitle = answers.OwnerTitle;
+
+            if (!string.IsNullOrWhiteSpace(answers.ContactEmail))
+                finalLead.CompanyEmail = answers.ContactEmail;
+
+            if (!string.IsNullOrWhiteSpace(answers.ContactPhone))
+                finalLead.Phone = answers.ContactPhone;
+
+            if (!string.IsNullOrWhiteSpace(answers.Description))
+                finalLead.Description = answers.Description;
+
+            if (!string.IsNullOrWhiteSpace(answers.Services))
+                finalLead.Services = answers.Services;
+
+            if (!string.IsNullOrWhiteSpace(answers.TargetAudience))
+                finalLead.TargetAudience = answers.TargetAudience;
+
+            finalLead.WebsiteStatus = WebsiteStatus.Reachable;
+            finalLead.ResolvedUrl = resolvedUrl;
+            finalLead.CrawledAt = DateTime.UtcNow;
+            finalLead.EnrichmentVersion = 2;
+            finalLead.PagesCrawled = pageContents.Count;
+            finalLead.ChunksIndexed = allChunks.Count;
+            finalLead.IsEnriched = true;
+            finalLead.EnrichedAt = DateTime.UtcNow;
+
+            await db.SaveChangesAsync(stoppingToken);
+        }
+
+        return finalLead?.OwnerName ?? "";
     }
 }

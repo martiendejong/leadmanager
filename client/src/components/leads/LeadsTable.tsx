@@ -7,6 +7,7 @@ interface LeadsTableProps {
   orderedIds: string[]
   onRowMouseDown: (id: string, event: React.MouseEvent) => void
   onRowClick: (id: string, event: React.MouseEvent) => void
+  onRowOpen: (lead: Lead) => void
   sortBy: string
   sortDesc: boolean
   onSort: (col: string) => void
@@ -38,6 +39,7 @@ export default function LeadsTable({
   selectedIds,
   onRowMouseDown,
   onRowClick,
+  onRowOpen,
   sortBy,
   sortDesc,
   onSort,
@@ -105,13 +107,14 @@ export default function LeadsTable({
                 {col.sortable && <SortIcon active={sortBy === col.key} desc={sortDesc} />}
               </th>
             ))}
+            <th className="px-4 py-3 w-10" />
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-gray-200">
           {leads.length === 0 && (
             <tr>
               <td
-                colSpan={COLUMNS.length + 1}
+                colSpan={COLUMNS.length + 2}
                 className="px-4 py-12 text-center text-sm text-gray-400"
               >
                 Geen leads gevonden
@@ -189,6 +192,17 @@ export default function LeadsTable({
                 </td>
                 <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
                   {formatDate(lead.enrichedAt)}
+                </td>
+                <td className="px-4 py-3 w-10" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    onClick={() => onRowOpen(lead)}
+                    className="p-1 text-gray-400 hover:text-indigo-600 rounded transition-colors"
+                    title="Details bekijken"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </button>
                 </td>
               </tr>
             )

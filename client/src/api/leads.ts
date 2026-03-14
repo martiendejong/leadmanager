@@ -12,10 +12,22 @@ export interface Lead {
   ownerFirstName: string
   ownerLastName: string
   personalEmail: string
+  linkedInUrl?: string
   isEnriched: boolean
   enrichedAt: string | null
   importedAt: string
   source: string
+  // RAG enrichment fields
+  ownerTitle?: string
+  description?: string
+  services?: string
+  targetAudience?: string
+  websiteStatus?: string
+  resolvedUrl?: string
+  crawledAt?: string | null
+  enrichmentVersion?: number
+  pagesCrawled?: number
+  chunksIndexed?: number
 }
 
 export interface LeadsResponse {

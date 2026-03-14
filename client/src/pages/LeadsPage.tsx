@@ -8,6 +8,7 @@ import LeadsTable from '../components/leads/LeadsTable'
 import FilterBar from '../components/leads/FilterBar'
 import LeadsToolbar from '../components/leads/LeadsToolbar'
 import EnrichmentProgress from '../components/leads/EnrichmentProgress'
+import LeadDetailPanel from '../components/leads/LeadDetailPanel'
 
 const PAGE_SIZE = 50
 
@@ -39,6 +40,7 @@ export default function LeadsPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [activeJobId, setActiveJobId] = useState<string | null>(null)
   const [isEnriching, setIsEnriching] = useState(false)
+  const [detailLead, setDetailLead] = useState<Lead | null>(null)
 
   const tableContainerRef = useRef<HTMLDivElement>(null)
 
@@ -227,6 +229,7 @@ export default function LeadsPage() {
           orderedIds={orderedIds}
           onRowMouseDown={handleRowMouseDown}
           onRowClick={handleRowClick}
+          onRowOpen={setDetailLead}
           sortBy={filter.sortBy ?? ''}
           sortDesc={filter.sortDesc ?? false}
           onSort={handleSort}
@@ -291,6 +294,9 @@ export default function LeadsPage() {
 
       {/* Enrichment progress panel */}
       <EnrichmentProgress jobId={activeJobId} onComplete={handleEnrichmentComplete} />
+
+      {/* Lead detail panel */}
+      <LeadDetailPanel lead={detailLead} onClose={() => setDetailLead(null)} />
     </div>
   )
 }
