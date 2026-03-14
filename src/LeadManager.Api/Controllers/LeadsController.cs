@@ -313,5 +313,15 @@ public class LeadsController : ControllerBase
         l.EnrichedAt,
         l.ImportedAt,
         l.CreatedAt,
-        l.ImportedByUserId);
+        l.ImportedByUserId,
+        l.OwnerTitle,
+        l.Description,
+        l.Services,
+        l.TargetAudience,
+        l.WebsiteStatus.ToString(),
+        l.ResolvedUrl,
+        l.CrawledAt,
+        l.EnrichmentVersion,
+        l.PagesCrawled,
+        l.ChunksIndexed);
 }

@@ -13,6 +13,8 @@ public class LeadManagerDbContext : IdentityDbContext<ApplicationUser>
 
     public DbSet<Lead> Leads { get; set; }
     public DbSet<EnrichmentJob> EnrichmentJobs { get; set; }
+    public DbSet<LeadPageContent> LeadPageContents { get; set; }
+    public DbSet<LeadDocumentChunk> LeadDocumentChunks { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -43,9 +45,27 @@ public class LeadManagerDbContext : IdentityDbContext<ApplicationUser>
             }
         );
 
-        // Unique index on (Name, Website) for deduplication
+        // Unique index scoped per user for deduplication
         builder.Entity<Lead>()
-            .HasIndex(l => new { l.Name, l.Website })
+            .HasIndex(l => new { l.Name, l.Website, l.ImportedByUserId })
             .IsUnique();
+
+        builder.Entity<LeadPageContent>()
+            .HasOne(p => p.Lead)
+            .WithMany()
+            .HasForeignKey(p => p.LeadId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<LeadDocumentChunk>()
+            .HasOne(c => c.Lead)
+            .WithMany()
+            .HasForeignKey(c => c.LeadId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<LeadDocumentChunk>()
+            .HasOne(c => c.PageContent)
+            .WithMany(p => p.Chunks)
+            .HasForeignKey(c => c.PageContentId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

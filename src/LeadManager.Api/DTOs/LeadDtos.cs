@@ -19,7 +19,18 @@ public record LeadDto(
     DateTime? EnrichedAt,
     DateTime ImportedAt,
     DateTime CreatedAt,
-    string? ImportedByUserId);
+    string? ImportedByUserId,
+    // RAG enrichment fields
+    string? OwnerTitle,
+    string? Description,
+    string? Services,
+    string? TargetAudience,
+    string? WebsiteStatus,
+    string? ResolvedUrl,
+    DateTime? CrawledAt,
+    int EnrichmentVersion,
+    int PagesCrawled,
+    int ChunksIndexed);
 
 public record CreateLeadDto(
     string Name,
