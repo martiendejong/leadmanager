@@ -11,6 +11,8 @@ public class LeadManagerDbContext : IdentityDbContext<ApplicationUser>
     {
     }
 
+    public DbSet<Lead> Leads { get; set; }
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -32,5 +34,10 @@ public class LeadManagerDbContext : IdentityDbContext<ApplicationUser>
                 ConcurrencyStamp = "b2c3d4e5-f6a7-8901-bcde-f12345678901"
             }
         );
+
+        // Unique index on (Name, Website) for deduplication
+        builder.Entity<Lead>()
+            .HasIndex(l => new { l.Name, l.Website })
+            .IsUnique();
     }
 }
