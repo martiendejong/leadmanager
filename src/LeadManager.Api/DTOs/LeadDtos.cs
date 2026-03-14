@@ -30,7 +30,8 @@ public record LeadDto(
     DateTime? CrawledAt,
     int EnrichmentVersion,
     int PagesCrawled,
-    int ChunksIndexed);
+    int ChunksIndexed,
+    string? AiSummary);
 
 public record CreateLeadDto(
     string Name,

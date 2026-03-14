@@ -323,5 +323,6 @@ public class LeadsController : ControllerBase
         l.CrawledAt,
         l.EnrichmentVersion,
         l.PagesCrawled,
-        l.ChunksIndexed);
+        l.ChunksIndexed,
+        l.AiSummary);
 }
