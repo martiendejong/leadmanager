@@ -86,6 +86,7 @@ builder.Services.AddScoped<SearchService>();
 
 // Profile + Smart Search services
 builder.Services.AddScoped<CompanyProfileService>();
+builder.Services.AddScoped<GptLeadGeneratorService>();
 builder.Services.AddScoped<SmartSearchService>();
 
 // Enrichment services
