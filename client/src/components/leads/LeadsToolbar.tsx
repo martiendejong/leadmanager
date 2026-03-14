@@ -41,7 +41,7 @@ export default function LeadsToolbar({
             </button>
           </>
         ) : (
-          <span className="text-gray-400 text-xs">Klik, Shift+klik, Ctrl+klik of sleep om te selecteren</span>
+          <span className="text-gray-400 text-xs">Selecteer leads om te verrijken</span>
         )}
       </div>
 

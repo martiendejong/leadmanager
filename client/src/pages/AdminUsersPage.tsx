@@ -74,9 +74,23 @@ function AddUserModal({
     role: 'User',
   })
   const [saving, setSaving] = useState(false)
+  const [errors, setErrors] = useState<Partial<UserFormData>>({})
+
+  const validate = (): boolean => {
+    const e: Partial<UserFormData> = {}
+    if (!form.email.trim()) e.email = 'Vul een e-mailadres in'
+    else if (!form.email.includes('@')) e.email = 'Vul een geldig e-mailadres in'
+    if (!form.firstName.trim()) e.firstName = 'Vul een voornaam in'
+    if (!form.lastName.trim()) e.lastName = 'Vul een achternaam in'
+    if (!form.password) e.password = 'Vul een wachtwoord in'
+    else if (form.password.length < 6) e.password = 'Wachtwoord moet minimaal 6 tekens zijn'
+    setErrors(e)
+    return Object.keys(e).length === 0
+  }
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
+    if (!validate()) return
     setSaving(true)
     try {
       await apiClient.post('/api/admin/users', form)
@@ -96,38 +110,38 @@ function AddUserModal({
         <Field label="E-mailadres">
           <input
             type="email"
-            required
             value={form.email}
             onChange={(e) => setForm({ ...form, email: e.target.value })}
             className={inputCls}
           />
+          {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Voornaam">
             <input
-              required
               value={form.firstName}
               onChange={(e) => setForm({ ...form, firstName: e.target.value })}
               className={inputCls}
             />
+            {errors.firstName && <p className="text-red-500 text-xs mt-1">{errors.firstName}</p>}
           </Field>
           <Field label="Achternaam">
             <input
-              required
               value={form.lastName}
               onChange={(e) => setForm({ ...form, lastName: e.target.value })}
               className={inputCls}
             />
+            {errors.lastName && <p className="text-red-500 text-xs mt-1">{errors.lastName}</p>}
           </Field>
         </div>
         <Field label="Wachtwoord">
           <input
             type="password"
-            required
             value={form.password}
             onChange={(e) => setForm({ ...form, password: e.target.value })}
             className={inputCls}
           />
+          {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password}</p>}
         </Field>
         <Field label="Rol">
           <select
@@ -289,6 +303,12 @@ export default function AdminUsersPage() {
   }, [])
 
   const toggleActive = async (user: AdminUser) => {
+    const action = user.isActive ? 'deactiveren' : 'activeren'
+    const warning = user.isActive ? ' De gebruiker kan daarna niet meer inloggen.' : ''
+    const confirmed = window.confirm(
+      `Weet je zeker dat je ${user.firstName} ${user.lastName} wilt ${action}?${warning}`
+    )
+    if (!confirmed) return
     try {
       await apiClient.put(`/api/admin/users/${user.id}`, {
         firstName: user.firstName,

@@ -34,11 +34,11 @@ public class AuthController : ControllerBase
     {
         var user = await _userManager.FindByEmailAsync(request.Email);
         if (user == null || !user.IsActive)
-            return Unauthorized(new { message = "Invalid credentials" });
+            return Unauthorized(new { message = "Onbekend e-mailadres of wachtwoord" });
 
         var result = await _signInManager.CheckPasswordSignInAsync(user, request.Password, lockoutOnFailure: false);
         if (!result.Succeeded)
-            return Unauthorized(new { message = "Invalid credentials" });
+            return Unauthorized(new { message = "Onbekend e-mailadres of wachtwoord" });
 
         var roles = await _userManager.GetRolesAsync(user);
         var token = _jwtService.GenerateToken(user, roles);
