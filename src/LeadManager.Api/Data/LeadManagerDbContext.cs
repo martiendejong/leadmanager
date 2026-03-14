@@ -15,6 +15,7 @@ public class LeadManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<EnrichmentJob> EnrichmentJobs { get; set; }
     public DbSet<LeadPageContent> LeadPageContents { get; set; }
     public DbSet<LeadDocumentChunk> LeadDocumentChunks { get; set; }
+    public DbSet<CompanyProfile> CompanyProfiles { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -67,5 +68,9 @@ public class LeadManagerDbContext : IdentityDbContext<ApplicationUser>
             .WithMany(p => p.Chunks)
             .HasForeignKey(c => c.PageContentId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<CompanyProfile>()
+            .HasIndex(p => p.UserId)
+            .IsUnique();
     }
 }
