@@ -87,6 +87,21 @@ export async function enrichLeads(ids: string[]): Promise<{ jobId: string }> {
   return res.data
 }
 
+export interface EnrichmentJobStatus {
+  id: string
+  status: string
+  totalLeads: number
+  processedLeads: number
+  successCount: number
+  errorCount: number
+  completedAt: string | null
+}
+
+export async function fetchEnrichmentJobStatus(jobId: string): Promise<EnrichmentJobStatus> {
+  const res = await apiClient.get<EnrichmentJobStatus>(`/api/leads/enrich/${jobId}`)
+  return res.data
+}
+
 export interface LeadSearchResult {
   name: string
   website: string

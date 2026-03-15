@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import * as signalR from '@microsoft/signalr'
+import { fetchEnrichmentJobStatus } from '../../api/leads'
 
 interface EnrichmentEvent {
   jobId: string
@@ -22,17 +23,29 @@ export default function EnrichmentProgress({ jobId, onComplete }: EnrichmentProg
   const [processed, setProcessed] = useState(0)
   const connectionRef = useRef<signalR.HubConnection | null>(null)
   const feedRef = useRef<HTMLDivElement>(null)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const completeRef = useRef(false)
+
+  const markComplete = (cb: () => void) => {
+    if (completeRef.current) return
+    completeRef.current = true
+    setIsComplete(true)
+    setTimeout(cb, 2000)
+  }
 
   useEffect(() => {
     if (!jobId) {
-      // Reset state when jobId cleared
       setEvents([])
       setIsComplete(false)
       setTotal(0)
       setProcessed(0)
+      completeRef.current = false
       return
     }
 
+    completeRef.current = false
+
+    // --- SignalR (real-time updates) ---
     const token = localStorage.getItem('lm_token')
     const baseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:5000'
 
@@ -47,29 +60,39 @@ export default function EnrichmentProgress({ jobId, onComplete }: EnrichmentProg
       setEvents((prev) => [...prev, event])
       setProcessed(event.processed)
       setTotal(event.total)
-
       if (event.processed >= event.total && event.total > 0) {
-        setIsComplete(true)
-        setTimeout(() => {
-          onComplete()
-        }, 2000)
+        markComplete(onComplete)
       }
     })
 
     connection
       .start()
-      .then(() => {
-        return connection.invoke('JoinJob', jobId)
-      })
-      .catch((err) => {
-        console.error('SignalR connection failed:', err)
-      })
+      .then(() => connection.invoke('JoinJob', jobId))
+      .catch((err) => console.error('SignalR connection failed:', err))
 
     connectionRef.current = connection
+
+    // --- HTTP polling fallback (every 2s) ---
+    pollRef.current = setInterval(async () => {
+      if (completeRef.current) return
+      try {
+        const status = await fetchEnrichmentJobStatus(jobId)
+        setTotal(status.totalLeads)
+        setProcessed(status.processedLeads)
+        if (status.status === 'Completed' || status.status === 'completed' ||
+            (status.processedLeads >= status.totalLeads && status.totalLeads > 0)) {
+          if (pollRef.current) clearInterval(pollRef.current)
+          markComplete(onComplete)
+        }
+      } catch {
+        // ignore poll errors
+      }
+    }, 2000)
 
     return () => {
       connection.stop()
       connectionRef.current = null
+      if (pollRef.current) clearInterval(pollRef.current)
     }
   }, [jobId, onComplete])
 
