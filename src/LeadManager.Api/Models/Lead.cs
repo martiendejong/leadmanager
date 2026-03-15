@@ -35,4 +35,6 @@ public class Lead
     public int EnrichmentVersion { get; set; } = 0;
     public int PagesCrawled { get; set; } = 0;
     public int ChunksIndexed { get; set; } = 0;
+    public string? AiSummary { get; set; }
+    public string? SalesPitch { get; set; }
 }

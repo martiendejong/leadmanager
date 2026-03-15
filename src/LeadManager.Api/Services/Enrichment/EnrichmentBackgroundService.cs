@@ -63,47 +63,37 @@ public class EnrichmentBackgroundService : BackgroundService
             .Where(l => job.LeadIds.Contains(l.Id))
             .ToListAsync(stoppingToken);
 
-        var semaphore = new SemaphoreSlim(3); // parallel but conservative for API rate limits
-
-        var tasks = leads.Select(async lead =>
+        foreach (var lead in leads)
         {
-            await semaphore.WaitAsync(stoppingToken);
+            if (stoppingToken.IsCancellationRequested) break;
+
+            bool isSuccess = false;
+            string displayName = "";
+
             try
             {
-                bool isSuccess = false;
-                string displayName = "";
-
-                try
-                {
-                    displayName = await EnrichLeadAsync(lead, jobId, stoppingToken);
-                    job.SuccessCount++;
-                    isSuccess = true;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Failed to enrich lead {LeadId}", lead.Id);
-                    job.ErrorCount++;
-                }
-
-                job.ProcessedLeads++;
-
-                await _hub.Clients.Group($"job-{jobId}").SendAsync("LeadEnriched", new
-                {
-                    jobId = jobId.ToString(),
-                    leadId = lead.Id.ToString(),
-                    name = displayName,
-                    processed = job.ProcessedLeads,
-                    total = job.TotalLeads,
-                    isSuccess
-                }, stoppingToken);
+                displayName = await EnrichLeadAsync(lead, jobId, stoppingToken);
+                job.SuccessCount++;
+                isSuccess = true;
             }
-            finally
+            catch (Exception ex)
             {
-                semaphore.Release();
+                _logger.LogWarning(ex, "Failed to enrich lead {LeadId}", lead.Id);
+                job.ErrorCount++;
             }
-        }).ToList();
 
-        await Task.WhenAll(tasks);
+            job.ProcessedLeads++;
+
+            await _hub.Clients.Group($"job-{jobId}").SendAsync("LeadEnriched", new
+            {
+                jobId = jobId.ToString(),
+                leadId = lead.Id.ToString(),
+                name = displayName,
+                processed = job.ProcessedLeads,
+                total = job.TotalLeads,
+                isSuccess
+            }, stoppingToken);
+        }
 
         // Mark job complete
         using var finalScope = _scopeFactory.CreateScope();
@@ -168,6 +158,11 @@ public class EnrichmentBackgroundService : BackgroundService
         {
             _logger.LogWarning(ex, "WebSearch enrichment failed for lead {LeadId}, continuing with RAG enrichment", lead.Id);
         }
+
+        // Load the seller's company profile (for sales pitch generation)
+        var sellerProfile = lead.ImportedByUserId != null
+            ? await db.CompanyProfiles.FirstOrDefaultAsync(p => p.UserId == lead.ImportedByUserId, stoppingToken)
+            : null;
 
         // Step 1: Normalize URL + reachability check
         var (resolvedUrl, websiteStatus) = await urlNormalizer.NormalizeAndCheckAsync(lead.Website);
@@ -247,8 +242,8 @@ public class EnrichmentBackgroundService : BackgroundService
             await db.SaveChangesAsync(stoppingToken);
         }
 
-        // Step 5: RAG Q&A
-        var answers = await ragService.EnrichAsync(db, lead);
+        // Step 5: RAG Q&A + sales pitch generation
+        var answers = await ragService.EnrichAsync(db, lead, sellerProfile);
 
         // Step 6: Persist results
         var finalLead = await db.Leads.FindAsync(new object[] { lead.Id }, stoppingToken);
@@ -279,6 +274,12 @@ public class EnrichmentBackgroundService : BackgroundService
 
             if (!string.IsNullOrWhiteSpace(answers.TargetAudience))
                 finalLead.TargetAudience = answers.TargetAudience;
+
+            if (!string.IsNullOrWhiteSpace(answers.AiSummary))
+                finalLead.AiSummary = answers.AiSummary;
+
+            if (!string.IsNullOrWhiteSpace(answers.SalesPitch))
+                finalLead.SalesPitch = answers.SalesPitch;
 
             finalLead.WebsiteStatus = WebsiteStatus.Reachable;
             finalLead.ResolvedUrl = resolvedUrl;

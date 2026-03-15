@@ -3,6 +3,7 @@ using System;
 using LeadManager.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace LeadManager.Api.Migrations
 {
     [DbContext(typeof(LeadManagerDbContext))]
-    partial class LeadManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260314164257_AddCompanyProfile")]
+    partial class AddCompanyProfile
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.25");
@@ -211,9 +214,6 @@ namespace LeadManager.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("AiSummary")
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("AnymailfinderResult")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -288,9 +288,6 @@ namespace LeadManager.Api.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("ResolvedUrl")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("SalesPitch")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Sector")

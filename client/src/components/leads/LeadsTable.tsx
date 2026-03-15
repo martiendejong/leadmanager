@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import type { Lead } from '../../api/leads'
 
 interface LeadsTableProps {
@@ -14,17 +15,18 @@ interface LeadsTableProps {
   isDragging: boolean
   onSelectAll: () => void
   onClearSelection: () => void
+  onImport?: () => void
 }
 
-const COLUMNS: { key: string; label: string; sortable: boolean }[] = [
-  { key: 'name', label: 'Bedrijf', sortable: true },
-  { key: 'website', label: 'Website', sortable: false },
-  { key: 'sector', label: 'Sector', sortable: true },
-  { key: 'city', label: 'Stad', sortable: true },
-  { key: 'ownerName', label: 'Eigenaar', sortable: true },
-  { key: 'companyEmail', label: 'Email', sortable: false },
-  { key: 'isEnriched', label: 'Status', sortable: true },
-  { key: 'enrichedAt', label: 'Verrijkt op', sortable: true },
+const COLUMNS: { key: string; label: string; sortable: boolean; hideOnMobile: boolean }[] = [
+  { key: 'name',         label: 'Bedrijf',    sortable: true,  hideOnMobile: false },
+  { key: 'website',      label: 'Website',    sortable: true,  hideOnMobile: true  },
+  { key: 'sector',       label: 'Sector',     sortable: true,  hideOnMobile: true  },
+  { key: 'city',         label: 'Stad',       sortable: true,  hideOnMobile: true  },
+  { key: 'ownerName',    label: 'Eigenaar',   sortable: true,  hideOnMobile: true  },
+  { key: 'companyEmail', label: 'Email',      sortable: false, hideOnMobile: true  },
+  { key: 'isEnriched',   label: 'Status',     sortable: true,  hideOnMobile: false },
+  { key: 'enrichedAt',   label: 'Verrijkt op', sortable: true, hideOnMobile: true  },
 ]
 
 function SortIcon({ active, desc }: { active: boolean; desc: boolean }) {
@@ -32,6 +34,40 @@ function SortIcon({ active, desc }: { active: boolean; desc: boolean }) {
     return <span className="ml-1 text-gray-300 text-xs">↕</span>
   }
   return <span className="ml-1 text-indigo-600 text-xs">{desc ? '↓' : '↑'}</span>
+}
+
+function EmptyState({ onImport }: { onImport?: () => void }) {
+  return (
+    <tr>
+      <td colSpan={COLUMNS.length + 2} className="px-4 py-16 text-center">
+        <div className="flex flex-col items-center gap-4">
+          <svg className="w-14 h-14 text-indigo-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+          </svg>
+          <div>
+            <p className="text-sm font-medium text-gray-700">Nog geen leads</p>
+            <p className="text-xs text-gray-400 mt-1">Importeer je bestaande leads of laat AI nieuwe leads zoeken</p>
+          </div>
+          <div className="flex items-center gap-3 flex-wrap justify-center">
+            {onImport && (
+              <button
+                onClick={onImport}
+                className="px-4 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium transition-colors"
+              >
+                Importeer leads via Excel
+              </button>
+            )}
+            <Link
+              to="/leads/zoeken"
+              className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium transition-colors"
+            >
+              Zoek leads met AI
+            </Link>
+          </div>
+        </div>
+      </td>
+    </tr>
+  )
 }
 
 export default function LeadsTable({
@@ -46,6 +82,7 @@ export default function LeadsTable({
   isDragging,
   onSelectAll,
   onClearSelection,
+  onImport,
 }: LeadsTableProps) {
   const allSelected = leads.length > 0 && leads.every((l) => selectedIds.has(l.id))
   const someSelected = !allSelected && leads.some((l) => selectedIds.has(l.id))
@@ -100,7 +137,7 @@ export default function LeadsTable({
                 key={col.key}
                 className={`px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap ${
                   col.sortable ? 'cursor-pointer hover:text-gray-700 hover:bg-gray-100' : ''
-                }`}
+                } ${col.hideOnMobile ? 'hidden sm:table-cell' : ''}`}
                 onClick={col.sortable ? () => onSort(col.key) : undefined}
               >
                 {col.label}
@@ -111,16 +148,7 @@ export default function LeadsTable({
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-gray-200">
-          {leads.length === 0 && (
-            <tr>
-              <td
-                colSpan={COLUMNS.length + 2}
-                className="px-4 py-12 text-center text-sm text-gray-400"
-              >
-                Geen leads gevonden
-              </td>
-            </tr>
-          )}
+          {leads.length === 0 && <EmptyState onImport={onImport} />}
           {leads.map((lead) => {
             const selected = selectedIds.has(lead.id)
             return (
@@ -152,7 +180,7 @@ export default function LeadsTable({
                 <td className="px-4 py-3 text-sm font-medium text-gray-900 max-w-48 truncate">
                   {lead.name || '—'}
                 </td>
-                <td className="px-4 py-3 text-sm text-gray-500 max-w-40 truncate">
+                <td className="hidden sm:table-cell px-4 py-3 text-sm text-gray-500 max-w-40 truncate">
                   {lead.website ? (
                     <a
                       href={
@@ -169,14 +197,14 @@ export default function LeadsTable({
                     '—'
                   )}
                 </td>
-                <td className="px-4 py-3 text-sm text-gray-500">{lead.sector || '—'}</td>
-                <td className="px-4 py-3 text-sm text-gray-500">{lead.city || '—'}</td>
-                <td className="px-4 py-3 text-sm text-gray-500">
+                <td className="hidden sm:table-cell px-4 py-3 text-sm text-gray-500">{lead.sector || '—'}</td>
+                <td className="hidden sm:table-cell px-4 py-3 text-sm text-gray-500">{lead.city || '—'}</td>
+                <td className="hidden sm:table-cell px-4 py-3 text-sm text-gray-500">
                   {lead.ownerName ||
                     [lead.ownerFirstName, lead.ownerLastName].filter(Boolean).join(' ') ||
                     '—'}
                 </td>
-                <td className="px-4 py-3 text-sm text-gray-500 max-w-40 truncate">
+                <td className="hidden sm:table-cell px-4 py-3 text-sm text-gray-500 max-w-40 truncate">
                   {lead.companyEmail || lead.personalEmail || '—'}
                 </td>
                 <td className="px-4 py-3 text-sm">
@@ -190,7 +218,7 @@ export default function LeadsTable({
                     </span>
                   )}
                 </td>
-                <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
+                <td className="hidden sm:table-cell px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
                   {formatDate(lead.enrichedAt)}
                 </td>
                 <td className="px-4 py-3 w-10" onClick={(e) => e.stopPropagation()}>

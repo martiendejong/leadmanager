@@ -28,6 +28,8 @@ export interface Lead {
   enrichmentVersion?: number
   pagesCrawled?: number
   chunksIndexed?: number
+  aiSummary?: string | null
+  salesPitch?: string | null
 }
 
 export interface LeadsResponse {
@@ -82,6 +84,21 @@ export async function importLeads(file: File): Promise<void> {
 
 export async function enrichLeads(ids: string[]): Promise<{ jobId: string }> {
   const res = await apiClient.post<{ jobId: string }>('/api/leads/enrich', { ids })
+  return res.data
+}
+
+export interface EnrichmentJobStatus {
+  id: string
+  status: string
+  totalLeads: number
+  processedLeads: number
+  successCount: number
+  errorCount: number
+  completedAt: string | null
+}
+
+export async function fetchEnrichmentJobStatus(jobId: string): Promise<EnrichmentJobStatus> {
+  const res = await apiClient.get<EnrichmentJobStatus>(`/api/leads/enrich/${jobId}`)
   return res.data
 }
 

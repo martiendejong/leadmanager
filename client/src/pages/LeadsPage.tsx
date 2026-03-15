@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useSearchParams, Link } from 'react-router-dom'
 import { fetchLeads, fetchLeadStats, importLeads, enrichLeads } from '../api/leads'
 import type { Lead, LeadFilter, LeadStats } from '../api/leads'
 import { useLeadSelection } from '../hooks/useLeadSelection'
@@ -41,8 +41,12 @@ export default function LeadsPage() {
   const [activeJobId, setActiveJobId] = useState<string | null>(null)
   const [isEnriching, setIsEnriching] = useState(false)
   const [detailLead, setDetailLead] = useState<Lead | null>(null)
+  const [onboardingDismissed, setOnboardingDismissed] = useState(
+    () => localStorage.getItem('lm_onboarding_dismissed') === '1'
+  )
 
   const tableContainerRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const orderedIds = useMemo(() => leads.map((l) => l.id), [leads])
 
@@ -150,6 +154,23 @@ export default function LeadsPage() {
     }
   }, [filter, loadLeads, loadStats, showToast])
 
+  const handleOpenFilePicker = useCallback(() => {
+    fileInputRef.current?.click()
+  }, [])
+
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      handleImport(file)
+      e.target.value = ''
+    }
+  }, [handleImport])
+
+  const dismissOnboarding = useCallback(() => {
+    localStorage.setItem('lm_onboarding_dismissed', '1')
+    setOnboardingDismissed(true)
+  }, [])
+
   const handleEnrich = useCallback(async () => {
     if (selectedIds.size === 0) return
 
@@ -180,8 +201,58 @@ export default function LeadsPage() {
   const totalPages = Math.ceil(total / (filter.pageSize ?? PAGE_SIZE))
   const currentPage = filter.page ?? 1
 
+  const showOnboarding = !onboardingDismissed && !isLoading && total === 0
+
   return (
     <div className="flex flex-col gap-4 h-full">
+      {/* Hidden file input for empty state CTA */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".xlsx,.xls"
+        onChange={handleFileChange}
+        className="hidden"
+      />
+
+      {/* Onboarding banner (first visit, no leads) */}
+      {showOnboarding && (
+        <div className="bg-indigo-600 rounded-xl p-5 text-white relative">
+          <button
+            onClick={dismissOnboarding}
+            className="absolute top-3 right-3 text-indigo-200 hover:text-white transition-colors"
+            aria-label="Sluiten"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+          <h3 className="font-semibold text-lg mb-3">Welkom bij LeadManager!</h3>
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex items-start gap-3">
+              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-500 flex items-center justify-center text-xs font-bold">1</span>
+              <div>
+                <Link to="/profile" className="font-medium underline hover:no-underline">Maak je bedrijfsprofiel aan</Link>
+                <p className="text-indigo-200 text-xs mt-0.5">Zodat AI weet welke leads bij jou passen</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-500 flex items-center justify-center text-xs font-bold">2</span>
+              <div>
+                <Link to="/leads/zoeken" className="font-medium underline hover:no-underline">Zoek leads met AI</Link>
+                <p className="text-indigo-200 text-xs mt-0.5">Op basis van jouw profiel</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-500 flex items-center justify-center text-xs font-bold">3</span>
+              <div>
+                <button onClick={handleOpenFilePicker} className="font-medium underline hover:no-underline text-left">Importeer leads via Excel</button>
+                <p className="text-indigo-200 text-xs mt-0.5">Upload je bestaande leadlijst</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Page header */}
       <div className="flex items-center justify-between">
         <div>
@@ -236,52 +307,68 @@ export default function LeadsPage() {
           isDragging={isDragging}
           onSelectAll={() => selectAll(orderedIds)}
           onClearSelection={clearSelection}
+          onImport={handleOpenFilePicker}
         />
       </div>
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between text-sm text-gray-600">
-          <span>
-            Pagina {currentPage} van {totalPages} ({total.toLocaleString('nl-NL')} leads)
-          </span>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setFilter((f) => ({ ...f, page: Math.max(1, (f.page ?? 1) - 1) }))}
-              disabled={currentPage === 1}
-              className="px-3 py-1 border border-gray-300 rounded disabled:opacity-40 hover:bg-gray-50"
-            >
-              Vorige
-            </button>
-            {/* Page number buttons (max 5 around current) */}
-            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-              const startPage = Math.max(1, Math.min(currentPage - 2, totalPages - 4))
-              const page = startPage + i
-              if (page > totalPages) return null
-              return (
-                <button
-                  key={page}
-                  onClick={() => setFilter((f) => ({ ...f, page }))}
-                  className={`px-3 py-1 border rounded ${
-                    page === currentPage
-                      ? 'bg-indigo-600 text-white border-indigo-600'
-                      : 'border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  {page}
-                </button>
-              )
-            })}
-            <button
-              onClick={() =>
-                setFilter((f) => ({ ...f, page: Math.min(totalPages, (f.page ?? 1) + 1) }))
-              }
-              disabled={currentPage === totalPages}
-              className="px-3 py-1 border border-gray-300 rounded disabled:opacity-40 hover:bg-gray-50"
-            >
-              Volgende
-            </button>
+      {/* Pagination — always visible */}
+      {!isLoading && total > 0 && (
+        <div className="flex items-center justify-between text-sm text-gray-600 flex-wrap gap-2">
+          <div className="flex items-center gap-3">
+            <span>
+              {totalPages > 1
+                ? `Pagina ${currentPage} van ${totalPages} (${total.toLocaleString('nl-NL')} leads)`
+                : `${total.toLocaleString('nl-NL')} leads`}
+            </span>
+            <label className="flex items-center gap-1.5 text-xs text-gray-500">
+              Per pagina:
+              <select
+                value={filter.pageSize ?? PAGE_SIZE}
+                onChange={(e) => setFilter((f) => ({ ...f, pageSize: Number(e.target.value), page: 1 }))}
+                className="border border-gray-300 rounded px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-400"
+              >
+                {[25, 50, 100, 250].map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </label>
           </div>
+          {totalPages > 1 && (
+            <div className="flex gap-2">
+              <button
+                onClick={() => setFilter((f) => ({ ...f, page: Math.max(1, (f.page ?? 1) - 1) }))}
+                disabled={currentPage === 1}
+                className="px-3 py-1 border border-gray-300 rounded disabled:opacity-40 hover:bg-gray-50"
+              >
+                Vorige
+              </button>
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                const startPage = Math.max(1, Math.min(currentPage - 2, totalPages - 4))
+                const page = startPage + i
+                if (page > totalPages) return null
+                return (
+                  <button
+                    key={page}
+                    onClick={() => setFilter((f) => ({ ...f, page }))}
+                    className={`px-3 py-1 border rounded ${
+                      page === currentPage
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                )
+              })}
+              <button
+                onClick={() =>
+                  setFilter((f) => ({ ...f, page: Math.min(totalPages, (f.page ?? 1) + 1) }))
+                }
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 border border-gray-300 rounded disabled:opacity-40 hover:bg-gray-50"
+              >
+                Volgende
+              </button>
+            </div>
+          )}
         </div>
       )}
 

@@ -30,7 +30,9 @@ public record LeadDto(
     DateTime? CrawledAt,
     int EnrichmentVersion,
     int PagesCrawled,
-    int ChunksIndexed);
+    int ChunksIndexed,
+    string? AiSummary,
+    string? SalesPitch);
 
 public record CreateLeadDto(
     string Name,
@@ -69,5 +71,5 @@ public record LeadStatsDto(int Total, int Enriched, int NotEnriched);
 public record ImportResultDto(int Imported, int Skipped, int Errors, List<string> ErrorDetails);
 
 public record LeadSearchRequest(string Sector, string? Location, int Limit = 25);
-public record LeadSearchResult(string Name, string Website, string City, string Sector, string Phone, string Email, string Source);
+public record LeadSearchResult(string Name, string Website, string City, string Sector, string Phone, string Email, string Source, string Snippet = "", string? OwnerName = null, string? Description = null, string? Services = null, string? TargetAudience = null);
 public record LeadSearchImportRequest(List<LeadSearchResult> Leads);

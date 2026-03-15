@@ -157,7 +157,7 @@ public class SearchService
         var phone = ExtractPhone(snippet + " " + displayUrl);
         var city = ExtractCity(snippet);
 
-        return new LeadSearchResult(title, url, city, sector, phone, "", "duckduckgo");
+        return new LeadSearchResult(title, url, city, sector, phone, "", "duckduckgo", snippet);
     }
 
     /// <summary>
