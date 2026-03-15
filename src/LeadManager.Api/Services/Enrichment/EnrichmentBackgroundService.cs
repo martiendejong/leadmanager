@@ -132,6 +132,42 @@ public class EnrichmentBackgroundService : BackgroundService
         var pageFetcher = new PageFetcherService();
         var embeddingService = new EmbeddingService(_configuration);
         var ragService = new RagEnrichmentService(_configuration);
+        var webSearchLogger = scope.ServiceProvider.GetRequiredService<ILogger<WebSearchEnrichmentService>>();
+        var webSearchService = new WebSearchEnrichmentService(webSearchLogger);
+
+        // Step 0: Web Search Enrichment (discover additional info via search engines)
+        try
+        {
+            var searchResult = await webSearchService.EnrichLeadAsync(lead, stoppingToken);
+            if (searchResult.Success && searchResult.TotalResults > 0)
+            {
+                _logger.LogInformation(
+                    "WebSearch found {ResultCount} results for lead {LeadId} ({CompanyName})",
+                    searchResult.TotalResults, lead.Id, lead.Name
+                );
+
+                // Extract LinkedIn URL if found
+                var linkedInResult = searchResult.SearchResults.FirstOrDefault(r =>
+                    r.Url.Contains("linkedin.com", StringComparison.OrdinalIgnoreCase));
+
+                if (linkedInResult != null && string.IsNullOrWhiteSpace(lead.LinkedInUrl))
+                {
+                    var dbLead = await db.Leads.FindAsync(new object[] { lead.Id }, stoppingToken);
+                    if (dbLead != null)
+                    {
+                        dbLead.LinkedInUrl = linkedInResult.Url;
+                        await db.SaveChangesAsync(stoppingToken);
+                    }
+                }
+
+                // TODO: Store search results in a dedicated table for later analysis
+                // Could create LeadWebSearchResults table to persist all findings
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "WebSearch enrichment failed for lead {LeadId}, continuing with RAG enrichment", lead.Id);
+        }
 
         // Step 1: Normalize URL + reachability check
         var (resolvedUrl, websiteStatus) = await urlNormalizer.NormalizeAndCheckAsync(lead.Website);
