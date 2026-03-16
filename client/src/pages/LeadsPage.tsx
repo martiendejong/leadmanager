@@ -189,6 +189,42 @@ export default function LeadsPage() {
     }
   }, [selectedIds, showToast])
 
+  const handleExport = useCallback(async () => {
+    if (selectedIds.size === 0) return
+
+    try {
+      const ids = Array.from(selectedIds).join(',')
+      const token = localStorage.getItem('lm_token')
+      const baseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:5000'
+      const exportUrl = `${baseUrl}/api/export/leads?ids=${ids}`
+
+      // Fetch HTML with auth header
+      const response = await fetch(exportUrl, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error('Export failed')
+      }
+
+      const html = await response.text()
+
+      // Create blob and open in new window
+      const blob = new Blob([html], { type: 'text/html' })
+      const url = URL.createObjectURL(blob)
+      window.open(url, '_blank')
+
+      // Clean up blob URL after a delay
+      setTimeout(() => URL.revokeObjectURL(url), 100)
+
+      showToast(`${selectedIds.size} lead(s) geëxporteerd`, 'success')
+    } catch {
+      showToast('Export mislukt', 'error')
+    }
+  }, [selectedIds, showToast])
+
   const handleEnrichmentComplete = useCallback(async () => {
     setActiveJobId(null)
     setIsEnriching(false)
@@ -272,6 +308,7 @@ export default function LeadsPage() {
       <LeadsToolbar
         selectedCount={selectedIds.size}
         onEnrich={handleEnrich}
+        onExport={handleExport}
         onImport={handleImport}
         onClearSelection={clearSelection}
         isEnriching={isEnriching}
