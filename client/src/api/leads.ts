@@ -164,3 +164,44 @@ export async function importSearchResults(leads: LeadSearchResult[]): Promise<Im
   const res = await apiClient.post<ImportResultDto>('/api/leads/search/import', { leads })
   return res.data
 }
+
+export interface CreateLeadDto {
+  name: string
+  website?: string | null
+  sector: string
+  city: string
+  phone: string
+  companyEmail: string
+  source: string
+  manualInput?: string | null
+}
+
+export async function createLead(dto: CreateLeadDto): Promise<Lead> {
+  const res = await apiClient.post<Lead>('/api/leads', dto)
+  return res.data
+}
+
+export async function uploadLeadDocuments(leadId: string, files: File[]): Promise<{
+  filesProcessed: number
+  totalFiles: number
+  message: string
+}> {
+  const formData = new FormData()
+  files.forEach((file) => formData.append('files', file))
+
+  const res = await apiClient.post(`/api/leads/${leadId}/documents`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return res.data
+}
+
+export interface SalesApproachResult {
+  linkedinMessage: string
+  phoneOpener: string
+  emailIntro: string
+}
+
+export async function regenerateSalesApproach(leadId: string): Promise<SalesApproachResult> {
+  const res = await apiClient.post<SalesApproachResult>(`/api/leads/${leadId}/regenerate-sales-approach`)
+  return res.data
+}
