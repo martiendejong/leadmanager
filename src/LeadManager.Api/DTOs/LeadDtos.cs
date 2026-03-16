@@ -58,7 +58,9 @@ public record LeadDto(
     // Multi-input support fields
     string? ManualInput,
     bool HasUploadedDocuments,
-    string? EnrichmentSources);
+    string? EnrichmentSources,
+    // AI Sales Approach (Task #7)
+    string? SalesApproach);
 
 public record CreateLeadDto(
     string Name,

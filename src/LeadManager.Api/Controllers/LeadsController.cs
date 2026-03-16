@@ -16,11 +16,13 @@ public class LeadsController : ControllerBase
 {
     private readonly LeadManagerDbContext _db;
     private readonly SearchService _search;
+    private readonly IConfiguration _configuration;
 
-    public LeadsController(LeadManagerDbContext db, SearchService search)
+    public LeadsController(LeadManagerDbContext db, SearchService search, IConfiguration configuration)
     {
         _db = db;
         _search = search;
+        _configuration = configuration;
     }
 
     private string? GetCurrentUserId() =>
@@ -209,6 +211,34 @@ public class LeadsController : ControllerBase
             totalFiles = files.Count,
             message = $"{parsedTexts.Count} documents parsed successfully"
         });
+    }
+
+    // POST /api/leads/{id}/regenerate-sales-approach - Generate AI sales approach (Task #7)
+    [HttpPost("{id}/regenerate-sales-approach")]
+    public async Task<IActionResult> RegenerateSalesApproach(Guid id)
+    {
+        var userId = GetCurrentUserId();
+        var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == userId);
+
+        if (lead == null)
+            return NotFound();
+
+        // Generate sales approach
+        var logger = HttpContext.RequestServices.GetRequiredService<ILogger<Services.Enrichment.AiSalesApproachService>>();
+        var service = new Services.Enrichment.AiSalesApproachService(_configuration, logger);
+
+        var result = await service.GenerateAsync(lead);
+
+        if (result == null)
+        {
+            return BadRequest("Sales approach kon niet worden gegenereerd. Controleer of de eigenaarsnaam en contactgegevens bekend zijn.");
+        }
+
+        // Save to lead
+        lead.SalesApproach = System.Text.Json.JsonSerializer.Serialize(result);
+        await _db.SaveChangesAsync();
+
+        return Ok(result);
     }
 
     // POST /api/leads/import
@@ -443,5 +473,7 @@ public class LeadsController : ControllerBase
         // Multi-input support fields
         l.ManualInput,
         l.HasUploadedDocuments,
-        l.EnrichmentSources);
+        l.EnrichmentSources,
+        // AI Sales Approach
+        l.SalesApproach);
 }
