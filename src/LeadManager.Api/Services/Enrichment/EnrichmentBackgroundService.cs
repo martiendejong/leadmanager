@@ -124,8 +124,55 @@ public class EnrichmentBackgroundService : BackgroundService
         var ragService = new RagEnrichmentService(_configuration);
         var webSearchLogger = scope.ServiceProvider.GetRequiredService<ILogger<WebSearchEnrichmentService>>();
         var webSearchService = new WebSearchEnrichmentService(webSearchLogger);
+        var kvkLogger = scope.ServiceProvider.GetRequiredService<ILogger<KvkEnrichmentService>>();
+        var kvkService = new KvkEnrichmentService(kvkLogger);
+        var googleLogger = scope.ServiceProvider.GetRequiredService<ILogger<GooglePlacesEnrichmentService>>();
+        var googleService = new GooglePlacesEnrichmentService(_configuration, googleLogger);
+        var salesScoreService = new SalesScoreService();
+        var textInputLogger = scope.ServiceProvider.GetRequiredService<ILogger<TextInputEnrichmentService>>();
+        var textInputService = new TextInputEnrichmentService(_configuration, textInputLogger);
+        var salesApproachLogger = scope.ServiceProvider.GetRequiredService<ILogger<AiSalesApproachService>>();
+        var salesApproachService = new AiSalesApproachService(_configuration, salesApproachLogger);
 
-        // Step 0: Web Search Enrichment (discover additional info via search engines)
+        // Step 0a: Text Input Enrichment (Task #3 - enrich from manual text if provided)
+        TextEnrichmentResult? textResult = null;
+        if (!string.IsNullOrWhiteSpace(lead.ManualInput))
+        {
+            try
+            {
+                textResult = await textInputService.EnrichFromTextAsync(lead);
+                if (textResult != null)
+                {
+                    _logger.LogInformation("Text input enrichment extracted data for lead {LeadId}", lead.Id);
+
+                    // Apply text enrichment results to lead immediately
+                    var dbLead = await db.Leads.FindAsync(new object[] { lead.Id }, stoppingToken);
+                    if (dbLead != null)
+                    {
+                        if (!string.IsNullOrWhiteSpace(textResult.OwnerName))
+                            dbLead.OwnerName = textResult.OwnerName;
+                        if (!string.IsNullOrWhiteSpace(textResult.Email))
+                            dbLead.PersonalEmail = textResult.Email;
+                        if (!string.IsNullOrWhiteSpace(textResult.Phone))
+                            dbLead.Phone = textResult.Phone;
+                        if (!string.IsNullOrWhiteSpace(textResult.City))
+                            dbLead.City = textResult.City;
+                        if (!string.IsNullOrWhiteSpace(textResult.Sector))
+                            dbLead.Sector = textResult.Sector;
+                        if (!string.IsNullOrWhiteSpace(textResult.Website))
+                            dbLead.Website = textResult.Website;
+
+                        await db.SaveChangesAsync(stoppingToken);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Text input enrichment failed for lead {LeadId}, continuing", lead.Id);
+            }
+        }
+
+        // Step 0b: Web Search Enrichment (discover additional info via search engines)
         try
         {
             var searchResult = await webSearchService.EnrichLeadAsync(lead, stoppingToken);
@@ -163,6 +210,25 @@ public class EnrichmentBackgroundService : BackgroundService
         var sellerProfile = lead.ImportedByUserId != null
             ? await db.CompanyProfiles.FirstOrDefaultAsync(p => p.UserId == lead.ImportedByUserId, stoppingToken)
             : null;
+
+        // Task #4: Skip website enrichment if no website provided
+        if (string.IsNullOrWhiteSpace(lead.Website))
+        {
+            // No website - skip to text/document enrichment only
+            _logger.LogInformation("Lead {LeadId} has no website URL - skipping website enrichment", lead.Id);
+
+            // Mark as enriched (from text/documents only)
+            var dbLead = await db.Leads.FindAsync(new object[] { lead.Id }, stoppingToken);
+            if (dbLead != null)
+            {
+                dbLead.WebsiteStatus = WebsiteStatus.Unknown;
+                dbLead.IsEnriched = true;
+                dbLead.EnrichedAt = DateTime.UtcNow;
+                await db.SaveChangesAsync(stoppingToken);
+            }
+
+            return lead.OwnerName;
+        }
 
         // Step 1: Normalize URL + reachability check
         var (resolvedUrl, websiteStatus) = await urlNormalizer.NormalizeAndCheckAsync(lead.Website);
@@ -245,6 +311,52 @@ public class EnrichmentBackgroundService : BackgroundService
         // Step 5: RAG Q&A + sales pitch generation
         var answers = await ragService.EnrichAsync(db, lead, sellerProfile);
 
+        // Step 5a: KvK enrichment
+        KvkEnrichmentResult? kvkResult = null;
+        try
+        {
+            kvkResult = await kvkService.EnrichAsync(lead.Name, lead.City);
+            if (kvkResult != null)
+            {
+                _logger.LogInformation("KvK enrichment successful for lead {LeadId}: KvK#{KvkNumber}", lead.Id, kvkResult.KvkNumber);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "KvK enrichment failed for lead {LeadId}, continuing", lead.Id);
+        }
+
+        // Step 5b: Google Places enrichment
+        GooglePlacesResult? googleResult = null;
+        try
+        {
+            googleResult = await googleService.EnrichAsync(lead.Name, lead.City);
+            if (googleResult != null)
+            {
+                _logger.LogInformation("Google Places enrichment successful for lead {LeadId}: {Rating}/5 ({ReviewCount} reviews)",
+                    lead.Id, googleResult.GoogleRating, googleResult.GoogleReviewCount);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Google Places enrichment failed for lead {LeadId}, continuing", lead.Id);
+        }
+
+        // Step 5c: AI Sales Approach generation (Task #7)
+        SalesApproachResult? salesApproachResult = null;
+        try
+        {
+            salesApproachResult = await salesApproachService.GenerateAsync(lead);
+            if (salesApproachResult != null)
+            {
+                _logger.LogInformation("AI sales approach generated for lead {LeadId}", lead.Id);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "AI sales approach generation failed for lead {LeadId}, continuing", lead.Id);
+        }
+
         // Step 6: Persist results
         var finalLead = await db.Leads.FindAsync(new object[] { lead.Id }, stoppingToken);
         if (finalLead != null)
@@ -280,6 +392,35 @@ public class EnrichmentBackgroundService : BackgroundService
 
             if (!string.IsNullOrWhiteSpace(answers.SalesPitch))
                 finalLead.SalesPitch = answers.SalesPitch;
+
+            // Persist KvK enrichment results
+            if (kvkResult != null)
+            {
+                finalLead.KvkNumber = kvkResult.KvkNumber;
+                finalLead.VatNumber = kvkResult.VatNumber;
+                finalLead.Street = kvkResult.Street;
+                finalLead.ZipCode = kvkResult.ZipCode;
+                finalLead.EmployeeCount = kvkResult.EmployeeCount;
+                finalLead.FoundingYear = kvkResult.FoundingYear;
+                finalLead.LegalForm = kvkResult.LegalForm;
+            }
+
+            // Persist Google Places enrichment results
+            if (googleResult != null)
+            {
+                finalLead.GoogleRating = googleResult.GoogleRating;
+                finalLead.GoogleReviewCount = googleResult.GoogleReviewCount;
+                finalLead.GoogleMapsUrl = googleResult.GoogleMapsUrl;
+            }
+
+            // Persist AI sales approach (Task #7)
+            if (salesApproachResult != null)
+            {
+                finalLead.SalesApproach = JsonSerializer.Serialize(salesApproachResult);
+            }
+
+            // Calculate and save sales priority score
+            finalLead.SalesPriorityScore = salesScoreService.CalculateScore(finalLead);
 
             finalLead.WebsiteStatus = WebsiteStatus.Reachable;
             finalLead.ResolvedUrl = resolvedUrl;

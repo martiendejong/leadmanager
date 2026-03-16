@@ -3,6 +3,7 @@ using System;
 using LeadManager.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace LeadManager.Api.Migrations
 {
     [DbContext(typeof(LeadManagerDbContext))]
-    partial class LeadManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260316103935_AddLeadEnrichmentFields")]
+    partial class AddLeadEnrichmentFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.25");
@@ -247,9 +250,6 @@ namespace LeadManager.Api.Migrations
                     b.Property<DateTime?>("EnrichedAt")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("EnrichmentSources")
-                        .HasColumnType("TEXT");
-
                     b.Property<int>("EnrichmentVersion")
                         .HasColumnType("INTEGER");
 
@@ -270,9 +270,6 @@ namespace LeadManager.Api.Migrations
 
                     b.Property<string>("GroupName")
                         .HasColumnType("TEXT");
-
-                    b.Property<bool>("HasUploadedDocuments")
-                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("ImportedAt")
                         .HasColumnType("TEXT");
@@ -297,9 +294,6 @@ namespace LeadManager.Api.Migrations
 
                     b.Property<string>("LinkedInUrl")
                         .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ManualInput")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Name")
@@ -336,9 +330,6 @@ namespace LeadManager.Api.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("ResolvedUrl")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("SalesApproach")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("SalesPitch")
@@ -437,9 +428,6 @@ namespace LeadManager.Api.Migrations
 
                     b.Property<string>("RawText")
                         .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Source")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Url")

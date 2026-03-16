@@ -37,4 +37,38 @@ public class Lead
     public int ChunksIndexed { get; set; } = 0;
     public string? AiSummary { get; set; }
     public string? SalesPitch { get; set; }
+
+    // KvK enrichment fields
+    public string? KvkNumber { get; set; }
+    public string? VatNumber { get; set; }
+    public string? Street { get; set; }
+    public string? ZipCode { get; set; }
+    public string? EmployeeCount { get; set; }
+    public int? BranchCount { get; set; }
+    public int? FoundingYear { get; set; }
+    public string? LegalForm { get; set; }
+
+    // Google enrichment fields
+    public float? GoogleRating { get; set; }
+    public int? GoogleReviewCount { get; set; }
+    public string? GoogleMapsUrl { get; set; }
+
+    // Social media fields
+    public string? FacebookUrl { get; set; }
+    public string? InstagramUrl { get; set; }
+    public string? TwitterUrl { get; set; }
+
+    // Business intelligence fields
+    public bool IsPartOfGroup { get; set; } = false;
+    public string? GroupName { get; set; }
+    public string? NotableClients { get; set; }
+    public int? SalesPriorityScore { get; set; }
+
+    // Multi-input support fields (Task #3, #2, #1)
+    public string? ManualInput { get; set; } // Max 5000 chars, free text input
+    public bool HasUploadedDocuments { get; set; } = false; // True if documents uploaded
+    public string? EnrichmentSources { get; set; } // JSON: {"ownerName":"manual","email":"website"}
+
+    // AI Sales Approach (Task #7)
+    public string? SalesApproach { get; set; } // JSON: {"linkedinMessage":"...","phoneOpener":"...","emailIntro":"..."}
 }

@@ -94,6 +94,12 @@ builder.Services.AddScoped<GptLeadGeneratorService>();
 builder.Services.AddScoped<SmartSearchService>();
 
 // Enrichment services
+builder.Services.AddScoped<KvkEnrichmentService>();
+builder.Services.AddScoped<GooglePlacesEnrichmentService>();
+builder.Services.AddScoped<SalesScoreService>();
+builder.Services.AddScoped<DocumentParserService>();
+builder.Services.AddScoped<TextInputEnrichmentService>();
+builder.Services.AddScoped<AiSalesApproachService>();
 builder.Services.AddSingleton<EnrichmentChannel>();
 builder.Services.AddHostedService<EnrichmentBackgroundService>();
 

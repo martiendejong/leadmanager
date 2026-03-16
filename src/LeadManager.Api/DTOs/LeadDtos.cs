@@ -32,20 +32,49 @@ public record LeadDto(
     int PagesCrawled,
     int ChunksIndexed,
     string? AiSummary,
-    string? SalesPitch);
+    string? SalesPitch,
+    // KvK enrichment fields
+    string? KvkNumber,
+    string? VatNumber,
+    string? Street,
+    string? ZipCode,
+    string? EmployeeCount,
+    int? BranchCount,
+    int? FoundingYear,
+    string? LegalForm,
+    // Google enrichment fields
+    float? GoogleRating,
+    int? GoogleReviewCount,
+    string? GoogleMapsUrl,
+    // Social media fields
+    string? FacebookUrl,
+    string? InstagramUrl,
+    string? TwitterUrl,
+    // Business intelligence fields
+    bool IsPartOfGroup,
+    string? GroupName,
+    string? NotableClients,
+    int? SalesPriorityScore,
+    // Multi-input support fields
+    string? ManualInput,
+    bool HasUploadedDocuments,
+    string? EnrichmentSources,
+    // AI Sales Approach (Task #7)
+    string? SalesApproach);
 
 public record CreateLeadDto(
     string Name,
-    string Website,
+    string? Website,  // Made optional - Task #4
     string Sector,
     string City,
     string Phone,
     string CompanyEmail,
-    string Source);
+    string Source,
+    string? ManualInput = null);  // Task #3
 
 public record UpdateLeadDto(
     string Name,
-    string Website,
+    string? Website,  // Made optional - Task #4
     string Sector,
     string City,
     string Phone,
@@ -55,7 +84,8 @@ public record UpdateLeadDto(
     string OwnerFirstName,
     string OwnerLastName,
     string PersonalEmail,
-    string LinkedInUrl);
+    string LinkedInUrl,
+    string? ManualInput = null);  // Task #3
 
 public record LeadFilterParams(
     bool? Enriched = null,
