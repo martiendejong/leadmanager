@@ -124,6 +124,11 @@ public class EnrichmentBackgroundService : BackgroundService
         var ragService = new RagEnrichmentService(_configuration);
         var webSearchLogger = scope.ServiceProvider.GetRequiredService<ILogger<WebSearchEnrichmentService>>();
         var webSearchService = new WebSearchEnrichmentService(webSearchLogger);
+        var kvkLogger = scope.ServiceProvider.GetRequiredService<ILogger<KvkEnrichmentService>>();
+        var kvkService = new KvkEnrichmentService(kvkLogger);
+        var googleLogger = scope.ServiceProvider.GetRequiredService<ILogger<GooglePlacesEnrichmentService>>();
+        var googleService = new GooglePlacesEnrichmentService(_configuration, googleLogger);
+        var salesScoreService = new SalesScoreService();
 
         // Step 0: Web Search Enrichment (discover additional info via search engines)
         try
@@ -245,6 +250,37 @@ public class EnrichmentBackgroundService : BackgroundService
         // Step 5: RAG Q&A + sales pitch generation
         var answers = await ragService.EnrichAsync(db, lead, sellerProfile);
 
+        // Step 5a: KvK enrichment
+        KvkEnrichmentResult? kvkResult = null;
+        try
+        {
+            kvkResult = await kvkService.EnrichAsync(lead.Name, lead.City);
+            if (kvkResult != null)
+            {
+                _logger.LogInformation("KvK enrichment successful for lead {LeadId}: KvK#{KvkNumber}", lead.Id, kvkResult.KvkNumber);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "KvK enrichment failed for lead {LeadId}, continuing", lead.Id);
+        }
+
+        // Step 5b: Google Places enrichment
+        GooglePlacesResult? googleResult = null;
+        try
+        {
+            googleResult = await googleService.EnrichAsync(lead.Name, lead.City);
+            if (googleResult != null)
+            {
+                _logger.LogInformation("Google Places enrichment successful for lead {LeadId}: {Rating}/5 ({ReviewCount} reviews)",
+                    lead.Id, googleResult.GoogleRating, googleResult.GoogleReviewCount);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Google Places enrichment failed for lead {LeadId}, continuing", lead.Id);
+        }
+
         // Step 6: Persist results
         var finalLead = await db.Leads.FindAsync(new object[] { lead.Id }, stoppingToken);
         if (finalLead != null)
@@ -280,6 +316,29 @@ public class EnrichmentBackgroundService : BackgroundService
 
             if (!string.IsNullOrWhiteSpace(answers.SalesPitch))
                 finalLead.SalesPitch = answers.SalesPitch;
+
+            // Persist KvK enrichment results
+            if (kvkResult != null)
+            {
+                finalLead.KvkNumber = kvkResult.KvkNumber;
+                finalLead.VatNumber = kvkResult.VatNumber;
+                finalLead.Street = kvkResult.Street;
+                finalLead.ZipCode = kvkResult.ZipCode;
+                finalLead.EmployeeCount = kvkResult.EmployeeCount;
+                finalLead.FoundingYear = kvkResult.FoundingYear;
+                finalLead.LegalForm = kvkResult.LegalForm;
+            }
+
+            // Persist Google Places enrichment results
+            if (googleResult != null)
+            {
+                finalLead.GoogleRating = googleResult.GoogleRating;
+                finalLead.GoogleReviewCount = googleResult.GoogleReviewCount;
+                finalLead.GoogleMapsUrl = googleResult.GoogleMapsUrl;
+            }
+
+            // Calculate and save sales priority score
+            finalLead.SalesPriorityScore = salesScoreService.CalculateScore(finalLead);
 
             finalLead.WebsiteStatus = WebsiteStatus.Reachable;
             finalLead.ResolvedUrl = resolvedUrl;
