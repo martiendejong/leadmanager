@@ -19,14 +19,15 @@ interface LeadsTableProps {
 }
 
 const COLUMNS: { key: string; label: string; sortable: boolean; hideOnMobile: boolean }[] = [
-  { key: 'name',         label: 'Bedrijf',    sortable: true,  hideOnMobile: false },
-  { key: 'website',      label: 'Website',    sortable: true,  hideOnMobile: true  },
-  { key: 'sector',       label: 'Sector',     sortable: true,  hideOnMobile: true  },
-  { key: 'city',         label: 'Stad',       sortable: true,  hideOnMobile: true  },
-  { key: 'ownerName',    label: 'Eigenaar',   sortable: true,  hideOnMobile: true  },
-  { key: 'companyEmail', label: 'Email',      sortable: false, hideOnMobile: true  },
-  { key: 'isEnriched',   label: 'Status',     sortable: true,  hideOnMobile: false },
-  { key: 'enrichedAt',   label: 'Verrijkt op', sortable: true, hideOnMobile: true  },
+  { key: 'name',                label: 'Bedrijf',      sortable: true,  hideOnMobile: false },
+  { key: 'website',             label: 'Website',      sortable: true,  hideOnMobile: true  },
+  { key: 'sector',              label: 'Sector',       sortable: true,  hideOnMobile: true  },
+  { key: 'city',                label: 'Stad',         sortable: true,  hideOnMobile: true  },
+  { key: 'ownerName',           label: 'Eigenaar',     sortable: true,  hideOnMobile: true  },
+  { key: 'companyEmail',        label: 'Email',        sortable: false, hideOnMobile: true  },
+  { key: 'salesPriorityScore',  label: 'Score',        sortable: true,  hideOnMobile: false },
+  { key: 'isEnriched',          label: 'Status',       sortable: true,  hideOnMobile: false },
+  { key: 'enrichedAt',          label: 'Verrijkt op',  sortable: true,  hideOnMobile: true  },
 ]
 
 function SortIcon({ active, desc }: { active: boolean; desc: boolean }) {
@@ -34,6 +35,27 @@ function SortIcon({ active, desc }: { active: boolean; desc: boolean }) {
     return <span className="ml-1 text-gray-300 text-xs">↕</span>
   }
   return <span className="ml-1 text-indigo-600 text-xs">{desc ? '↓' : '↑'}</span>
+}
+
+function SalesScoreBadge({ score }: { score?: number | null }) {
+  if (score === null || score === undefined) {
+    return <span className="text-gray-400 text-xs">—</span>
+  }
+
+  let colorClasses = ''
+  if (score >= 7) {
+    colorClasses = 'bg-green-100 text-green-800'
+  } else if (score >= 4) {
+    colorClasses = 'bg-yellow-100 text-yellow-800'
+  } else {
+    colorClasses = 'bg-red-100 text-red-800'
+  }
+
+  return (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colorClasses}`}>
+      {score}/10
+    </span>
+  )
 }
 
 function EmptyState({ onImport }: { onImport?: () => void }) {
@@ -206,6 +228,9 @@ export default function LeadsTable({
                 </td>
                 <td className="hidden sm:table-cell px-4 py-3 text-sm text-gray-500 max-w-40 truncate">
                   {lead.companyEmail || lead.personalEmail || '—'}
+                </td>
+                <td className="px-4 py-3 text-sm">
+                  <SalesScoreBadge score={lead.salesPriorityScore} />
                 </td>
                 <td className="px-4 py-3 text-sm">
                   {lead.isEnriched ? (

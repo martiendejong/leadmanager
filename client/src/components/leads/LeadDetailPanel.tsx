@@ -123,6 +123,90 @@ export default function LeadDetailPanel({ lead, onClose }: Props) {
             {/* Scrollable body */}
             <div className="flex-1 overflow-y-auto p-5 space-y-6">
 
+              {/* Sales Priority Score - most prominent */}
+              {lead.salesPriorityScore !== null && lead.salesPriorityScore !== undefined && (
+                <div className={`border rounded-lg p-4 ${
+                  lead.salesPriorityScore >= 7 ? 'bg-green-50 border-green-200' :
+                  lead.salesPriorityScore >= 4 ? 'bg-yellow-50 border-yellow-200' :
+                  'bg-red-50 border-red-200'
+                }`}>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <svg className={`w-4 h-4 ${
+                      lead.salesPriorityScore >= 7 ? 'text-green-600' :
+                      lead.salesPriorityScore >= 4 ? 'text-yellow-600' :
+                      'text-red-600'
+                    }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                    </svg>
+                    <span className={`text-xs font-semibold uppercase tracking-wide ${
+                      lead.salesPriorityScore >= 7 ? 'text-green-700' :
+                      lead.salesPriorityScore >= 4 ? 'text-yellow-700' :
+                      'text-red-700'
+                    }`}>Sales Prioriteit</span>
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className={`text-3xl font-bold ${
+                      lead.salesPriorityScore >= 7 ? 'text-green-900' :
+                      lead.salesPriorityScore >= 4 ? 'text-yellow-900' :
+                      'text-red-900'
+                    }`}>{lead.salesPriorityScore}</span>
+                    <span className={`text-lg ${
+                      lead.salesPriorityScore >= 7 ? 'text-green-700' :
+                      lead.salesPriorityScore >= 4 ? 'text-yellow-700' :
+                      'text-red-700'
+                    }`}>/10</span>
+                  </div>
+                  <p className={`text-xs mt-1 ${
+                    lead.salesPriorityScore >= 7 ? 'text-green-600' :
+                    lead.salesPriorityScore >= 4 ? 'text-yellow-600' :
+                    'text-red-600'
+                  }`}>
+                    {lead.salesPriorityScore >= 7 ? 'Hoge prioriteit - Zeer waardevol contact' :
+                     lead.salesPriorityScore >= 4 ? 'Normale prioriteit - Standaard follow-up' :
+                     'Lage prioriteit - Beperkte contactgegevens'}
+                  </p>
+                </div>
+              )}
+
+              {/* Sales Approach */}
+              {lead.salesApproach && (() => {
+                try {
+                  const approach = JSON.parse(lead.salesApproach)
+                  return (
+                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                      <div className="flex items-center gap-1.5 mb-3">
+                        <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" />
+                        </svg>
+                        <span className="text-xs font-semibold text-purple-700 uppercase tracking-wide">AI Sales Approach</span>
+                      </div>
+                      <div className="space-y-3">
+                        {approach.linkedinMessage && (
+                          <div>
+                            <div className="text-xs font-medium text-purple-600 mb-1">LinkedIn bericht:</div>
+                            <p className="text-sm text-purple-900 leading-relaxed whitespace-pre-wrap bg-white/50 p-2 rounded">{approach.linkedinMessage}</p>
+                          </div>
+                        )}
+                        {approach.phoneOpener && (
+                          <div>
+                            <div className="text-xs font-medium text-purple-600 mb-1">Telefoon opener:</div>
+                            <p className="text-sm text-purple-900 leading-relaxed whitespace-pre-wrap bg-white/50 p-2 rounded">{approach.phoneOpener}</p>
+                          </div>
+                        )}
+                        {approach.emailIntro && (
+                          <div>
+                            <div className="text-xs font-medium text-purple-600 mb-1">Email intro:</div>
+                            <p className="text-sm text-purple-900 leading-relaxed whitespace-pre-wrap bg-white/50 p-2 rounded">{approach.emailIntro}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                } catch {
+                  return null
+                }
+              })()}
+
               {/* Sales Pitch — most prominent, top of panel */}
               {lead.salesPitch && (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4">
@@ -172,6 +256,47 @@ export default function LeadDetailPanel({ lead, onClose }: Props) {
                   {lead.description && <Field label="Omschrijving" value={lead.description} />}
                   {lead.services && <Field label="Diensten / producten" value={lead.services} />}
                   {lead.targetAudience && <Field label="Doelgroep" value={lead.targetAudience} />}
+                </Section>
+              )}
+
+              {/* KvK Data */}
+              {(lead.kvkNumber || lead.employeeCount || lead.foundingYear) && (
+                <Section title="KvK Gegevens">
+                  {lead.kvkNumber && <Field label="KvK nummer" value={lead.kvkNumber} />}
+                  {lead.vatNumber && <Field label="BTW nummer" value={lead.vatNumber} />}
+                  {lead.street && <Field label="Straat" value={lead.street} />}
+                  {lead.zipCode && <Field label="Postcode" value={lead.zipCode} />}
+                  {lead.employeeCount && <Field label="Aantal werknemers" value={lead.employeeCount} />}
+                  {lead.foundingYear && <Field label="Opgericht" value={lead.foundingYear} />}
+                  {lead.legalForm && <Field label="Rechtsvorm" value={lead.legalForm} />}
+                </Section>
+              )}
+
+              {/* Google Places Data */}
+              {(lead.googleRating || lead.googleReviewCount) && (
+                <Section title="Google Reviews">
+                  {lead.googleRating && (
+                    <div>
+                      <dt className="text-xs font-medium text-gray-500 uppercase tracking-wide">Beoordeling</dt>
+                      <dd className="mt-0.5 text-sm text-gray-900 flex items-center gap-1">
+                        <span className="text-yellow-500 font-semibold">{lead.googleRating.toFixed(1)}</span>
+                        <span className="text-yellow-500">★</span>
+                        {lead.googleReviewCount && (
+                          <span className="text-gray-500 text-xs">({lead.googleReviewCount} reviews)</span>
+                        )}
+                      </dd>
+                    </div>
+                  )}
+                  {lead.googleMapsUrl && <Field label="Google Maps" value={lead.googleMapsUrl} />}
+                </Section>
+              )}
+
+              {/* Social Media */}
+              {(lead.facebookUrl || lead.instagramUrl || lead.twitterUrl) && (
+                <Section title="Social Media">
+                  {lead.facebookUrl && <Field label="Facebook" value={lead.facebookUrl} />}
+                  {lead.instagramUrl && <Field label="Instagram" value={lead.instagramUrl} />}
+                  {lead.twitterUrl && <Field label="Twitter/X" value={lead.twitterUrl} />}
                 </Section>
               )}
 
