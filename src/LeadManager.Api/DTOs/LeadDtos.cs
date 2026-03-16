@@ -32,7 +32,29 @@ public record LeadDto(
     int PagesCrawled,
     int ChunksIndexed,
     string? AiSummary,
-    string? SalesPitch);
+    string? SalesPitch,
+    // KvK enrichment fields
+    string? KvkNumber,
+    string? VatNumber,
+    string? Street,
+    string? ZipCode,
+    string? EmployeeCount,
+    int? BranchCount,
+    int? FoundingYear,
+    string? LegalForm,
+    // Google enrichment fields
+    float? GoogleRating,
+    int? GoogleReviewCount,
+    string? GoogleMapsUrl,
+    // Social media fields
+    string? FacebookUrl,
+    string? InstagramUrl,
+    string? TwitterUrl,
+    // Business intelligence fields
+    bool IsPartOfGroup,
+    string? GroupName,
+    string? NotableClients,
+    int? SalesPriorityScore);
 
 public record CreateLeadDto(
     string Name,

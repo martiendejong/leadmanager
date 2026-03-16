@@ -329,5 +329,27 @@ public class LeadsController : ControllerBase
         l.PagesCrawled,
         l.ChunksIndexed,
         l.AiSummary,
-        l.SalesPitch);
+        l.SalesPitch,
+        // KvK enrichment fields
+        l.KvkNumber,
+        l.VatNumber,
+        l.Street,
+        l.ZipCode,
+        l.EmployeeCount,
+        l.BranchCount,
+        l.FoundingYear,
+        l.LegalForm,
+        // Google enrichment fields
+        l.GoogleRating,
+        l.GoogleReviewCount,
+        l.GoogleMapsUrl,
+        // Social media fields
+        l.FacebookUrl,
+        l.InstagramUrl,
+        l.TwitterUrl,
+        // Business intelligence fields
+        l.IsPartOfGroup,
+        l.GroupName,
+        l.NotableClients,
+        l.SalesPriorityScore);
 }
