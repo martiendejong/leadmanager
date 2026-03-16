@@ -68,4 +68,7 @@ public class Lead
     public string? ManualInput { get; set; } // Max 5000 chars, free text input
     public bool HasUploadedDocuments { get; set; } = false; // True if documents uploaded
     public string? EnrichmentSources { get; set; } // JSON: {"ownerName":"manual","email":"website"}
+
+    // AI Sales Approach (Task #7)
+    public string? SalesApproach { get; set; } // JSON: {"linkedinMessage":"...","phoneOpener":"...","emailIntro":"..."}
 }

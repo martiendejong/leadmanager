@@ -131,6 +131,8 @@ public class EnrichmentBackgroundService : BackgroundService
         var salesScoreService = new SalesScoreService();
         var textInputLogger = scope.ServiceProvider.GetRequiredService<ILogger<TextInputEnrichmentService>>();
         var textInputService = new TextInputEnrichmentService(_configuration, textInputLogger);
+        var salesApproachLogger = scope.ServiceProvider.GetRequiredService<ILogger<AiSalesApproachService>>();
+        var salesApproachService = new AiSalesApproachService(_configuration, salesApproachLogger);
 
         // Step 0a: Text Input Enrichment (Task #3 - enrich from manual text if provided)
         TextEnrichmentResult? textResult = null;
@@ -340,6 +342,21 @@ public class EnrichmentBackgroundService : BackgroundService
             _logger.LogWarning(ex, "Google Places enrichment failed for lead {LeadId}, continuing", lead.Id);
         }
 
+        // Step 5c: AI Sales Approach generation (Task #7)
+        SalesApproachResult? salesApproachResult = null;
+        try
+        {
+            salesApproachResult = await salesApproachService.GenerateAsync(lead);
+            if (salesApproachResult != null)
+            {
+                _logger.LogInformation("AI sales approach generated for lead {LeadId}", lead.Id);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "AI sales approach generation failed for lead {LeadId}, continuing", lead.Id);
+        }
+
         // Step 6: Persist results
         var finalLead = await db.Leads.FindAsync(new object[] { lead.Id }, stoppingToken);
         if (finalLead != null)
@@ -394,6 +411,12 @@ public class EnrichmentBackgroundService : BackgroundService
                 finalLead.GoogleRating = googleResult.GoogleRating;
                 finalLead.GoogleReviewCount = googleResult.GoogleReviewCount;
                 finalLead.GoogleMapsUrl = googleResult.GoogleMapsUrl;
+            }
+
+            // Persist AI sales approach (Task #7)
+            if (salesApproachResult != null)
+            {
+                finalLead.SalesApproach = JsonSerializer.Serialize(salesApproachResult);
             }
 
             // Calculate and save sales priority score

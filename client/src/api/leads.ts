@@ -30,6 +30,34 @@ export interface Lead {
   chunksIndexed?: number
   aiSummary?: string | null
   salesPitch?: string | null
+  // KvK enrichment fields
+  kvkNumber?: string | null
+  vatNumber?: string | null
+  street?: string | null
+  zipCode?: string | null
+  employeeCount?: string | null
+  branchCount?: number | null
+  foundingYear?: number | null
+  legalForm?: string | null
+  // Google enrichment fields
+  googleRating?: number | null
+  googleReviewCount?: number | null
+  googleMapsUrl?: string | null
+  // Social media fields
+  facebookUrl?: string | null
+  instagramUrl?: string | null
+  twitterUrl?: string | null
+  // Business intelligence fields
+  isPartOfGroup?: boolean
+  groupName?: string | null
+  notableClients?: string | null
+  salesPriorityScore?: number | null
+  // Multi-input support fields
+  manualInput?: string | null
+  hasUploadedDocuments?: boolean
+  enrichmentSources?: string | null
+  // AI Sales Approach
+  salesApproach?: string | null
 }
 
 export interface LeadsResponse {
@@ -134,5 +162,46 @@ export async function searchLeads(
 
 export async function importSearchResults(leads: LeadSearchResult[]): Promise<ImportResultDto> {
   const res = await apiClient.post<ImportResultDto>('/api/leads/search/import', { leads })
+  return res.data
+}
+
+export interface CreateLeadDto {
+  name: string
+  website?: string | null
+  sector: string
+  city: string
+  phone: string
+  companyEmail: string
+  source: string
+  manualInput?: string | null
+}
+
+export async function createLead(dto: CreateLeadDto): Promise<Lead> {
+  const res = await apiClient.post<Lead>('/api/leads', dto)
+  return res.data
+}
+
+export async function uploadLeadDocuments(leadId: string, files: File[]): Promise<{
+  filesProcessed: number
+  totalFiles: number
+  message: string
+}> {
+  const formData = new FormData()
+  files.forEach((file) => formData.append('files', file))
+
+  const res = await apiClient.post(`/api/leads/${leadId}/documents`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return res.data
+}
+
+export interface SalesApproachResult {
+  linkedinMessage: string
+  phoneOpener: string
+  emailIntro: string
+}
+
+export async function regenerateSalesApproach(leadId: string): Promise<SalesApproachResult> {
+  const res = await apiClient.post<SalesApproachResult>(`/api/leads/${leadId}/regenerate-sales-approach`)
   return res.data
 }
