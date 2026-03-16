@@ -1,5 +1,7 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import type { Lead } from '../../api/leads'
+import { regenerateSalesApproach, enrichLeads } from '../../api/leads'
+import { useToast } from '../Toast'
 
 interface Props {
   lead: Lead | null
@@ -44,6 +46,11 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 export default function LeadDetailPanel({ lead, onClose }: Props) {
+  const { showToast } = useToast()
+  const [isRegenerating, setIsRegenerating] = useState(false)
+  const [isEnriching, setIsEnriching] = useState(false)
+  const [activeTab, setActiveTab] = useState<'linkedin' | 'phone' | 'email'>('linkedin')
+
   // Close on Escape
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -52,6 +59,46 @@ export default function LeadDetailPanel({ lead, onClose }: Props) {
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
+
+  const copyToClipboard = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      showToast(`${label} gekopieerd naar klembord!`, 'success')
+    } catch {
+      showToast('Kopiëren mislukt', 'error')
+    }
+  }
+
+  const handleRegenerateSalesApproach = async () => {
+    if (!lead) return
+
+    setIsRegenerating(true)
+    try {
+      const result = await regenerateSalesApproach(lead.id)
+      showToast('Sales approach opnieuw gegenereerd!', 'success')
+      // Update the lead in parent component would require callback - for now just show success
+      window.location.reload() // Simple refresh - in production use proper state management
+    } catch (err: any) {
+      showToast(err.response?.data || 'Regenereren mislukt', 'error')
+    } finally {
+      setIsRegenerating(false)
+    }
+  }
+
+  const handleEnrichNow = async () => {
+    if (!lead) return
+
+    setIsEnriching(true)
+    try {
+      await enrichLeads([lead.id])
+      showToast('Verrijking gestart!', 'success')
+      setTimeout(() => window.location.reload(), 2000) // Reload after 2s to show updated data
+    } catch (err: any) {
+      showToast(err.response?.data || 'Verrijking starten mislukt', 'error')
+    } finally {
+      setIsEnriching(false)
+    }
+  }
 
   return (
     <>
@@ -97,27 +144,43 @@ export default function LeadDetailPanel({ lead, onClose }: Props) {
             </div>
 
             {/* Enrichment status badge */}
-            <div className="px-5 py-2 border-b border-gray-100 flex items-center gap-2">
-              {lead.isEnriched ? (
-                <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-full px-2.5 py-0.5">
-                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                  </svg>
-                  Verrijkt
-                </span>
-              ) : (
-                <span className="text-xs text-gray-400 italic">Nog niet verrijkt</span>
-              )}
-              {lead.enrichmentVersion === 2 && (
-                <span className="text-xs text-indigo-600 font-medium bg-indigo-50 border border-indigo-200 rounded-full px-2 py-0.5">
-                  RAG v2
-                </span>
-              )}
-              {lead.websiteStatus === 'Unreachable' && (
-                <span className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-full px-2 py-0.5">
-                  Website onbereikbaar
-                </span>
-              )}
+            <div className="px-5 py-2 border-b border-gray-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {lead.isEnriched ? (
+                  <>
+                    <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-full px-2.5 py-0.5">
+                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                      Verrijkt
+                    </span>
+                    {lead.enrichedAt && (
+                      <span className="text-xs text-gray-500">
+                        op {new Date(lead.enrichedAt).toLocaleDateString('nl-NL')}
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-xs text-gray-400 italic">Nog niet verrijkt</span>
+                )}
+                {lead.enrichmentVersion === 2 && (
+                  <span className="text-xs text-indigo-600 font-medium bg-indigo-50 border border-indigo-200 rounded-full px-2 py-0.5">
+                    RAG v2
+                  </span>
+                )}
+                {lead.websiteStatus === 'Unreachable' && (
+                  <span className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-full px-2 py-0.5">
+                    Website onbereikbaar
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={handleEnrichNow}
+                disabled={isEnriching}
+                className="text-xs px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+              >
+                {isEnriching ? 'Bezig...' : 'Verrijk nu'}
+              </button>
             </div>
 
             {/* Scrollable body */}
@@ -168,35 +231,110 @@ export default function LeadDetailPanel({ lead, onClose }: Props) {
                 </div>
               )}
 
-              {/* Sales Approach */}
+              {/* Sales Approach with Tabs */}
               {lead.salesApproach && (() => {
                 try {
                   const approach = JSON.parse(lead.salesApproach)
                   return (
-                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                      <div className="flex items-center gap-1.5 mb-3">
-                        <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" />
-                        </svg>
-                        <span className="text-xs font-semibold text-purple-700 uppercase tracking-wide">AI Sales Approach</span>
+                    <div className="bg-purple-50 border border-purple-200 rounded-lg overflow-hidden">
+                      {/* Header with Regenerate button */}
+                      <div className="flex items-center justify-between px-4 py-3 bg-purple-100/50 border-b border-purple-200">
+                        <div className="flex items-center gap-1.5">
+                          <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" />
+                          </svg>
+                          <span className="text-xs font-semibold text-purple-700 uppercase tracking-wide">AI Sales Approach</span>
+                        </div>
+                        <button
+                          onClick={handleRegenerateSalesApproach}
+                          disabled={isRegenerating}
+                          className="text-xs px-2 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-1"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                          {isRegenerating ? 'Bezig...' : 'Regenereer'}
+                        </button>
                       </div>
-                      <div className="space-y-3">
-                        {approach.linkedinMessage && (
+
+                      {/* Tabs */}
+                      <div className="flex border-b border-purple-200 bg-purple-50">
+                        <button
+                          onClick={() => setActiveTab('linkedin')}
+                          className={`flex-1 px-4 py-2 text-xs font-medium transition-colors ${
+                            activeTab === 'linkedin'
+                              ? 'bg-white text-purple-700 border-b-2 border-purple-600'
+                              : 'text-purple-600 hover:bg-purple-100/50'
+                          }`}
+                        >
+                          LinkedIn
+                        </button>
+                        <button
+                          onClick={() => setActiveTab('phone')}
+                          className={`flex-1 px-4 py-2 text-xs font-medium transition-colors ${
+                            activeTab === 'phone'
+                              ? 'bg-white text-purple-700 border-b-2 border-purple-600'
+                              : 'text-purple-600 hover:bg-purple-100/50'
+                          }`}
+                        >
+                          Telefoon
+                        </button>
+                        <button
+                          onClick={() => setActiveTab('email')}
+                          className={`flex-1 px-4 py-2 text-xs font-medium transition-colors ${
+                            activeTab === 'email'
+                              ? 'bg-white text-purple-700 border-b-2 border-purple-600'
+                              : 'text-purple-600 hover:bg-purple-100/50'
+                          }`}
+                        >
+                          Email
+                        </button>
+                      </div>
+
+                      {/* Tab Content */}
+                      <div className="p-4 bg-white">
+                        {activeTab === 'linkedin' && approach.linkedinMessage && (
                           <div>
-                            <div className="text-xs font-medium text-purple-600 mb-1">LinkedIn bericht:</div>
-                            <p className="text-sm text-purple-900 leading-relaxed whitespace-pre-wrap bg-white/50 p-2 rounded">{approach.linkedinMessage}</p>
+                            <p className="text-sm text-gray-900 leading-relaxed whitespace-pre-wrap mb-3">{approach.linkedinMessage}</p>
+                            <button
+                              onClick={() => copyToClipboard(approach.linkedinMessage, 'LinkedIn bericht')}
+                              className="text-xs px-3 py-1.5 bg-purple-600 text-white rounded hover:bg-purple-700 flex items-center gap-1"
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                              </svg>
+                              Kopieer
+                            </button>
                           </div>
                         )}
-                        {approach.phoneOpener && (
+
+                        {activeTab === 'phone' && approach.phoneOpener && (
                           <div>
-                            <div className="text-xs font-medium text-purple-600 mb-1">Telefoon opener:</div>
-                            <p className="text-sm text-purple-900 leading-relaxed whitespace-pre-wrap bg-white/50 p-2 rounded">{approach.phoneOpener}</p>
+                            <p className="text-sm text-gray-900 leading-relaxed whitespace-pre-wrap mb-3">{approach.phoneOpener}</p>
+                            <button
+                              onClick={() => copyToClipboard(approach.phoneOpener, 'Telefoon opener')}
+                              className="text-xs px-3 py-1.5 bg-purple-600 text-white rounded hover:bg-purple-700 flex items-center gap-1"
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                              </svg>
+                              Kopieer
+                            </button>
                           </div>
                         )}
-                        {approach.emailIntro && (
+
+                        {activeTab === 'email' && approach.emailIntro && (
                           <div>
-                            <div className="text-xs font-medium text-purple-600 mb-1">Email intro:</div>
-                            <p className="text-sm text-purple-900 leading-relaxed whitespace-pre-wrap bg-white/50 p-2 rounded">{approach.emailIntro}</p>
+                            <p className="text-sm text-gray-900 leading-relaxed whitespace-pre-wrap mb-3">{approach.emailIntro}</p>
+                            <button
+                              onClick={() => copyToClipboard(approach.emailIntro, 'Email intro')}
+                              className="text-xs px-3 py-1.5 bg-purple-600 text-white rounded hover:bg-purple-700 flex items-center gap-1"
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                              </svg>
+                              Kopieer
+                            </button>
                           </div>
                         )}
                       </div>
