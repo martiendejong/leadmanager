@@ -97,6 +97,8 @@ builder.Services.AddScoped<SmartSearchService>();
 builder.Services.AddScoped<KvkEnrichmentService>();
 builder.Services.AddScoped<GooglePlacesEnrichmentService>();
 builder.Services.AddScoped<SalesScoreService>();
+builder.Services.AddScoped<DocumentParserService>();
+builder.Services.AddScoped<TextInputEnrichmentService>();
 builder.Services.AddSingleton<EnrichmentChannel>();
 builder.Services.AddHostedService<EnrichmentBackgroundService>();
 

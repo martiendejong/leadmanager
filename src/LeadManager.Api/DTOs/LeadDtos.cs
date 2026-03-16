@@ -54,20 +54,25 @@ public record LeadDto(
     bool IsPartOfGroup,
     string? GroupName,
     string? NotableClients,
-    int? SalesPriorityScore);
+    int? SalesPriorityScore,
+    // Multi-input support fields
+    string? ManualInput,
+    bool HasUploadedDocuments,
+    string? EnrichmentSources);
 
 public record CreateLeadDto(
     string Name,
-    string Website,
+    string? Website,  // Made optional - Task #4
     string Sector,
     string City,
     string Phone,
     string CompanyEmail,
-    string Source);
+    string Source,
+    string? ManualInput = null);  // Task #3
 
 public record UpdateLeadDto(
     string Name,
-    string Website,
+    string? Website,  // Made optional - Task #4
     string Sector,
     string City,
     string Phone,
@@ -77,7 +82,8 @@ public record UpdateLeadDto(
     string OwnerFirstName,
     string OwnerLastName,
     string PersonalEmail,
-    string LinkedInUrl);
+    string LinkedInUrl,
+    string? ManualInput = null);  // Task #3
 
 public record LeadFilterParams(
     bool? Enriched = null,

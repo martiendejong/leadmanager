@@ -129,8 +129,48 @@ public class EnrichmentBackgroundService : BackgroundService
         var googleLogger = scope.ServiceProvider.GetRequiredService<ILogger<GooglePlacesEnrichmentService>>();
         var googleService = new GooglePlacesEnrichmentService(_configuration, googleLogger);
         var salesScoreService = new SalesScoreService();
+        var textInputLogger = scope.ServiceProvider.GetRequiredService<ILogger<TextInputEnrichmentService>>();
+        var textInputService = new TextInputEnrichmentService(_configuration, textInputLogger);
 
-        // Step 0: Web Search Enrichment (discover additional info via search engines)
+        // Step 0a: Text Input Enrichment (Task #3 - enrich from manual text if provided)
+        TextEnrichmentResult? textResult = null;
+        if (!string.IsNullOrWhiteSpace(lead.ManualInput))
+        {
+            try
+            {
+                textResult = await textInputService.EnrichFromTextAsync(lead);
+                if (textResult != null)
+                {
+                    _logger.LogInformation("Text input enrichment extracted data for lead {LeadId}", lead.Id);
+
+                    // Apply text enrichment results to lead immediately
+                    var dbLead = await db.Leads.FindAsync(new object[] { lead.Id }, stoppingToken);
+                    if (dbLead != null)
+                    {
+                        if (!string.IsNullOrWhiteSpace(textResult.OwnerName))
+                            dbLead.OwnerName = textResult.OwnerName;
+                        if (!string.IsNullOrWhiteSpace(textResult.Email))
+                            dbLead.PersonalEmail = textResult.Email;
+                        if (!string.IsNullOrWhiteSpace(textResult.Phone))
+                            dbLead.Phone = textResult.Phone;
+                        if (!string.IsNullOrWhiteSpace(textResult.City))
+                            dbLead.City = textResult.City;
+                        if (!string.IsNullOrWhiteSpace(textResult.Sector))
+                            dbLead.Sector = textResult.Sector;
+                        if (!string.IsNullOrWhiteSpace(textResult.Website))
+                            dbLead.Website = textResult.Website;
+
+                        await db.SaveChangesAsync(stoppingToken);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Text input enrichment failed for lead {LeadId}, continuing", lead.Id);
+            }
+        }
+
+        // Step 0b: Web Search Enrichment (discover additional info via search engines)
         try
         {
             var searchResult = await webSearchService.EnrichLeadAsync(lead, stoppingToken);
@@ -168,6 +208,25 @@ public class EnrichmentBackgroundService : BackgroundService
         var sellerProfile = lead.ImportedByUserId != null
             ? await db.CompanyProfiles.FirstOrDefaultAsync(p => p.UserId == lead.ImportedByUserId, stoppingToken)
             : null;
+
+        // Task #4: Skip website enrichment if no website provided
+        if (string.IsNullOrWhiteSpace(lead.Website))
+        {
+            // No website - skip to text/document enrichment only
+            _logger.LogInformation("Lead {LeadId} has no website URL - skipping website enrichment", lead.Id);
+
+            // Mark as enriched (from text/documents only)
+            var dbLead = await db.Leads.FindAsync(new object[] { lead.Id }, stoppingToken);
+            if (dbLead != null)
+            {
+                dbLead.WebsiteStatus = WebsiteStatus.Unknown;
+                dbLead.IsEnriched = true;
+                dbLead.EnrichedAt = DateTime.UtcNow;
+                await db.SaveChangesAsync(stoppingToken);
+            }
+
+            return lead.OwnerName;
+        }
 
         // Step 1: Normalize URL + reachability check
         var (resolvedUrl, websiteStatus) = await urlNormalizer.NormalizeAndCheckAsync(lead.Website);
