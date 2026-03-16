@@ -8,6 +8,7 @@ public class LeadPageContent
     public string Url { get; set; } = "";
     public string RawText { get; set; } = "";
     public int HttpStatus { get; set; }
+    public string? Source { get; set; } // "website" or "document" (Task #2)
     public DateTime FetchedAt { get; set; } = DateTime.UtcNow;
 
     public ICollection<LeadDocumentChunk> Chunks { get; set; } = new List<LeadDocumentChunk>();

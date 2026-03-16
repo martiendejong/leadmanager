@@ -123,6 +123,94 @@ public class LeadsController : ControllerBase
         return NoContent();
     }
 
+    // POST /api/leads - Create single lead (Task #3, #4)
+    [HttpPost]
+    public async Task<IActionResult> CreateLead([FromBody] CreateLeadDto dto)
+    {
+        // Task #4: Validate at least one input type is provided
+        var hasWebsite = !string.IsNullOrWhiteSpace(dto.Website);
+        var hasManualInput = !string.IsNullOrWhiteSpace(dto.ManualInput);
+        // hasDocuments will be checked separately via document upload endpoint
+
+        if (!hasWebsite && !hasManualInput)
+        {
+            return BadRequest("Vul minimaal een veld in: Website URL of vrije tekst invoer.");
+        }
+
+        // Validate ManualInput length (Task #3)
+        if (dto.ManualInput != null && dto.ManualInput.Length > 5000)
+        {
+            return BadRequest("Vrije tekst mag maximaal 5000 tekens bevatten.");
+        }
+
+        var userId = GetCurrentUserId();
+        var lead = new Lead
+        {
+            Name = dto.Name,
+            Website = dto.Website ?? "",
+            Sector = dto.Sector,
+            City = dto.City,
+            Phone = dto.Phone,
+            CompanyEmail = dto.CompanyEmail,
+            Source = dto.Source,
+            ManualInput = dto.ManualInput,
+            ImportedByUserId = userId,
+            ImportedAt = DateTime.UtcNow,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _db.Leads.Add(lead);
+        await _db.SaveChangesAsync();
+
+        return CreatedAtAction(nameof(GetLead), new { id = lead.Id }, ToDto(lead));
+    }
+
+    // POST /api/leads/{id}/documents - Upload documents for lead (Task #2)
+    [HttpPost("{id}/documents")]
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> UploadDocuments(Guid id, List<IFormFile> files)
+    {
+        var userId = GetCurrentUserId();
+        var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == userId);
+
+        if (lead == null)
+            return NotFound();
+
+        // Validate file count
+        if (files == null || files.Count == 0)
+            return BadRequest("No files provided.");
+
+        if (files.Count > 5)
+            return BadRequest("Maximum 5 files allowed.");
+
+        // Validate file types and sizes
+        var invalidFiles = files.Where(f =>
+            !Services.Enrichment.DocumentParserService.IsValidFileType(f.FileName) ||
+            !Services.Enrichment.DocumentParserService.IsValidFileSize(f.Length)
+        ).ToList();
+
+        if (invalidFiles.Any())
+        {
+            return BadRequest($"Invalid files detected. Allowed types: PDF, DOCX, TXT. Max size: 10MB per file.");
+        }
+
+        // Parse documents
+        var parserLogger = HttpContext.RequestServices.GetRequiredService<ILogger<Services.Enrichment.DocumentParserService>>();
+        var parser = new Services.Enrichment.DocumentParserService(parserLogger);
+        var parsedTexts = await parser.ParseDocumentsAsync(_db, id, files);
+
+        // Update lead
+        lead.HasUploadedDocuments = true;
+        await _db.SaveChangesAsync();
+
+        return Ok(new
+        {
+            filesProcessed = parsedTexts.Count,
+            totalFiles = files.Count,
+            message = $"{parsedTexts.Count} documents parsed successfully"
+        });
+    }
+
     // POST /api/leads/import
     [HttpPost("import")]
     [Consumes("multipart/form-data")]
@@ -351,5 +439,9 @@ public class LeadsController : ControllerBase
         l.IsPartOfGroup,
         l.GroupName,
         l.NotableClients,
-        l.SalesPriorityScore);
+        l.SalesPriorityScore,
+        // Multi-input support fields
+        l.ManualInput,
+        l.HasUploadedDocuments,
+        l.EnrichmentSources);
 }
