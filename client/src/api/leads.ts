@@ -30,6 +30,34 @@ export interface Lead {
   chunksIndexed?: number
   aiSummary?: string | null
   salesPitch?: string | null
+  // KvK enrichment fields
+  kvkNumber?: string | null
+  vatNumber?: string | null
+  street?: string | null
+  zipCode?: string | null
+  employeeCount?: string | null
+  branchCount?: number | null
+  foundingYear?: number | null
+  legalForm?: string | null
+  // Google enrichment fields
+  googleRating?: number | null
+  googleReviewCount?: number | null
+  googleMapsUrl?: string | null
+  // Social media fields
+  facebookUrl?: string | null
+  instagramUrl?: string | null
+  twitterUrl?: string | null
+  // Business intelligence fields
+  isPartOfGroup?: boolean
+  groupName?: string | null
+  notableClients?: string | null
+  salesPriorityScore?: number | null
+  // Multi-input support fields
+  manualInput?: string | null
+  hasUploadedDocuments?: boolean
+  enrichmentSources?: string | null
+  // AI Sales Approach
+  salesApproach?: string | null
 }
 
 export interface LeadsResponse {
