@@ -1,5 +1,7 @@
 namespace LeadManager.Api.Models;
 
+public enum LeadStatus { Lead, Prospect }
+
 public enum WebsiteStatus { Unknown, Reachable, Unreachable }
 
 public class Lead
@@ -18,6 +20,7 @@ public class Lead
     public string AnymailfinderResult { get; set; } = "";
     public string LinkedInUrl { get; set; } = "";
     public string Source { get; set; } = "";
+    public LeadStatus Status { get; set; } = LeadStatus.Lead;
     public bool IsEnriched { get; set; } = false;
     public DateTime? EnrichedAt { get; set; }
     public DateTime ImportedAt { get; set; } = DateTime.UtcNow;

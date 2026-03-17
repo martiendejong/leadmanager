@@ -13,6 +13,7 @@ export interface Lead {
   ownerLastName: string
   personalEmail: string
   linkedInUrl?: string
+  status: 'Lead' | 'Prospect'
   isEnriched: boolean
   enrichedAt: string | null
   importedAt: string
@@ -232,4 +233,14 @@ export async function createLeadNote(leadId: string, dto: CreateLeadNoteDto): Pr
 
 export async function deleteLeadNote(leadId: string, noteId: string): Promise<void> {
   await apiClient.delete(`/api/leads/${leadId}/notes/${noteId}`)
+}
+
+// Lead Status
+export interface UpdateLeadStatusDto {
+  status: 'Lead' | 'Prospect'
+}
+
+export async function updateLeadStatus(leadId: string, dto: UpdateLeadStatusDto): Promise<Lead> {
+  const res = await apiClient.post<Lead>(`/api/leads/${leadId}/status`, dto)
+  return res.data
 }

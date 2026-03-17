@@ -112,6 +112,31 @@ public class LeadsController : ControllerBase
         return Ok(ToDto(lead));
     }
 
+    // POST /api/leads/{id}/status - Update lead status (forward transitions only)
+    [HttpPost("{id:guid}/status")]
+    public async Task<IActionResult> UpdateLeadStatus(Guid id, [FromBody] UpdateLeadStatusDto dto)
+    {
+        var userId = GetCurrentUserId();
+        var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == userId);
+        if (lead == null) return NotFound("Lead not found");
+
+        // Parse target status
+        if (!Enum.TryParse<LeadStatus>(dto.Status, out var targetStatus))
+            return BadRequest($"Invalid status: {dto.Status}");
+
+        // Only allow forward transitions: Lead -> Prospect
+        if (lead.Status == LeadStatus.Prospect && targetStatus == LeadStatus.Lead)
+            return BadRequest("Cannot move prospect back to lead status");
+
+        // No-op if already at target status
+        if (lead.Status == targetStatus)
+            return Ok(ToDto(lead));
+
+        lead.Status = targetStatus;
+        await _db.SaveChangesAsync();
+        return Ok(ToDto(lead));
+    }
+
     // DELETE /api/leads/{id}
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> DeleteLead(Guid id)
@@ -431,6 +456,7 @@ public class LeadsController : ControllerBase
         l.AnymailfinderResult,
         l.LinkedInUrl,
         l.Source,
+        l.Status.ToString(),
         l.IsEnriched,
         l.EnrichedAt,
         l.ImportedAt,
