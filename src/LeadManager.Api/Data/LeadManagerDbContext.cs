@@ -16,6 +16,7 @@ public class LeadManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<LeadPageContent> LeadPageContents { get; set; }
     public DbSet<LeadDocumentChunk> LeadDocumentChunks { get; set; }
     public DbSet<CompanyProfile> CompanyProfiles { get; set; }
+    public DbSet<LeadNote> LeadNotes { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -72,5 +73,17 @@ public class LeadManagerDbContext : IdentityDbContext<ApplicationUser>
         builder.Entity<CompanyProfile>()
             .HasIndex(p => p.UserId)
             .IsUnique();
+
+        builder.Entity<LeadNote>()
+            .HasOne(n => n.Lead)
+            .WithMany()
+            .HasForeignKey(n => n.LeadId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<LeadNote>()
+            .HasOne(n => n.CreatedBy)
+            .WithMany()
+            .HasForeignKey(n => n.CreatedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

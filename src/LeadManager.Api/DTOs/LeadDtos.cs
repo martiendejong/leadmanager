@@ -15,6 +15,7 @@ public record LeadDto(
     string AnymailfinderResult,
     string LinkedInUrl,
     string Source,
+    string Status,
     bool IsEnriched,
     DateTime? EnrichedAt,
     DateTime ImportedAt,
@@ -103,3 +104,11 @@ public record ImportResultDto(int Imported, int Skipped, int Errors, List<string
 public record LeadSearchRequest(string Sector, string? Location, int Limit = 25);
 public record LeadSearchResult(string Name, string Website, string City, string Sector, string Phone, string Email, string Source, string Snippet = "", string? OwnerName = null, string? Description = null, string? Services = null, string? TargetAudience = null);
 public record LeadSearchImportRequest(List<LeadSearchResult> Leads);
+
+// Lead Notes DTOs
+public record LeadNoteDto(Guid Id, Guid LeadId, string Content, DateTime CreatedAt, string CreatedByUserId, string? CreatedByName);
+public record CreateLeadNoteDto(string Content);
+public record UpdateLeadNoteDto(string Content);
+
+// Lead Status DTO
+public record UpdateLeadStatusDto(string Status);

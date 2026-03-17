@@ -13,6 +13,7 @@ export interface Lead {
   ownerLastName: string
   personalEmail: string
   linkedInUrl?: string
+  status: 'Lead' | 'Prospect'
   isEnriched: boolean
   enrichedAt: string | null
   importedAt: string
@@ -203,5 +204,43 @@ export interface SalesApproachResult {
 
 export async function regenerateSalesApproach(leadId: string): Promise<SalesApproachResult> {
   const res = await apiClient.post<SalesApproachResult>(`/api/leads/${leadId}/regenerate-sales-approach`)
+  return res.data
+}
+
+// Lead Notes
+export interface LeadNote {
+  id: string
+  leadId: string
+  content: string
+  createdAt: string
+  createdByUserId: string
+  createdByName?: string | null
+}
+
+export interface CreateLeadNoteDto {
+  content: string
+}
+
+export async function fetchLeadNotes(leadId: string): Promise<LeadNote[]> {
+  const res = await apiClient.get<LeadNote[]>(`/api/leads/${leadId}/notes`)
+  return res.data
+}
+
+export async function createLeadNote(leadId: string, dto: CreateLeadNoteDto): Promise<LeadNote> {
+  const res = await apiClient.post<LeadNote>(`/api/leads/${leadId}/notes`, dto)
+  return res.data
+}
+
+export async function deleteLeadNote(leadId: string, noteId: string): Promise<void> {
+  await apiClient.delete(`/api/leads/${leadId}/notes/${noteId}`)
+}
+
+// Lead Status
+export interface UpdateLeadStatusDto {
+  status: 'Lead' | 'Prospect'
+}
+
+export async function updateLeadStatus(leadId: string, dto: UpdateLeadStatusDto): Promise<Lead> {
+  const res = await apiClient.post<Lead>(`/api/leads/${leadId}/status`, dto)
   return res.data
 }
