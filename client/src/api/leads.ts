@@ -58,6 +58,8 @@ export interface Lead {
   enrichmentSources?: string | null
   // AI Sales Approach
   salesApproach?: string | null
+  // AI Prospect Plan
+  prospectPlan?: string | null
 }
 
 export interface LeadsResponse {
@@ -203,5 +205,11 @@ export interface SalesApproachResult {
 
 export async function regenerateSalesApproach(leadId: string): Promise<SalesApproachResult> {
   const res = await apiClient.post<SalesApproachResult>(`/api/leads/${leadId}/regenerate-sales-approach`)
+  return res.data
+}
+
+// Prospect Plan
+export async function generateProspectPlan(leadId: string): Promise<{ plan: string }> {
+  const res = await apiClient.post<{ plan: string }>(`/api/leads/${leadId}/generate-plan`)
   return res.data
 }

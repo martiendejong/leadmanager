@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Lead } from '../../api/leads'
 import { regenerateSalesApproach, enrichLeads } from '../../api/leads'
 import { useToast } from '../Toast'
+import ProspectPlanPanel from './ProspectPlanPanel'
 
 interface Props {
   lead: Lead | null
@@ -369,6 +370,15 @@ export default function LeadDetailPanel({ lead, onClose }: Props) {
                   </div>
                   <p className="text-sm text-indigo-900 leading-relaxed">{lead.aiSummary}</p>
                 </div>
+              )}
+
+              {/* Prospect Plan (only show for prospects, once PR #25 status feature is merged) */}
+              {(lead as any).status === 'Prospect' && (
+                <ProspectPlanPanel
+                  leadId={lead.id}
+                  prospectPlan={lead.prospectPlan}
+                  onPlanGenerated={() => window.location.reload()}
+                />
               )}
 
               <Section title="Bedrijfsinfo">
