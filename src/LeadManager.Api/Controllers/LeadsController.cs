@@ -241,6 +241,31 @@ public class LeadsController : ControllerBase
         return Ok(result);
     }
 
+    // PATCH /api/leads/{id}/plan - Update prospect plan (Task #5)
+    [HttpPatch("{id:guid}/plan")]
+    public async Task<IActionResult> UpdateProspectPlan(Guid id, [FromBody] UpdateProspectPlanDto dto)
+    {
+        var userId = GetCurrentUserId();
+        if (userId == null) return Unauthorized();
+
+        // Validate content
+        if (string.IsNullOrWhiteSpace(dto.Plan))
+            return BadRequest("Plan mag niet leeg zijn");
+
+        if (dto.Plan.Length > 50000)
+            return BadRequest("Plan mag maximaal 50.000 tekens bevatten");
+
+        // Get lead
+        var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == userId);
+        if (lead == null) return NotFound("Lead not found");
+
+        // Update plan
+        lead.ProspectPlan = dto.Plan.Trim();
+        await _db.SaveChangesAsync();
+
+        return Ok(new { plan = lead.ProspectPlan });
+    }
+
     // POST /api/leads/import
     [HttpPost("import")]
     [Consumes("multipart/form-data")]

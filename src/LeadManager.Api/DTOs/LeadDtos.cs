@@ -103,3 +103,6 @@ public record ImportResultDto(int Imported, int Skipped, int Errors, List<string
 public record LeadSearchRequest(string Sector, string? Location, int Limit = 25);
 public record LeadSearchResult(string Name, string Website, string City, string Sector, string Phone, string Email, string Source, string Snippet = "", string? OwnerName = null, string? Description = null, string? Services = null, string? TargetAudience = null);
 public record LeadSearchImportRequest(List<LeadSearchResult> Leads);
+
+// Prospect Plan DTO
+public record UpdateProspectPlanDto(string Plan);
