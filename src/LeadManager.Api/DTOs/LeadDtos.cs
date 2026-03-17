@@ -70,7 +70,10 @@ public record CreateLeadDto(
     string Phone,
     string CompanyEmail,
     string Source,
-    string? ManualInput = null);  // Task #3
+    string? ManualInput = null,  // Task #3
+    string? LinkedInUrl = null,
+    string? FacebookUrl = null,
+    string? InstagramUrl = null);
 
 public record UpdateLeadDto(
     string Name,
@@ -85,7 +88,9 @@ public record UpdateLeadDto(
     string OwnerLastName,
     string PersonalEmail,
     string LinkedInUrl,
-    string? ManualInput = null);  // Task #3
+    string? ManualInput = null,  // Task #3
+    string? FacebookUrl = null,
+    string? InstagramUrl = null);
 
 public record LeadFilterParams(
     bool? Enriched = null,

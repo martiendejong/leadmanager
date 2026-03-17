@@ -430,8 +430,9 @@ export default function LeadDetailPanel({ lead, onClose }: Props) {
               )}
 
               {/* Social Media */}
-              {(lead.facebookUrl || lead.instagramUrl || lead.twitterUrl) && (
+              {(lead.linkedInUrl || lead.facebookUrl || lead.instagramUrl || lead.twitterUrl) && (
                 <Section title="Social Media">
+                  {lead.linkedInUrl && <Field label="LinkedIn" value={lead.linkedInUrl} />}
                   {lead.facebookUrl && <Field label="Facebook" value={lead.facebookUrl} />}
                   {lead.instagramUrl && <Field label="Instagram" value={lead.instagramUrl} />}
                   {lead.twitterUrl && <Field label="Twitter/X" value={lead.twitterUrl} />}
