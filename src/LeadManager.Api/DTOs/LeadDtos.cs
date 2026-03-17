@@ -60,7 +60,22 @@ public record LeadDto(
     bool HasUploadedDocuments,
     string? EnrichmentSources,
     // AI Sales Approach (Task #7)
-    string? SalesApproach);
+    string? SalesApproach,
+    // Owner identity (869ch51gb)
+    string? OwnerLinkedInUrl,
+    string? OwnerMobile,
+    string? InternalContactName,
+    string? InternalContactRole,
+    // Operational fields (869ch50g9)
+    string? WorkingArea,
+    string? Certifications,
+    string? PricingInfo,
+    string? OpeningHours,
+    // Sales priority label + reasoning (869ch50x8)
+    string? SalesPriorityLabel,
+    string? SalesPriorityReasoning,
+    // Company signals (869ch4zb0)
+    string? Signals);
 
 public record CreateLeadDto(
     string Name,

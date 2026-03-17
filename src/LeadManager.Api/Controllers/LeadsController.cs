@@ -28,6 +28,16 @@ public class LeadsController : ControllerBase
     private string? GetCurrentUserId() =>
         User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
 
+    private static string? NormalizeWebsiteUrl(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return url;
+        url = url.Trim();
+        if (!url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+            !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            url = "https://" + url;
+        return url;
+    }
+
     // GET /api/leads
     [HttpGet]
     public async Task<IActionResult> GetLeads([FromQuery] LeadFilterParams filters)
@@ -96,7 +106,7 @@ public class LeadsController : ControllerBase
         if (lead == null) return NotFound();
 
         lead.Name = dto.Name;
-        lead.Website = dto.Website;
+        lead.Website = NormalizeWebsiteUrl(dto.Website) ?? lead.Website;
         lead.Sector = dto.Sector;
         lead.City = dto.City;
         lead.Phone = dto.Phone;
@@ -149,7 +159,7 @@ public class LeadsController : ControllerBase
         var lead = new Lead
         {
             Name = dto.Name,
-            Website = dto.Website ?? "",
+            Website = NormalizeWebsiteUrl(dto.Website) ?? "",
             Sector = dto.Sector,
             City = dto.City,
             Phone = dto.Phone,
@@ -389,7 +399,7 @@ public class LeadsController : ControllerBase
             toInsert.Add(new Lead
             {
                 Name = item.Name,
-                Website = item.Website,
+                Website = NormalizeWebsiteUrl(item.Website) ?? "",
                 City = item.City,
                 Sector = item.Sector,
                 Phone = item.Phone,
@@ -475,5 +485,20 @@ public class LeadsController : ControllerBase
         l.HasUploadedDocuments,
         l.EnrichmentSources,
         // AI Sales Approach
-        l.SalesApproach);
+        l.SalesApproach,
+        // Owner identity
+        l.OwnerLinkedInUrl,
+        l.OwnerMobile,
+        l.InternalContactName,
+        l.InternalContactRole,
+        // Operational fields
+        l.WorkingArea,
+        l.Certifications,
+        l.PricingInfo,
+        l.OpeningHours,
+        // Sales priority label + reasoning
+        l.SalesPriorityLabel,
+        l.SalesPriorityReasoning,
+        // Signals
+        l.Signals);
 }
