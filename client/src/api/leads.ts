@@ -205,3 +205,31 @@ export async function regenerateSalesApproach(leadId: string): Promise<SalesAppr
   const res = await apiClient.post<SalesApproachResult>(`/api/leads/${leadId}/regenerate-sales-approach`)
   return res.data
 }
+
+// Lead Notes
+export interface LeadNote {
+  id: string
+  leadId: string
+  content: string
+  createdAt: string
+  createdByUserId: string
+  createdByName?: string | null
+}
+
+export interface CreateLeadNoteDto {
+  content: string
+}
+
+export async function fetchLeadNotes(leadId: string): Promise<LeadNote[]> {
+  const res = await apiClient.get<LeadNote[]>(`/api/leads/${leadId}/notes`)
+  return res.data
+}
+
+export async function createLeadNote(leadId: string, dto: CreateLeadNoteDto): Promise<LeadNote> {
+  const res = await apiClient.post<LeadNote>(`/api/leads/${leadId}/notes`, dto)
+  return res.data
+}
+
+export async function deleteLeadNote(leadId: string, noteId: string): Promise<void> {
+  await apiClient.delete(`/api/leads/${leadId}/notes/${noteId}`)
+}
