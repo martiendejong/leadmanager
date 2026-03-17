@@ -174,6 +174,9 @@ export interface CreateLeadDto {
   companyEmail: string
   source: string
   manualInput?: string | null
+  linkedInUrl?: string | null
+  facebookUrl?: string | null
+  instagramUrl?: string | null
 }
 
 export async function createLead(dto: CreateLeadDto): Promise<Lead> {

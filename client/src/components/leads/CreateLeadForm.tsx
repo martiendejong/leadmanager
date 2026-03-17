@@ -213,6 +213,48 @@ export default function CreateLeadForm({ onSuccess, onCancel }: CreateLeadFormPr
             </div>
           </div>
 
+          {/* Social Media */}
+          <div>
+            <h3 className="font-medium mb-3">Social Media (optioneel)</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">LinkedIn URL</label>
+                <input
+                  type="url"
+                  name="linkedInUrl"
+                  value={formData.linkedInUrl || ''}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="https://www.linkedin.com/company/..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Facebook URL</label>
+                <input
+                  type="url"
+                  name="facebookUrl"
+                  value={formData.facebookUrl || ''}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="https://www.facebook.com/..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Instagram URL</label>
+                <input
+                  type="url"
+                  name="instagramUrl"
+                  value={formData.instagramUrl || ''}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="https://www.instagram.com/..."
+                />
+              </div>
+            </div>
+          </div>
+
           {/* Input Methods - Visually Grouped */}
           <div>
             <h3 className="font-medium mb-2">Invoermethode</h3>
