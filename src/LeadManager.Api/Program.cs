@@ -100,6 +100,7 @@ builder.Services.AddScoped<SalesScoreService>();
 builder.Services.AddScoped<DocumentParserService>();
 builder.Services.AddScoped<TextInputEnrichmentService>();
 builder.Services.AddScoped<AiSalesApproachService>();
+builder.Services.AddHttpClient<ProspectPlanService>();
 builder.Services.AddSingleton<EnrichmentChannel>();
 builder.Services.AddHostedService<EnrichmentBackgroundService>();
 

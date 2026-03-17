@@ -71,4 +71,7 @@ public class Lead
 
     // AI Sales Approach (Task #7)
     public string? SalesApproach { get; set; } // JSON: {"linkedinMessage":"...","phoneOpener":"...","emailIntro":"..."}
+
+    // AI Prospect Plan (Task #4)
+    public string? ProspectPlan { get; set; } // Generated action plan for prospects
 }

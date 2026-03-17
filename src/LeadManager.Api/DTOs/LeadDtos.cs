@@ -60,7 +60,9 @@ public record LeadDto(
     bool HasUploadedDocuments,
     string? EnrichmentSources,
     // AI Sales Approach (Task #7)
-    string? SalesApproach);
+    string? SalesApproach,
+    // AI Prospect Plan (Task #4)
+    string? ProspectPlan);
 
 public record CreateLeadDto(
     string Name,

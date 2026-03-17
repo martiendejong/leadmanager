@@ -17,12 +17,14 @@ public class LeadsController : ControllerBase
     private readonly LeadManagerDbContext _db;
     private readonly SearchService _search;
     private readonly IConfiguration _configuration;
+    private readonly ProspectPlanService _prospectPlanService;
 
-    public LeadsController(LeadManagerDbContext db, SearchService search, IConfiguration configuration)
+    public LeadsController(LeadManagerDbContext db, SearchService search, IConfiguration configuration, ProspectPlanService prospectPlanService)
     {
         _db = db;
         _search = search;
         _configuration = configuration;
+        _prospectPlanService = prospectPlanService;
     }
 
     private string? GetCurrentUserId() =>
@@ -239,6 +241,32 @@ public class LeadsController : ControllerBase
         await _db.SaveChangesAsync();
 
         return Ok(result);
+    }
+
+    // POST /api/leads/{id}/generate-plan - Generate AI prospect plan (Task #4)
+    [HttpPost("{id:guid}/generate-plan")]
+    public async Task<IActionResult> GenerateProspectPlan(Guid id)
+    {
+        var userId = GetCurrentUserId();
+        if (userId == null) return Unauthorized();
+
+        try
+        {
+            var plan = await _prospectPlanService.GenerateProspectPlan(id, userId);
+
+            // Save to lead
+            var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == userId);
+            if (lead == null) return NotFound("Lead not found");
+
+            lead.ProspectPlan = plan;
+            await _db.SaveChangesAsync();
+
+            return Ok(new { plan });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest($"Plan generatie mislukt: {ex.Message}");
+        }
     }
 
     // POST /api/leads/import
@@ -475,5 +503,7 @@ public class LeadsController : ControllerBase
         l.HasUploadedDocuments,
         l.EnrichmentSources,
         // AI Sales Approach
-        l.SalesApproach);
+        l.SalesApproach,
+        // AI Prospect Plan
+        l.ProspectPlan);
 }
