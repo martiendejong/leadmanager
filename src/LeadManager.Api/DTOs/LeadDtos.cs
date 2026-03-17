@@ -150,3 +150,8 @@ public record LeadActivityDto(Guid Id, Guid LeadId, string? UserId, string Activ
 
 // Pipeline (869ck3j46)
 public record UpdatePipelineStatusDto(string PipelineStatus);
+
+// Lead Notes DTOs
+public record LeadNoteDto(Guid Id, Guid LeadId, string Content, DateTime CreatedAt, string CreatedByUserId, string? CreatedByName);
+public record CreateLeadNoteDto(string Content);
+public record UpdateLeadNoteDto(string Content);
