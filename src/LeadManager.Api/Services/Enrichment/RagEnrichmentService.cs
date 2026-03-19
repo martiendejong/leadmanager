@@ -24,13 +24,20 @@ public class RagEnrichmentService
 
     private static readonly RagQuestion[] Questions = new[]
     {
-        new RagQuestion("ownerName",     "Wat is de volledige naam van de eigenaar, directeur, CEO of founder van dit bedrijf?"),
-        new RagQuestion("ownerTitle",    "Wat is de functietitel van de hoofdcontactpersoon of eigenaar van dit bedrijf?"),
-        new RagQuestion("contactEmail",  "Wat is het zakelijke e-mailadres van het bedrijf of de eigenaar?"),
-        new RagQuestion("contactPhone",  "Wat is het telefoonnummer van het bedrijf?"),
-        new RagQuestion("description",   "Geef een korte omschrijving van dit bedrijf in 2 tot 3 zinnen."),
-        new RagQuestion("services",      "Welke diensten of producten biedt dit bedrijf aan?"),
-        new RagQuestion("targetAudience","Wie is de doelgroep van dit bedrijf?"),
+        new RagQuestion("ownerName",          "Wat is de volledige naam van de eigenaar, directeur, CEO of founder van dit bedrijf?"),
+        new RagQuestion("ownerTitle",         "Wat is de functietitel van de hoofdcontactpersoon of eigenaar van dit bedrijf?"),
+        new RagQuestion("ownerLinkedIn",      "Wat is het persoonlijke LinkedIn-profiel van de eigenaar of directeur? Geef een linkedin.com/in/ URL."),
+        new RagQuestion("ownerMobile",        "Wat is het mobiele telefoonnummer van de eigenaar of directeur van dit bedrijf?"),
+        new RagQuestion("internalContact",    "Is er een receptioniste, office manager of andere interne contactpersoon vermeld? Geef naam en functie."),
+        new RagQuestion("contactEmail",       "Wat is het zakelijke e-mailadres van het bedrijf of de eigenaar?"),
+        new RagQuestion("contactPhone",       "Wat is het telefoonnummer van het bedrijf?"),
+        new RagQuestion("description",        "Geef een korte omschrijving van dit bedrijf in 2 tot 3 zinnen."),
+        new RagQuestion("services",           "Welke diensten of producten biedt dit bedrijf aan?"),
+        new RagQuestion("targetAudience",     "Wie is de doelgroep van dit bedrijf?"),
+        new RagQuestion("workingArea",        "In welke regio of steden is dit bedrijf actief? Wat is hun werkgebied?"),
+        new RagQuestion("certifications",     "Heeft dit bedrijf certificeringen zoals VCA, ISO, NEN of andere kwaliteitsmerken?"),
+        new RagQuestion("pricingInfo",        "Geeft dit bedrijf informatie over tarieven, prijzen of uurtarieven?"),
+        new RagQuestion("openingHours",       "Wat zijn de openingstijden van dit bedrijf?"),
     };
 
     public async Task<EnrichmentAnswers> EnrichAsync(LeadManagerDbContext db, Lead lead, CompanyProfile? sellerProfile = null)
@@ -51,13 +58,20 @@ public class RagEnrichmentService
 
                 switch (q.Field)
                 {
-                    case "ownerName":     answers.OwnerName = answer; break;
-                    case "ownerTitle":    answers.OwnerTitle = answer; break;
-                    case "contactEmail":  answers.ContactEmail = answer; break;
-                    case "contactPhone":  answers.ContactPhone = answer; break;
-                    case "description":   answers.Description = answer; break;
-                    case "services":      answers.Services = answer; break;
-                    case "targetAudience":answers.TargetAudience = answer; break;
+                    case "ownerName":       answers.OwnerName = answer; break;
+                    case "ownerTitle":      answers.OwnerTitle = answer; break;
+                    case "ownerLinkedIn":   answers.OwnerLinkedInUrl = ExtractLinkedInPersonalUrl(answer); break;
+                    case "ownerMobile":     answers.OwnerMobile = answer; break;
+                    case "internalContact": answers.InternalContact = answer; break;
+                    case "contactEmail":    answers.ContactEmail = answer; break;
+                    case "contactPhone":    answers.ContactPhone = answer; break;
+                    case "description":     answers.Description = answer; break;
+                    case "services":        answers.Services = answer; break;
+                    case "targetAudience":  answers.TargetAudience = answer; break;
+                    case "workingArea":     answers.WorkingArea = answer; break;
+                    case "certifications":  answers.Certifications = answer; break;
+                    case "pricingInfo":     answers.PricingInfo = answer; break;
+                    case "openingHours":    answers.OpeningHours = answer; break;
                 }
             }
             catch
@@ -255,17 +269,33 @@ Schrijf alleen de pitch, geen intro of uitleg.
 
         return string.IsNullOrWhiteSpace(answer) || answer == "null" ? null : answer;
     }
+
+    private static string? ExtractLinkedInPersonalUrl(string? answer)
+    {
+        if (string.IsNullOrWhiteSpace(answer)) return null;
+        // Extract a personal LinkedIn URL (/in/) from the answer
+        var parts = answer.Split(' ', '\n', '\r', '"', '\'', '<', '>');
+        var url = parts.FirstOrDefault(p => p.Contains("linkedin.com/in/", StringComparison.OrdinalIgnoreCase));
+        return url;
+    }
 }
 
 public class EnrichmentAnswers
 {
     public string? OwnerName { get; set; }
     public string? OwnerTitle { get; set; }
+    public string? OwnerLinkedInUrl { get; set; }
+    public string? OwnerMobile { get; set; }
+    public string? InternalContact { get; set; }
     public string? ContactEmail { get; set; }
     public string? ContactPhone { get; set; }
     public string? Description { get; set; }
     public string? Services { get; set; }
     public string? TargetAudience { get; set; }
+    public string? WorkingArea { get; set; }
+    public string? Certifications { get; set; }
+    public string? PricingInfo { get; set; }
+    public string? OpeningHours { get; set; }
     public string? AiSummary { get; set; }
     public string? SalesPitch { get; set; }
 }
