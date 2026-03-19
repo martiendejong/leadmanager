@@ -58,6 +58,21 @@ export interface Lead {
   enrichmentSources?: string | null
   // AI Sales Approach
   salesApproach?: string | null
+  // Owner identity (PR #23)
+  ownerLinkedInUrl?: string | null
+  ownerMobile?: string | null
+  internalContactName?: string | null
+  internalContactRole?: string | null
+  // Operational fields (PR #23)
+  workingArea?: string | null
+  certifications?: string | null
+  pricingInfo?: string | null
+  openingHours?: string | null
+  // Sales priority label + reasoning (PR #23)
+  salesPriorityLabel?: string | null
+  salesPriorityReasoning?: string | null
+  // Signals (PR #23)
+  signals?: string | null
 }
 
 export interface LeadsResponse {
@@ -75,6 +90,9 @@ export interface LeadFilter {
   pageSize?: number
   sortBy?: string
   sortDesc?: boolean
+  hasOwner?: boolean
+  hasLinkedIn?: boolean
+  priorityLabel?: string
 }
 
 export interface LeadStats {
@@ -92,6 +110,9 @@ export async function fetchLeads(filter: LeadFilter): Promise<LeadsResponse> {
   if (filter.pageSize !== undefined) params.pageSize = filter.pageSize
   if (filter.sortBy) params.sortBy = filter.sortBy
   if (filter.sortDesc !== undefined) params.sortDesc = filter.sortDesc
+  if (filter.hasOwner !== undefined) params.hasOwner = filter.hasOwner
+  if (filter.hasLinkedIn !== undefined) params.hasLinkedIn = filter.hasLinkedIn
+  if (filter.priorityLabel) params.priorityLabel = filter.priorityLabel
 
   const res = await apiClient.get<LeadsResponse>('/api/leads', { params })
   return res.data

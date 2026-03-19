@@ -70,5 +70,24 @@ public class Lead
     public string? EnrichmentSources { get; set; } // JSON: {"ownerName":"manual","email":"website"}
 
     // AI Sales Approach (Task #7)
-    public string? SalesApproach { get; set; } // JSON: {"linkedinMessage":"...","phoneOpener":"...","emailIntro":"..."}
+    public string? SalesApproach { get; set; } // JSON: see SalesApproachResult
+
+    // Owner identity enrichment (869ch51gb)
+    public string? OwnerLinkedInUrl { get; set; }   // Personal LinkedIn (/in/), not company page
+    public string? OwnerMobile { get; set; }          // Owner's direct mobile number
+    public string? InternalContactName { get; set; } // Fallback: receptionist / office manager
+    public string? InternalContactRole { get; set; } // e.g. "Receptionist", "Office Manager"
+
+    // Operational fields from website (869ch50g9)
+    public string? WorkingArea { get; set; }     // Service region / regio
+    public string? Certifications { get; set; }  // VCA, ISO, NEN, etc.
+    public string? PricingInfo { get; set; }     // Hourly rate, pricing summary
+    public string? OpeningHours { get; set; }    // Business hours
+
+    // Sales priority label + reasoning (869ch50x8)
+    public string? SalesPriorityLabel { get; set; }     // "High", "Medium", "Low"
+    public string? SalesPriorityReasoning { get; set; } // e.g. "LinkedIn known, Mobile available"
+
+    // Company signals layer (869ch4zb0)
+    public string? Signals { get; set; } // JSON: List<LeadSignal>
 }

@@ -26,7 +26,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="E:\projects\websearch\WebSearch\WebSearch.csproj" />
+    <ProjectReference Include="C:\Projects\websearch\WebSearch\WebSearch.csproj" Properties="TargetFramework=net8.0" />
   </ItemGroup>
 
 </Project>

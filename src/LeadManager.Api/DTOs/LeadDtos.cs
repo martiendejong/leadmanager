@@ -60,7 +60,22 @@ public record LeadDto(
     bool HasUploadedDocuments,
     string? EnrichmentSources,
     // AI Sales Approach (Task #7)
-    string? SalesApproach);
+    string? SalesApproach,
+    // Owner identity (869ch51gb)
+    string? OwnerLinkedInUrl,
+    string? OwnerMobile,
+    string? InternalContactName,
+    string? InternalContactRole,
+    // Operational fields (869ch50g9)
+    string? WorkingArea,
+    string? Certifications,
+    string? PricingInfo,
+    string? OpeningHours,
+    // Sales priority label + reasoning (869ch50x8)
+    string? SalesPriorityLabel,
+    string? SalesPriorityReasoning,
+    // Company signals (869ch4zb0)
+    string? Signals);
 
 public record CreateLeadDto(
     string Name,
@@ -93,8 +108,11 @@ public record LeadFilterParams(
     DateTime? EnrichedBefore = null,
     int Page = 1,
     int PageSize = 50,
-    string SortBy = "name",
-    bool SortDesc = false);
+    string SortBy = "salesPriorityScore",
+    bool SortDesc = true,
+    bool? HasOwner = null,
+    bool? HasLinkedIn = null,
+    string? PriorityLabel = null);
 
 public record LeadStatsDto(int Total, int Enriched, int NotEnriched);
 

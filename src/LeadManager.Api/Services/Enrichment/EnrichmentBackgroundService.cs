@@ -129,6 +129,7 @@ public class EnrichmentBackgroundService : BackgroundService
         var googleLogger = scope.ServiceProvider.GetRequiredService<ILogger<GooglePlacesEnrichmentService>>();
         var googleService = new GooglePlacesEnrichmentService(_configuration, googleLogger);
         var salesScoreService = new SalesScoreService();
+        var signalsService = new SignalsGeneratorService();
         var textInputLogger = scope.ServiceProvider.GetRequiredService<ILogger<TextInputEnrichmentService>>();
         var textInputService = new TextInputEnrichmentService(_configuration, textInputLogger);
         var salesApproachLogger = scope.ServiceProvider.GetRequiredService<ILogger<AiSalesApproachService>>();
@@ -183,22 +184,24 @@ public class EnrichmentBackgroundService : BackgroundService
                     searchResult.TotalResults, lead.Id, lead.Name
                 );
 
-                // Extract LinkedIn URL if found
-                var linkedInResult = searchResult.SearchResults.FirstOrDefault(r =>
-                    r.Url.Contains("linkedin.com", StringComparison.OrdinalIgnoreCase));
+                // Extract LinkedIn URLs: personal (/in/) vs company (/company/)
+                var personalLinkedIn = searchResult.SearchResults.FirstOrDefault(r =>
+                    r.Url.Contains("linkedin.com/in/", StringComparison.OrdinalIgnoreCase));
+                var companyLinkedIn = searchResult.SearchResults.FirstOrDefault(r =>
+                    r.Url.Contains("linkedin.com/company/", StringComparison.OrdinalIgnoreCase));
 
-                if (linkedInResult != null && string.IsNullOrWhiteSpace(lead.LinkedInUrl))
+                if (personalLinkedIn != null || companyLinkedIn != null)
                 {
                     var dbLead = await db.Leads.FindAsync(new object[] { lead.Id }, stoppingToken);
                     if (dbLead != null)
                     {
-                        dbLead.LinkedInUrl = linkedInResult.Url;
+                        if (personalLinkedIn != null && string.IsNullOrWhiteSpace(dbLead.OwnerLinkedInUrl))
+                            dbLead.OwnerLinkedInUrl = personalLinkedIn.Url;
+                        if (companyLinkedIn != null && string.IsNullOrWhiteSpace(dbLead.LinkedInUrl))
+                            dbLead.LinkedInUrl = companyLinkedIn.Url;
                         await db.SaveChangesAsync(stoppingToken);
                     }
                 }
-
-                // TODO: Store search results in a dedicated table for later analysis
-                // Could create LeadWebSearchResults table to persist all findings
             }
         }
         catch (Exception ex)
@@ -371,25 +374,46 @@ public class EnrichmentBackgroundService : BackgroundService
 
             if (!string.IsNullOrWhiteSpace(answers.OwnerTitle))
                 finalLead.OwnerTitle = answers.OwnerTitle;
+            if (!string.IsNullOrWhiteSpace(answers.OwnerLinkedInUrl))
+                finalLead.OwnerLinkedInUrl = answers.OwnerLinkedInUrl;
+            if (!string.IsNullOrWhiteSpace(answers.OwnerMobile))
+                finalLead.OwnerMobile = answers.OwnerMobile;
+            if (!string.IsNullOrWhiteSpace(answers.InternalContact))
+            {
+                // Parse "Name (Role)" format if present
+                var ic = answers.InternalContact.Trim();
+                var roleMatch = System.Text.RegularExpressions.Regex.Match(ic, @"^(.+?)\s*\((.+?)\)$");
+                if (roleMatch.Success)
+                {
+                    finalLead.InternalContactName = roleMatch.Groups[1].Value.Trim();
+                    finalLead.InternalContactRole = roleMatch.Groups[2].Value.Trim();
+                }
+                else
+                {
+                    finalLead.InternalContactName = ic;
+                }
+            }
 
             if (!string.IsNullOrWhiteSpace(answers.ContactEmail))
                 finalLead.CompanyEmail = answers.ContactEmail;
-
             if (!string.IsNullOrWhiteSpace(answers.ContactPhone))
                 finalLead.Phone = answers.ContactPhone;
-
             if (!string.IsNullOrWhiteSpace(answers.Description))
                 finalLead.Description = answers.Description;
-
             if (!string.IsNullOrWhiteSpace(answers.Services))
                 finalLead.Services = answers.Services;
-
             if (!string.IsNullOrWhiteSpace(answers.TargetAudience))
                 finalLead.TargetAudience = answers.TargetAudience;
-
+            if (!string.IsNullOrWhiteSpace(answers.WorkingArea))
+                finalLead.WorkingArea = answers.WorkingArea;
+            if (!string.IsNullOrWhiteSpace(answers.Certifications))
+                finalLead.Certifications = answers.Certifications;
+            if (!string.IsNullOrWhiteSpace(answers.PricingInfo))
+                finalLead.PricingInfo = answers.PricingInfo;
+            if (!string.IsNullOrWhiteSpace(answers.OpeningHours))
+                finalLead.OpeningHours = answers.OpeningHours;
             if (!string.IsNullOrWhiteSpace(answers.AiSummary))
                 finalLead.AiSummary = answers.AiSummary;
-
             if (!string.IsNullOrWhiteSpace(answers.SalesPitch))
                 finalLead.SalesPitch = answers.SalesPitch;
 
@@ -419,8 +443,15 @@ public class EnrichmentBackgroundService : BackgroundService
                 finalLead.SalesApproach = JsonSerializer.Serialize(salesApproachResult);
             }
 
-            // Calculate and save sales priority score
-            finalLead.SalesPriorityScore = salesScoreService.CalculateScore(finalLead);
+            // Calculate and save sales priority score + label + reasoning
+            var scoreResult = salesScoreService.CalculateScore(finalLead);
+            finalLead.SalesPriorityScore = scoreResult.Score;
+            finalLead.SalesPriorityLabel = scoreResult.Label;
+            finalLead.SalesPriorityReasoning = scoreResult.Reasoning;
+
+            // Generate company signals layer
+            var signals = signalsService.Generate(finalLead);
+            finalLead.Signals = System.Text.Json.JsonSerializer.Serialize(signals);
 
             finalLead.WebsiteStatus = WebsiteStatus.Reachable;
             finalLead.ResolvedUrl = resolvedUrl;

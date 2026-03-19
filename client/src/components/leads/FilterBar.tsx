@@ -18,7 +18,10 @@ function isFilterActive(filter: LeadFilter): boolean {
   return (
     filter.enriched !== undefined ||
     !!filter.enrichedAfter ||
-    !!filter.enrichedBefore
+    !!filter.enrichedBefore ||
+    filter.hasOwner !== undefined ||
+    filter.hasLinkedIn !== undefined ||
+    !!filter.priorityLabel
   )
 }
 
@@ -34,6 +37,9 @@ export default function FilterBar({ filter, onChange, stats }: FilterBarProps) {
     if (filter.page && filter.page > 1) params.set('page', String(filter.page))
     if (filter.sortBy) params.set('sortBy', filter.sortBy)
     if (filter.sortDesc) params.set('sortDesc', 'true')
+    if (filter.hasOwner !== undefined) params.set('hasOwner', String(filter.hasOwner))
+    if (filter.hasLinkedIn !== undefined) params.set('hasLinkedIn', String(filter.hasLinkedIn))
+    if (filter.priorityLabel) params.set('priorityLabel', filter.priorityLabel)
     setSearchParams(params, { replace: true })
   }, [filter, setSearchParams])
 
@@ -66,6 +72,10 @@ export default function FilterBar({ filter, onChange, stats }: FilterBarProps) {
 
   const setDateFilter = (key: 'enrichedAfter' | 'enrichedBefore', value: string) => {
     onChange({ ...filter, [key]: value || undefined, page: 1 })
+  }
+
+  const setPriorityFilter = (label: string | undefined) => {
+    onChange({ ...filter, priorityLabel: label, page: 1 })
   }
 
   const clearFilters = () => {
@@ -117,6 +127,44 @@ export default function FilterBar({ filter, onChange, stats }: FilterBarProps) {
             Filters wissen
           </button>
         )}
+      </div>
+
+      {/* Priority + contact quick filters */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs text-gray-500 font-medium">Prioriteit:</span>
+        {(['Hoog', 'Normaal', 'Laag'] as const).map((label) => {
+          const colorMap: Record<string, string> = {
+            Hoog: filter.priorityLabel === label ? 'bg-green-100 text-green-700 border-green-300' : 'border-gray-300 text-gray-600 hover:bg-gray-50',
+            Normaal: filter.priorityLabel === label ? 'bg-yellow-100 text-yellow-700 border-yellow-300' : 'border-gray-300 text-gray-600 hover:bg-gray-50',
+            Laag: filter.priorityLabel === label ? 'bg-red-100 text-red-700 border-red-300' : 'border-gray-300 text-gray-600 hover:bg-gray-50',
+          }
+          return (
+            <button
+              key={label}
+              onClick={() => setPriorityFilter(filter.priorityLabel === label ? undefined : label)}
+              className={`px-2.5 py-1 text-xs border rounded font-medium transition-colors ${colorMap[label]}`}
+            >
+              {label}
+            </button>
+          )
+        })}
+        <span className="ml-3 text-xs text-gray-500 font-medium">Contact:</span>
+        <button
+          onClick={() => onChange({ ...filter, hasOwner: filter.hasOwner === true ? undefined : true, page: 1 })}
+          className={`px-2.5 py-1 text-xs border rounded font-medium transition-colors ${
+            filter.hasOwner === true ? 'bg-indigo-100 text-indigo-700 border-indigo-300' : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          Heeft eigenaar
+        </button>
+        <button
+          onClick={() => onChange({ ...filter, hasLinkedIn: filter.hasLinkedIn === true ? undefined : true, page: 1 })}
+          className={`px-2.5 py-1 text-xs border rounded font-medium transition-colors ${
+            filter.hasLinkedIn === true ? 'bg-indigo-100 text-indigo-700 border-indigo-300' : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          Heeft LinkedIn
+        </button>
       </div>
 
       {/* Date filters */}

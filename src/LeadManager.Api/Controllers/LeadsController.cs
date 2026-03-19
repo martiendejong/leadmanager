@@ -28,6 +28,16 @@ public class LeadsController : ControllerBase
     private string? GetCurrentUserId() =>
         User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
 
+    private static string? NormalizeWebsiteUrl(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return url;
+        url = url.Trim();
+        if (!url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+            !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            url = "https://" + url;
+        return url;
+    }
+
     // GET /api/leads
     [HttpGet]
     public async Task<IActionResult> GetLeads([FromQuery] LeadFilterParams filters)
@@ -44,16 +54,30 @@ public class LeadsController : ControllerBase
         if (filters.EnrichedBefore.HasValue)
             query = query.Where(l => l.EnrichedAt <= filters.EnrichedBefore.Value);
 
+        if (filters.HasOwner.HasValue)
+            query = filters.HasOwner.Value
+                ? query.Where(l => l.OwnerName != null && l.OwnerName != "")
+                : query.Where(l => l.OwnerName == null || l.OwnerName == "");
+
+        if (filters.HasLinkedIn.HasValue)
+            query = filters.HasLinkedIn.Value
+                ? query.Where(l => (l.LinkedInUrl != null && l.LinkedInUrl != "") || (l.OwnerLinkedInUrl != null && l.OwnerLinkedInUrl != ""))
+                : query.Where(l => (l.LinkedInUrl == null || l.LinkedInUrl == "") && (l.OwnerLinkedInUrl == null || l.OwnerLinkedInUrl == ""));
+
+        if (!string.IsNullOrWhiteSpace(filters.PriorityLabel))
+            query = query.Where(l => l.SalesPriorityLabel == filters.PriorityLabel);
+
         // Sorting
         query = filters.SortBy?.ToLower() switch
         {
-            "website"   => filters.SortDesc ? query.OrderByDescending(l => l.Website)   : query.OrderBy(l => l.Website),
-            "sector"    => filters.SortDesc ? query.OrderByDescending(l => l.Sector)    : query.OrderBy(l => l.Sector),
-            "city"      => filters.SortDesc ? query.OrderByDescending(l => l.City)      : query.OrderBy(l => l.City),
-            "source"    => filters.SortDesc ? query.OrderByDescending(l => l.Source)    : query.OrderBy(l => l.Source),
-            "createdat" => filters.SortDesc ? query.OrderByDescending(l => l.CreatedAt) : query.OrderBy(l => l.CreatedAt),
-            "importedat"=> filters.SortDesc ? query.OrderByDescending(l => l.ImportedAt): query.OrderBy(l => l.ImportedAt),
-            _           => filters.SortDesc ? query.OrderByDescending(l => l.Name)      : query.OrderBy(l => l.Name),
+            "website"             => filters.SortDesc ? query.OrderByDescending(l => l.Website)            : query.OrderBy(l => l.Website),
+            "sector"              => filters.SortDesc ? query.OrderByDescending(l => l.Sector)             : query.OrderBy(l => l.Sector),
+            "city"                => filters.SortDesc ? query.OrderByDescending(l => l.City)               : query.OrderBy(l => l.City),
+            "source"              => filters.SortDesc ? query.OrderByDescending(l => l.Source)             : query.OrderBy(l => l.Source),
+            "createdat"           => filters.SortDesc ? query.OrderByDescending(l => l.CreatedAt)          : query.OrderBy(l => l.CreatedAt),
+            "importedat"          => filters.SortDesc ? query.OrderByDescending(l => l.ImportedAt)         : query.OrderBy(l => l.ImportedAt),
+            "salespriorityscore"  => filters.SortDesc ? query.OrderByDescending(l => l.SalesPriorityScore) : query.OrderBy(l => l.SalesPriorityScore),
+            _                     => filters.SortDesc ? query.OrderByDescending(l => l.Name)               : query.OrderBy(l => l.Name),
         };
 
         var total = await query.CountAsync();
@@ -96,7 +120,7 @@ public class LeadsController : ControllerBase
         if (lead == null) return NotFound();
 
         lead.Name = dto.Name;
-        lead.Website = dto.Website;
+        lead.Website = NormalizeWebsiteUrl(dto.Website) ?? lead.Website;
         lead.Sector = dto.Sector;
         lead.City = dto.City;
         lead.Phone = dto.Phone;
@@ -149,7 +173,7 @@ public class LeadsController : ControllerBase
         var lead = new Lead
         {
             Name = dto.Name,
-            Website = dto.Website ?? "",
+            Website = NormalizeWebsiteUrl(dto.Website) ?? "",
             Sector = dto.Sector,
             City = dto.City,
             Phone = dto.Phone,
@@ -389,7 +413,7 @@ public class LeadsController : ControllerBase
             toInsert.Add(new Lead
             {
                 Name = item.Name,
-                Website = item.Website,
+                Website = NormalizeWebsiteUrl(item.Website) ?? "",
                 City = item.City,
                 Sector = item.Sector,
                 Phone = item.Phone,
@@ -475,5 +499,20 @@ public class LeadsController : ControllerBase
         l.HasUploadedDocuments,
         l.EnrichmentSources,
         // AI Sales Approach
-        l.SalesApproach);
+        l.SalesApproach,
+        // Owner identity
+        l.OwnerLinkedInUrl,
+        l.OwnerMobile,
+        l.InternalContactName,
+        l.InternalContactRole,
+        // Operational fields
+        l.WorkingArea,
+        l.Certifications,
+        l.PricingInfo,
+        l.OpeningHours,
+        // Sales priority label + reasoning
+        l.SalesPriorityLabel,
+        l.SalesPriorityReasoning,
+        // Signals
+        l.Signals);
 }

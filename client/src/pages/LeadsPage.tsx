@@ -14,7 +14,7 @@ import CreateLeadForm from '../components/leads/CreateLeadForm'
 const PAGE_SIZE = 50
 
 function buildInitialFilter(searchParams: URLSearchParams): LeadFilter {
-  const filter: LeadFilter = { page: 1, pageSize: PAGE_SIZE }
+  const filter: LeadFilter = { page: 1, pageSize: PAGE_SIZE, sortBy: 'salesPriorityScore', sortDesc: true }
   const enriched = searchParams.get('enriched')
   if (enriched !== null) filter.enriched = enriched === 'true'
   const enrichedAfter = searchParams.get('enrichedAfter')
@@ -27,6 +27,12 @@ function buildInitialFilter(searchParams: URLSearchParams): LeadFilter {
   if (sortBy) filter.sortBy = sortBy
   const sortDesc = searchParams.get('sortDesc')
   if (sortDesc) filter.sortDesc = sortDesc === 'true'
+  const hasOwner = searchParams.get('hasOwner')
+  if (hasOwner !== null) filter.hasOwner = hasOwner === 'true'
+  const hasLinkedIn = searchParams.get('hasLinkedIn')
+  if (hasLinkedIn !== null) filter.hasLinkedIn = hasLinkedIn === 'true'
+  const priorityLabel = searchParams.get('priorityLabel')
+  if (priorityLabel) filter.priorityLabel = priorityLabel
   return filter
 }
 

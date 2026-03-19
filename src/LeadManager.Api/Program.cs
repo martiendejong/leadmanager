@@ -160,7 +160,8 @@ using (var scope = app.Services.CreateScope())
     }
 
     // Seed admin user
-    const string adminEmail = "admin@leadmanager.nl";
+    const string adminEmail = "info@prospergenics.com";
+    const string adminPassword = "SpaceElevator1tam!";
     var adminUser = await userManager.FindByEmailAsync(adminEmail);
     if (adminUser == null)
     {
@@ -174,8 +175,16 @@ using (var scope = app.Services.CreateScope())
             IsActive = true,
             EmailConfirmed = true
         };
-        var result = await userManager.CreateAsync(adminUser, "Admin123!");
+        var result = await userManager.CreateAsync(adminUser, adminPassword);
         if (result.Succeeded)
+            await userManager.AddToRoleAsync(adminUser, "Admin");
+    }
+    else
+    {
+        // Ensure password is correct and user has Admin role
+        var token = await userManager.GeneratePasswordResetTokenAsync(adminUser);
+        await userManager.ResetPasswordAsync(adminUser, token, adminPassword);
+        if (!await userManager.IsInRoleAsync(adminUser, "Admin"))
             await userManager.AddToRoleAsync(adminUser, "Admin");
     }
 }

@@ -43,11 +43,17 @@ public class ProfileController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.WebsiteUrl))
             return BadRequest("WebsiteUrl is required.");
 
+        // Normalize URL — accept bare domains like "martiendejong.nl"
+        var websiteUrl = request.WebsiteUrl.Trim();
+        if (!websiteUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+            !websiteUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            websiteUrl = "https://" + websiteUrl;
+
         var userId = GetUserId();
 
         try
         {
-            var profile = await _profileService.GenerateProfileAsync(request.WebsiteUrl, userId);
+            var profile = await _profileService.GenerateProfileAsync(websiteUrl, userId);
 
             // Upsert
             var existing = await _db.CompanyProfiles.FirstOrDefaultAsync(p => p.UserId == userId);
