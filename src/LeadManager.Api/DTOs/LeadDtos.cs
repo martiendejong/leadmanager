@@ -108,8 +108,11 @@ public record LeadFilterParams(
     DateTime? EnrichedBefore = null,
     int Page = 1,
     int PageSize = 50,
-    string SortBy = "name",
-    bool SortDesc = false);
+    string SortBy = "salesPriorityScore",
+    bool SortDesc = true,
+    bool? HasOwner = null,
+    bool? HasLinkedIn = null,
+    string? PriorityLabel = null);
 
 public record LeadStatsDto(int Total, int Enriched, int NotEnriched);
 

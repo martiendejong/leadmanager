@@ -54,16 +54,30 @@ public class LeadsController : ControllerBase
         if (filters.EnrichedBefore.HasValue)
             query = query.Where(l => l.EnrichedAt <= filters.EnrichedBefore.Value);
 
+        if (filters.HasOwner.HasValue)
+            query = filters.HasOwner.Value
+                ? query.Where(l => l.OwnerName != null && l.OwnerName != "")
+                : query.Where(l => l.OwnerName == null || l.OwnerName == "");
+
+        if (filters.HasLinkedIn.HasValue)
+            query = filters.HasLinkedIn.Value
+                ? query.Where(l => (l.LinkedInUrl != null && l.LinkedInUrl != "") || (l.OwnerLinkedInUrl != null && l.OwnerLinkedInUrl != ""))
+                : query.Where(l => (l.LinkedInUrl == null || l.LinkedInUrl == "") && (l.OwnerLinkedInUrl == null || l.OwnerLinkedInUrl == ""));
+
+        if (!string.IsNullOrWhiteSpace(filters.PriorityLabel))
+            query = query.Where(l => l.SalesPriorityLabel == filters.PriorityLabel);
+
         // Sorting
         query = filters.SortBy?.ToLower() switch
         {
-            "website"   => filters.SortDesc ? query.OrderByDescending(l => l.Website)   : query.OrderBy(l => l.Website),
-            "sector"    => filters.SortDesc ? query.OrderByDescending(l => l.Sector)    : query.OrderBy(l => l.Sector),
-            "city"      => filters.SortDesc ? query.OrderByDescending(l => l.City)      : query.OrderBy(l => l.City),
-            "source"    => filters.SortDesc ? query.OrderByDescending(l => l.Source)    : query.OrderBy(l => l.Source),
-            "createdat" => filters.SortDesc ? query.OrderByDescending(l => l.CreatedAt) : query.OrderBy(l => l.CreatedAt),
-            "importedat"=> filters.SortDesc ? query.OrderByDescending(l => l.ImportedAt): query.OrderBy(l => l.ImportedAt),
-            _           => filters.SortDesc ? query.OrderByDescending(l => l.Name)      : query.OrderBy(l => l.Name),
+            "website"             => filters.SortDesc ? query.OrderByDescending(l => l.Website)            : query.OrderBy(l => l.Website),
+            "sector"              => filters.SortDesc ? query.OrderByDescending(l => l.Sector)             : query.OrderBy(l => l.Sector),
+            "city"                => filters.SortDesc ? query.OrderByDescending(l => l.City)               : query.OrderBy(l => l.City),
+            "source"              => filters.SortDesc ? query.OrderByDescending(l => l.Source)             : query.OrderBy(l => l.Source),
+            "createdat"           => filters.SortDesc ? query.OrderByDescending(l => l.CreatedAt)          : query.OrderBy(l => l.CreatedAt),
+            "importedat"          => filters.SortDesc ? query.OrderByDescending(l => l.ImportedAt)         : query.OrderBy(l => l.ImportedAt),
+            "salespriorityscore"  => filters.SortDesc ? query.OrderByDescending(l => l.SalesPriorityScore) : query.OrderBy(l => l.SalesPriorityScore),
+            _                     => filters.SortDesc ? query.OrderByDescending(l => l.Name)               : query.OrderBy(l => l.Name),
         };
 
         var total = await query.CountAsync();
