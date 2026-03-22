@@ -37,8 +37,8 @@ public class LeadsController : ControllerBase
             if (!u.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
                 !u.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
                 u = "https://" + u;
-            var uri = new Uri(u);
-            return uri.Host.ToLower().TrimStart('w').TrimStart('w').TrimStart('w').TrimStart('.');
+            var host = new Uri(u).Host.ToLower();
+            return host.StartsWith("www.") ? host[4..] : host;
         }
         catch { return url.ToLower(); }
     }
