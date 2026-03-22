@@ -91,6 +91,29 @@ function App() {
               <Route index element={<AdminUsersPage />} />
             </Route>
 
+            {/* Clients */}
+            <Route
+              path="/clients"
+              element={
+                <ProtectedRoute>
+                  <Layout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<ClientsPage />} />
+            </Route>
+
+            <Route
+              path="/clients/:id"
+              element={
+                <ProtectedRoute>
+                  <Layout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<ClientDetailPage />} />
+            </Route>
+
             {/* Catch-all */}
             <Route path="*" element={<Navigate to="/leads" replace />} />
           </Routes>
