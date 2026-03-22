@@ -58,6 +58,8 @@ export interface Lead {
   enrichmentSources?: string | null
   // AI Sales Approach
   salesApproach?: string | null
+  // Pipeline status (869ck3j46)
+  pipelineStatus?: string
 }
 
 export interface LeadsResponse {
@@ -204,4 +206,53 @@ export interface SalesApproachResult {
 export async function regenerateSalesApproach(leadId: string): Promise<SalesApproachResult> {
   const res = await apiClient.post<SalesApproachResult>(`/api/leads/${leadId}/regenerate-sales-approach`)
   return res.data
+}
+
+// Activity timeline (869ck3j4b)
+export interface LeadActivity {
+  id: string
+  leadId: string
+  userId: string | null
+  activityType: string
+  note: string | null
+  createdAt: string
+}
+
+export async function getLeadActivities(leadId: string): Promise<LeadActivity[]> {
+  const res = await apiClient.get<LeadActivity[]>(`/api/leads/${leadId}/activities`)
+  return res.data
+}
+
+export async function addLeadActivity(
+  leadId: string,
+  data: { activityType: string; note?: string }
+): Promise<LeadActivity> {
+  const res = await apiClient.post<LeadActivity>(`/api/leads/${leadId}/activities`, data)
+  return res.data
+}
+
+// Pipeline (869ck3j46)
+export const PIPELINE_STATUSES = ['New', 'Contacted', 'Qualified', 'ProposalSent', 'Won', 'Lost'] as const
+export type PipelineStatus = typeof PIPELINE_STATUSES[number]
+
+export const PIPELINE_STATUS_LABELS: Record<PipelineStatus, string> = {
+  New: 'Nieuw',
+  Contacted: 'Gecontacteerd',
+  Qualified: 'Gekwalificeerd',
+  ProposalSent: 'Offerte verstuurd',
+  Won: 'Gewonnen',
+  Lost: 'Verloren',
+}
+
+export async function updateLeadPipelineStatus(leadId: string, status: string): Promise<Lead> {
+  const res = await apiClient.put<Lead>(`/api/leads/${leadId}/pipeline`, { pipelineStatus: status })
+  return res.data
+}
+
+export async function fetchLeadsByPipeline(): Promise<Lead[]> {
+  // Fetch all leads without pagination for the kanban board
+  const res = await apiClient.get<{ items: Lead[]; total: number }>('/api/leads', {
+    params: { page: 1, pageSize: 500 },
+  })
+  return res.data.items
 }

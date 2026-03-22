@@ -2,6 +2,8 @@ namespace LeadManager.Api.Models;
 
 public enum WebsiteStatus { Unknown, Reachable, Unreachable }
 
+public enum PipelineStatus { New, Contacted, Qualified, ProposalSent, Won, Lost }
+
 public class Lead
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -90,4 +92,10 @@ public class Lead
 
     // Company signals layer (869ch4zb0)
     public string? Signals { get; set; } // JSON: List<LeadSignal>
+
+    // Pipeline Kanban (869ck3j46)
+    public PipelineStatus PipelineStatus { get; set; } = PipelineStatus.New;
+
+    // Navigation: activity timeline (869ck3j4b)
+    public ICollection<LeadActivity> Activities { get; set; } = new List<LeadActivity>();
 }

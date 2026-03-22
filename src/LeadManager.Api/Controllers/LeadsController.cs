@@ -135,6 +135,22 @@ public class LeadsController : ControllerBase
         return NoContent();
     }
 
+    // PUT /api/leads/{id}/pipeline - Update pipeline status (869ck3j46)
+    [HttpPut("{id:guid}/pipeline")]
+    public async Task<IActionResult> UpdatePipelineStatus(Guid id, [FromBody] UpdatePipelineStatusDto dto)
+    {
+        var userId = GetCurrentUserId();
+        var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == userId);
+        if (lead == null) return NotFound();
+
+        if (!Enum.TryParse<PipelineStatus>(dto.PipelineStatus, out var status))
+            return BadRequest($"Invalid pipeline status: {dto.PipelineStatus}");
+
+        lead.PipelineStatus = status;
+        await _db.SaveChangesAsync();
+        return Ok(ToDto(lead));
+    }
+
     // POST /api/leads - Create single lead (Task #3, #4)
     [HttpPost]
     public async Task<IActionResult> CreateLead([FromBody] CreateLeadDto dto)
@@ -500,5 +516,7 @@ public class LeadsController : ControllerBase
         l.SalesPriorityLabel,
         l.SalesPriorityReasoning,
         // Signals
-        l.Signals);
+        l.Signals,
+        // Pipeline status
+        l.PipelineStatus.ToString());
 }
