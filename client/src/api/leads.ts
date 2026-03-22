@@ -260,6 +260,67 @@ export async function regenerateSalesApproach(leadId: string): Promise<SalesAppr
   return res.data
 }
 
+export interface OutreachEmailVariant {
+  style: string
+  subject: string
+  body: string
+}
+
+export interface OutreachEmailResult {
+  variants: OutreachEmailVariant[]
+}
+
+export async function generateOutreachEmail(leadId: string): Promise<OutreachEmailResult> {
+  const res = await apiClient.post<OutreachEmailResult>(`/api/leads/${leadId}/generate-outreach`)
+  return res.data
+}
+
+export interface LeadsAnalyticsStatusItem {
+  status: string
+  count: number
+}
+
+export interface LeadsAnalyticsIndustryItem {
+  industry: string
+  count: number
+}
+
+export interface LeadsAnalyticsTimeItem {
+  date: string
+  count: number
+}
+
+export interface LeadsAnalyticsSourceItem {
+  source: string
+  count: number
+}
+
+export interface LeadsAnalyticsScoreItem {
+  industry: string
+  avgScore: number
+}
+
+export interface LeadsAnalytics {
+  totalLeads: number
+  enrichedLeads: number
+  avgSalesScore: number
+  leadsThisMonth: number
+  conversionRate: number
+  leadsByStatus: LeadsAnalyticsStatusItem[]
+  leadsByIndustry: LeadsAnalyticsIndustryItem[]
+  leadsOverTime: LeadsAnalyticsTimeItem[]
+  topSources: LeadsAnalyticsSourceItem[]
+  avgScoreByIndustry: LeadsAnalyticsScoreItem[]
+}
+
+export async function getLeadsAnalytics(from?: string, to?: string): Promise<LeadsAnalytics> {
+  const params: Record<string, string> = {}
+  if (from) params.from = from
+  if (to) params.to = to
+  const res = await apiClient.get<LeadsAnalytics>('/api/leads/analytics', { params })
+  return res.data
+}
+
 // Activity timeline (869ck3j4b)
 export interface LeadActivity {
   id: string

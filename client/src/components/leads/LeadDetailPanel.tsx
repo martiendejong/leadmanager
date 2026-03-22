@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Lead } from '../../api/leads'
 import { regenerateSalesApproach, enrichLeads } from '../../api/leads'
 import { useToast } from '../Toast'
+import OutreachEmailPanel from './OutreachEmailPanel'
 import LeadActivityTimeline from './LeadActivityTimeline'
 
 interface Props {
@@ -345,6 +346,9 @@ export default function LeadDetailPanel({ lead, onClose }: Props) {
                   return null
                 }
               })()}
+
+              {/* Outreach Email Generator */}
+              <OutreachEmailPanel lead={lead} />
 
               {/* Sales Pitch — most prominent, top of panel */}
               {lead.salesPitch && (
