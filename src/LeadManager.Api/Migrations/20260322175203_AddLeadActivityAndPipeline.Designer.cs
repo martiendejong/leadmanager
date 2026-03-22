@@ -3,6 +3,7 @@ using System;
 using LeadManager.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace LeadManager.Api.Migrations
 {
     [DbContext(typeof(LeadManagerDbContext))]
-    partial class LeadManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260322175203_AddLeadActivityAndPipeline")]
+    partial class AddLeadActivityAndPipeline
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.25");
@@ -218,9 +221,6 @@ namespace LeadManager.Api.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("AssignedToUserId")
-                        .HasColumnType("TEXT");
-
                     b.Property<int?>("BranchCount")
                         .HasColumnType("INTEGER");
 
@@ -304,9 +304,6 @@ namespace LeadManager.Api.Migrations
                     b.Property<string>("KvkNumber")
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTime?>("LastEnrichmentAttempt")
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("LegalForm")
                         .HasColumnType("TEXT");
 
@@ -363,9 +360,6 @@ namespace LeadManager.Api.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("PricingInfo")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("ReminderDate")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("ResolvedUrl")
@@ -524,37 +518,6 @@ namespace LeadManager.Api.Migrations
                     b.HasIndex("LeadId");
 
                     b.ToTable("LeadPageContents");
-                });
-
-            modelBuilder.Entity("LeadManager.Api.Models.Notification", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsRead")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<Guid?>("LinkedLeadId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Message")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("Type")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("Notifications");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
