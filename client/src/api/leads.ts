@@ -58,6 +58,8 @@ export interface Lead {
   enrichmentSources?: string | null
   // AI Sales Approach
   salesApproach?: string | null
+  // Lead assignment (869ck3j4u)
+  assignedToUserId?: string | null
   // Pipeline status (869ck3j46)
   pipelineStatus?: string
 }
@@ -77,6 +79,7 @@ export interface LeadFilter {
   pageSize?: number
   sortBy?: string
   sortDesc?: boolean
+  assignedToUserId?: string
 }
 
 export interface LeadStats {
@@ -94,6 +97,7 @@ export async function fetchLeads(filter: LeadFilter): Promise<LeadsResponse> {
   if (filter.pageSize !== undefined) params.pageSize = filter.pageSize
   if (filter.sortBy) params.sortBy = filter.sortBy
   if (filter.sortDesc !== undefined) params.sortDesc = filter.sortDesc
+  if (filter.assignedToUserId) params.assignedToUserId = filter.assignedToUserId
 
   const res = await apiClient.get<LeadsResponse>('/api/leads', { params })
   return res.data
@@ -257,6 +261,73 @@ export interface SalesApproachResult {
 
 export async function regenerateSalesApproach(leadId: string): Promise<SalesApproachResult> {
   const res = await apiClient.post<SalesApproachResult>(`/api/leads/${leadId}/regenerate-sales-approach`)
+  return res.data
+}
+
+// Duplicate detection (869ck3j4y)
+export interface DuplicateLead {
+  id: string
+  name: string
+  website: string
+  city: string
+  sector: string
+  score?: number | null
+}
+
+export interface DuplicateCheckResult {
+  duplicates: DuplicateLead[]
+}
+
+export async function createLeadWithDupCheck(
+  dto: CreateLeadDto,
+  force = false
+): Promise<{ lead: Lead } | { duplicates: DuplicateLead[] }> {
+  try {
+    const params = force ? '?force=true' : ''
+    const res = await apiClient.post<Lead>(`/api/leads${params}`, dto)
+    return { lead: res.data }
+  } catch (err: any) {
+    if (err.response?.status === 409) {
+      const data: DuplicateCheckResult = err.response.data
+      return { duplicates: data.duplicates }
+    }
+    throw err
+  }
+}
+
+export async function mergeLead(targetId: string, sourceId: string): Promise<Lead> {
+  const res = await apiClient.post<Lead>(`/api/leads/${targetId}/merge`, { sourceLeadId: sourceId })
+  return res.data
+}
+
+export async function assignLead(id: string, userId: string | null): Promise<Lead> {
+  const res = await apiClient.put<Lead>(`/api/leads/${id}/assign`, { userId })
+  return res.data
+}
+
+export interface Assignee {
+  userId: string
+  displayName: string
+  leadCount: number
+}
+
+export async function getAssignees(): Promise<Assignee[]> {
+  const res = await apiClient.get<Assignee[]>('/api/leads/assignees')
+  return res.data
+}
+
+// Users list (for assignment dropdown — uses existing GET /api/admin/users)
+export interface UserDto {
+  id: string
+  email: string
+  firstName?: string
+  lastName?: string
+  role: string
+  isActive: boolean
+}
+
+export async function fetchUsers(): Promise<UserDto[]> {
+  const res = await apiClient.get<UserDto[]>('/api/admin/users')
   return res.data
 }
 

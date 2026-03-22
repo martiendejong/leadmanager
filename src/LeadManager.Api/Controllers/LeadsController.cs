@@ -31,6 +31,37 @@ public class LeadsController : ControllerBase
     private string? GetCurrentUserId() =>
         User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
 
+    private static string? ExtractDomain(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return null;
+        try
+        {
+            var u = url.Trim();
+            if (!u.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+                !u.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                u = "https://" + u;
+            var host = new Uri(u).Host.ToLower();
+            return host.StartsWith("www.") ? host[4..] : host;
+        }
+        catch { return url.ToLower(); }
+    }
+
+    private static int LevenshteinDistance(string a, string b)
+    {
+        if (string.IsNullOrEmpty(a)) return b?.Length ?? 0;
+        if (string.IsNullOrEmpty(b)) return a.Length;
+        var d = new int[a.Length + 1, b.Length + 1];
+        for (int i = 0; i <= a.Length; i++) d[i, 0] = i;
+        for (int j = 0; j <= b.Length; j++) d[0, j] = j;
+        for (int i = 1; i <= a.Length; i++)
+            for (int j = 1; j <= b.Length; j++)
+            {
+                int cost = a[i - 1] == b[j - 1] ? 0 : 1;
+                d[i, j] = Math.Min(Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1), d[i - 1, j - 1] + cost);
+            }
+        return d[a.Length, b.Length];
+    }
+
     private static string? NormalizeWebsiteUrl(string? url)
     {
         if (string.IsNullOrWhiteSpace(url)) return url;
@@ -56,6 +87,9 @@ public class LeadsController : ControllerBase
 
         if (filters.EnrichedBefore.HasValue)
             query = query.Where(l => l.EnrichedAt <= filters.EnrichedBefore.Value);
+
+        if (!string.IsNullOrEmpty(filters.AssignedToUserId))
+            query = query.Where(l => l.AssignedToUserId == filters.AssignedToUserId);
 
         // Sorting
         query = filters.SortBy?.ToLower() switch
@@ -156,7 +190,7 @@ public class LeadsController : ControllerBase
 
     // POST /api/leads - Create single lead (Task #3, #4)
     [HttpPost]
-    public async Task<IActionResult> CreateLead([FromBody] CreateLeadDto dto)
+    public async Task<IActionResult> CreateLead([FromBody] CreateLeadDto dto, [FromQuery] bool force = false)
     {
         // Task #4: Validate at least one input type is provided
         var hasWebsite = !string.IsNullOrWhiteSpace(dto.Website);
@@ -175,6 +209,53 @@ public class LeadsController : ControllerBase
         }
 
         var userId = GetCurrentUserId();
+
+        // Duplicate detection (869ck3j4y) — skip when ?force=true
+        if (!force)
+        {
+            var normalizedWebsite = NormalizeWebsiteUrl(dto.Website);
+            var incomingDomain = ExtractDomain(normalizedWebsite);
+            var incomingNameLower = dto.Name?.ToLower() ?? "";
+            var incomingEmailLower = dto.CompanyEmail?.ToLower() ?? "";
+
+            var userLeads = await _db.Leads
+                .Where(l => l.ImportedByUserId == userId)
+                .ToListAsync();
+
+            var duplicates = userLeads.Where(l =>
+            {
+                // Same domain
+                var existingDomain = ExtractDomain(l.Website);
+                if (!string.IsNullOrEmpty(incomingDomain) && !string.IsNullOrEmpty(existingDomain) &&
+                    existingDomain.Equals(incomingDomain, StringComparison.OrdinalIgnoreCase))
+                    return true;
+
+                // Same company email
+                if (!string.IsNullOrEmpty(incomingEmailLower) &&
+                    !string.IsNullOrEmpty(l.CompanyEmail) &&
+                    l.CompanyEmail.ToLower() == incomingEmailLower)
+                    return true;
+
+                // Fuzzy name match: contains or Levenshtein distance <= 2
+                var existingNameLower = l.Name?.ToLower() ?? "";
+                if (!string.IsNullOrEmpty(incomingNameLower) && !string.IsNullOrEmpty(existingNameLower))
+                {
+                    if (existingNameLower.Contains(incomingNameLower) || incomingNameLower.Contains(existingNameLower))
+                        return true;
+                    if (LevenshteinDistance(incomingNameLower, existingNameLower) <= 2)
+                        return true;
+                }
+
+                return false;
+            }).Select(l => new DuplicateLeadDto(l.Id, l.Name, l.Website, l.City, l.Sector, l.SalesPriorityScore))
+              .ToList();
+
+            if (duplicates.Count > 0)
+            {
+                return Conflict(new DuplicateCheckResultDto(duplicates));
+            }
+        }
+
         var lead = new Lead
         {
             Name = dto.Name,
@@ -194,6 +275,127 @@ public class LeadsController : ControllerBase
         await _db.SaveChangesAsync();
 
         return CreatedAtAction(nameof(GetLead), new { id = lead.Id }, ToDto(lead));
+    }
+
+    // POST /api/leads/{id}/merge - Merge two leads (869ck3j4y)
+    [HttpPost("{id:guid}/merge")]
+    public async Task<IActionResult> MergeLead(Guid id, [FromBody] MergeLeadDto dto)
+    {
+        var userId = GetCurrentUserId();
+
+        var target = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == userId);
+        if (target == null) return NotFound("Target lead niet gevonden.");
+
+        var source = await _db.Leads.FirstOrDefaultAsync(l => l.Id == dto.SourceLeadId && l.ImportedByUserId == userId);
+        if (source == null) return NotFound("Source lead niet gevonden.");
+
+        // Merge: prefer non-null/non-empty existing value, else use source value
+        static string MergeStr(string existing, string source) =>
+            !string.IsNullOrWhiteSpace(existing) ? existing : source;
+        static string? MergeNullStr(string? existing, string? source) =>
+            !string.IsNullOrWhiteSpace(existing) ? existing : source;
+
+        target.Website = MergeStr(target.Website, source.Website);
+        target.Sector = MergeStr(target.Sector, source.Sector);
+        target.City = MergeStr(target.City, source.City);
+        target.Phone = MergeStr(target.Phone, source.Phone);
+        target.CompanyEmail = MergeStr(target.CompanyEmail, source.CompanyEmail);
+        target.OwnerName = MergeStr(target.OwnerName, source.OwnerName);
+        target.OwnerFirstName = MergeStr(target.OwnerFirstName, source.OwnerFirstName);
+        target.OwnerLastName = MergeStr(target.OwnerLastName, source.OwnerLastName);
+        target.PersonalEmail = MergeStr(target.PersonalEmail, source.PersonalEmail);
+        target.LinkedInUrl = MergeStr(target.LinkedInUrl, source.LinkedInUrl);
+        target.Source = MergeStr(target.Source, source.Source);
+        target.OwnerTitle = MergeNullStr(target.OwnerTitle, source.OwnerTitle);
+        target.Description = MergeNullStr(target.Description, source.Description);
+        target.Services = MergeNullStr(target.Services, source.Services);
+        target.TargetAudience = MergeNullStr(target.TargetAudience, source.TargetAudience);
+        target.AiSummary = MergeNullStr(target.AiSummary, source.AiSummary);
+        target.SalesPitch = MergeNullStr(target.SalesPitch, source.SalesPitch);
+        target.KvkNumber = MergeNullStr(target.KvkNumber, source.KvkNumber);
+        target.VatNumber = MergeNullStr(target.VatNumber, source.VatNumber);
+        target.Street = MergeNullStr(target.Street, source.Street);
+        target.ZipCode = MergeNullStr(target.ZipCode, source.ZipCode);
+        target.EmployeeCount = MergeNullStr(target.EmployeeCount, source.EmployeeCount);
+        target.BranchCount ??= source.BranchCount;
+        target.FoundingYear ??= source.FoundingYear;
+        target.LegalForm = MergeNullStr(target.LegalForm, source.LegalForm);
+        target.GoogleRating ??= source.GoogleRating;
+        target.GoogleReviewCount ??= source.GoogleReviewCount;
+        target.GoogleMapsUrl = MergeNullStr(target.GoogleMapsUrl, source.GoogleMapsUrl);
+        target.FacebookUrl = MergeNullStr(target.FacebookUrl, source.FacebookUrl);
+        target.InstagramUrl = MergeNullStr(target.InstagramUrl, source.InstagramUrl);
+        target.TwitterUrl = MergeNullStr(target.TwitterUrl, source.TwitterUrl);
+        target.GroupName = MergeNullStr(target.GroupName, source.GroupName);
+        target.NotableClients = MergeNullStr(target.NotableClients, source.NotableClients);
+        target.SalesPriorityScore ??= source.SalesPriorityScore;
+        target.ManualInput = MergeNullStr(target.ManualInput, source.ManualInput);
+        target.SalesApproach = MergeNullStr(target.SalesApproach, source.SalesApproach);
+        target.OwnerLinkedInUrl = MergeNullStr(target.OwnerLinkedInUrl, source.OwnerLinkedInUrl);
+        target.OwnerMobile = MergeNullStr(target.OwnerMobile, source.OwnerMobile);
+        target.WorkingArea = MergeNullStr(target.WorkingArea, source.WorkingArea);
+        target.Certifications = MergeNullStr(target.Certifications, source.Certifications);
+        target.PricingInfo = MergeNullStr(target.PricingInfo, source.PricingInfo);
+        target.OpeningHours = MergeNullStr(target.OpeningHours, source.OpeningHours);
+        target.SalesPriorityLabel = MergeNullStr(target.SalesPriorityLabel, source.SalesPriorityLabel);
+        target.SalesPriorityReasoning = MergeNullStr(target.SalesPriorityReasoning, source.SalesPriorityReasoning);
+        target.Signals = MergeNullStr(target.Signals, source.Signals);
+
+        if (source.IsEnriched && !target.IsEnriched)
+        {
+            target.IsEnriched = true;
+            target.EnrichedAt = source.EnrichedAt;
+        }
+        if (source.HasUploadedDocuments) target.HasUploadedDocuments = true;
+
+        // TODO: Add LeadActivity "Samengevoegd met [source.Name]" once LeadActivity entity is merged (PR #30)
+
+        _db.Leads.Remove(source);
+        await _db.SaveChangesAsync();
+
+        return Ok(ToDto(target));
+    }
+
+    // PUT /api/leads/{id}/assign - Assign lead to user (869ck3j4u)
+    [HttpPut("{id:guid}/assign")]
+    public async Task<IActionResult> AssignLead(Guid id, [FromBody] AssignLeadDto dto)
+    {
+        var userId = GetCurrentUserId();
+        var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == userId);
+        if (lead == null) return NotFound();
+
+        lead.AssignedToUserId = dto.UserId;
+        await _db.SaveChangesAsync();
+
+        return Ok(ToDto(lead));
+    }
+
+    // GET /api/leads/assignees - Get users with assigned leads (869ck3j4u)
+    [HttpGet("assignees")]
+    public async Task<IActionResult> GetAssignees()
+    {
+        var userId = GetCurrentUserId();
+
+        var assigneeCounts = await _db.Leads
+            .Where(l => l.ImportedByUserId == userId && l.AssignedToUserId != null)
+            .GroupBy(l => l.AssignedToUserId!)
+            .Select(g => new { UserId = g.Key, LeadCount = g.Count() })
+            .ToListAsync();
+
+        var userManager = HttpContext.RequestServices.GetRequiredService<Microsoft.AspNetCore.Identity.UserManager<Models.ApplicationUser>>();
+
+        var result = new List<AssigneeDto>();
+        foreach (var item in assigneeCounts)
+        {
+            var user = await userManager.FindByIdAsync(item.UserId);
+            var displayName = user != null
+                ? $"{user.FirstName} {user.LastName}".Trim()
+                : item.UserId;
+            if (string.IsNullOrWhiteSpace(displayName)) displayName = user?.Email ?? item.UserId;
+            result.Add(new AssigneeDto(item.UserId, displayName, item.LeadCount));
+        }
+
+        return Ok(result);
     }
 
     // POST /api/leads/{id}/documents - Upload documents for lead (Task #2)
@@ -772,6 +974,8 @@ public class LeadsController : ControllerBase
         l.SalesPriorityReasoning,
         // Signals
         l.Signals,
+        // Assignment
+        l.AssignedToUserId,
         // Pipeline status
         l.PipelineStatus.ToString());
 }

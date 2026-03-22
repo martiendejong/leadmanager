@@ -76,6 +76,8 @@ public record LeadDto(
     string? SalesPriorityReasoning,
     // Company signals (869ch4zb0)
     string? Signals,
+    // Lead assignment (869ck3j4u)
+    string? AssignedToUserId,
     // Pipeline status (869ck3j46)
     string PipelineStatus);
 
@@ -111,7 +113,8 @@ public record LeadFilterParams(
     int Page = 1,
     int PageSize = 50,
     string SortBy = "name",
-    bool SortDesc = false);
+    bool SortDesc = false,
+    string? AssignedToUserId = null);
 
 public record CsvImportRowError(int Row, string Message);
 public record CsvImportResultDto(int Created, int Skipped, List<CsvImportRowError> Errors);
@@ -123,6 +126,17 @@ public record ImportResultDto(int Imported, int Skipped, int Errors, List<string
 public record LeadSearchRequest(string Sector, string? Location, int Limit = 25);
 public record LeadSearchResult(string Name, string Website, string City, string Sector, string Phone, string Email, string Source, string Snippet = "", string? OwnerName = null, string? Description = null, string? Services = null, string? TargetAudience = null);
 public record LeadSearchImportRequest(List<LeadSearchResult> Leads);
+
+// Duplicate detection (869ck3j4y)
+public record DuplicateLeadDto(Guid Id, string Name, string Website, string City, string Sector, int? Score);
+public record DuplicateCheckResultDto(List<DuplicateLeadDto> Duplicates);
+
+// Merge (869ck3j4y)
+public record MergeLeadDto(Guid SourceLeadId);
+
+// Assignment (869ck3j4u)
+public record AssignLeadDto(string? UserId);
+public record AssigneeDto(string UserId, string DisplayName, int LeadCount);
 
 // Activity timeline (869ck3j4b)
 public record CreateActivityDto(string ActivityType, string? Note);
