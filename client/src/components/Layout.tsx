@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import NotificationBell from './NotificationBell'
 
 export default function Layout() {
   const { user, logout } = useAuth()
@@ -67,8 +68,9 @@ export default function Layout() {
             {navItems}
           </nav>
 
-          {/* Right: user + logout + hamburger */}
+          {/* Right: notifications + user + logout + hamburger */}
           <div className="flex items-center gap-3 flex-shrink-0">
+            <NotificationBell />
             <span className="hidden sm:block text-sm text-gray-700 font-medium">{user?.firstName}</span>
             <button
               onClick={logout}
