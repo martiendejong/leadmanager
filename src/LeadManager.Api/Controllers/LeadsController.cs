@@ -177,6 +177,19 @@ public class LeadsController : ControllerBase
         return CreatedAtAction(nameof(GetLead), new { id = lead.Id }, ToDto(lead));
     }
 
+    // PUT /api/leads/{id}/reminder - Set/clear reminder date (869ck3j58)
+    [HttpPut("{id:guid}/reminder")]
+    public async Task<IActionResult> SetReminder(Guid id, [FromBody] SetReminderDto dto)
+    {
+        var userId = GetCurrentUserId();
+        var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == userId);
+        if (lead == null) return NotFound();
+
+        lead.ReminderDate = dto.ReminderDate;
+        await _db.SaveChangesAsync();
+        return Ok(ToDto(lead));
+    }
+
     // POST /api/leads/{id}/documents - Upload documents for lead (Task #2)
     [HttpPost("{id}/documents")]
     [Consumes("multipart/form-data")]
@@ -500,5 +513,7 @@ public class LeadsController : ControllerBase
         l.SalesPriorityLabel,
         l.SalesPriorityReasoning,
         // Signals
-        l.Signals);
+        l.Signals,
+        // Stale lead notifications
+        l.ReminderDate);
 }

@@ -90,4 +90,10 @@ public class Lead
 
     // Company signals layer (869ch4zb0)
     public string? Signals { get; set; } // JSON: List<LeadSignal>
+
+    // Stale lead notifications (869ck3j58)
+    public DateTime? ReminderDate { get; set; }
+
+    // Hangfire enrichment sweep (869ck3j52)
+    public DateTime? LastEnrichmentAttempt { get; set; }
 }

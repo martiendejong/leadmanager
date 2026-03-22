@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Lead } from '../../api/leads'
-import { regenerateSalesApproach, enrichLeads } from '../../api/leads'
+import { regenerateSalesApproach, enrichLeads, setReminder } from '../../api/leads'
 import { useToast } from '../Toast'
 
 interface Props {
@@ -50,6 +50,18 @@ export default function LeadDetailPanel({ lead, onClose }: Props) {
   const [isRegenerating, setIsRegenerating] = useState(false)
   const [isEnriching, setIsEnriching] = useState(false)
   const [activeTab, setActiveTab] = useState<'linkedin' | 'phone' | 'email'>('linkedin')
+  const [reminderDate, setReminderDate] = useState<string>('')
+  const [isSavingReminder, setIsSavingReminder] = useState(false)
+
+  // Sync reminderDate state when lead changes
+  useEffect(() => {
+    if (lead?.reminderDate) {
+      // Format to yyyy-MM-dd for date input
+      setReminderDate(lead.reminderDate.split('T')[0])
+    } else {
+      setReminderDate('')
+    }
+  }, [lead?.id])
 
   // Close on Escape
   useEffect(() => {
@@ -74,7 +86,7 @@ export default function LeadDetailPanel({ lead, onClose }: Props) {
 
     setIsRegenerating(true)
     try {
-      const result = await regenerateSalesApproach(lead.id)
+      await regenerateSalesApproach(lead.id)
       showToast('Sales approach opnieuw gegenereerd!', 'success')
       // Update the lead in parent component would require callback - for now just show success
       window.location.reload() // Simple refresh - in production use proper state management
@@ -82,6 +94,19 @@ export default function LeadDetailPanel({ lead, onClose }: Props) {
       showToast(err.response?.data || 'Regenereren mislukt', 'error')
     } finally {
       setIsRegenerating(false)
+    }
+  }
+
+  const handleSetReminder = async (date: string) => {
+    if (!lead) return
+    setIsSavingReminder(true)
+    try {
+      await setReminder(lead.id, date || null)
+      showToast(date ? `Herinnering ingesteld op ${date}` : 'Herinnering verwijderd', 'success')
+    } catch {
+      showToast('Herinnering opslaan mislukt', 'error')
+    } finally {
+      setIsSavingReminder(false)
     }
   }
 
@@ -437,6 +462,38 @@ export default function LeadDetailPanel({ lead, onClose }: Props) {
                   {lead.twitterUrl && <Field label="Twitter/X" value={lead.twitterUrl} />}
                 </Section>
               )}
+
+              {/* Reminder */}
+              <Section title="Herinnering instellen">
+                <div>
+                  <dt className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Herinnerdatum</dt>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="date"
+                      value={reminderDate}
+                      onChange={(e) => setReminderDate(e.target.value)}
+                      className="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                    <button
+                      onClick={() => handleSetReminder(reminderDate)}
+                      disabled={isSavingReminder}
+                      className="text-xs px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed whitespace-nowrap"
+                    >
+                      {isSavingReminder ? 'Opslaan...' : 'Sla op'}
+                    </button>
+                    {reminderDate && (
+                      <button
+                        onClick={() => { setReminderDate(''); handleSetReminder('') }}
+                        disabled={isSavingReminder}
+                        className="text-xs px-2 py-1.5 text-gray-500 hover:text-red-600 transition-colors"
+                        title="Verwijder herinnering"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </Section>
 
               {lead.enrichmentVersion === 2 && (
                 <Section title="Crawl metadata">

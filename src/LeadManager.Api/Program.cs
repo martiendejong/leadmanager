@@ -1,3 +1,5 @@
+using Hangfire;
+using Hangfire.MemoryStorage;
 using LeadManager.Api.Data;
 using LeadManager.Api.Hubs;
 using LeadManager.Api.Models;
@@ -103,6 +105,13 @@ builder.Services.AddScoped<AiSalesApproachService>();
 builder.Services.AddSingleton<EnrichmentChannel>();
 builder.Services.AddHostedService<EnrichmentBackgroundService>();
 
+// Hangfire
+builder.Services.AddHangfire(config => config.UseMemoryStorage());
+builder.Services.AddHangfireServer(opts => { opts.WorkerCount = 10; });
+builder.Services.AddScoped<NotificationService>();
+builder.Services.AddScoped<StaleLeadJobService>();
+builder.Services.AddScoped<HangfireEnrichmentJob>();
+
 // Controllers
 builder.Services.AddControllers();
 
@@ -201,6 +210,18 @@ if (app.Environment.IsDevelopment())
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.UseHangfireDashboard("/hangfire"); // no auth — dev mode
+
+RecurringJob.AddOrUpdate<HangfireEnrichmentJob>(
+    "enrichment-sweep",
+    j => j.RunAsync(),
+    "*/5 * * * *");
+
+RecurringJob.AddOrUpdate<StaleLeadJobService>(
+    "daily-notifications",
+    j => j.RunDailyNotificationsAsync(),
+    Cron.Daily());
 
 app.MapControllers();
 app.MapHub<EnrichmentHub>("/hubs/enrichment");

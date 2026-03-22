@@ -16,6 +16,7 @@ export interface Lead {
   isEnriched: boolean
   enrichedAt: string | null
   importedAt: string
+  createdAt?: string
   source: string
   // RAG enrichment fields
   ownerTitle?: string
@@ -58,6 +59,8 @@ export interface Lead {
   enrichmentSources?: string | null
   // AI Sales Approach
   salesApproach?: string | null
+  // Stale lead notifications (869ck3j58)
+  reminderDate?: string | null
 }
 
 export interface LeadsResponse {
@@ -203,5 +206,10 @@ export interface SalesApproachResult {
 
 export async function regenerateSalesApproach(leadId: string): Promise<SalesApproachResult> {
   const res = await apiClient.post<SalesApproachResult>(`/api/leads/${leadId}/regenerate-sales-approach`)
+  return res.data
+}
+
+export async function setReminder(leadId: string, reminderDate: string | null): Promise<Lead> {
+  const res = await apiClient.put<Lead>(`/api/leads/${leadId}/reminder`, { reminderDate })
   return res.data
 }
