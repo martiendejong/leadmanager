@@ -1,3 +1,5 @@
+using CsvHelper;
+using CsvHelper.Configuration;
 using LeadManager.Api.Data;
 using LeadManager.Api.DTOs;
 using LeadManager.Api.Models;
@@ -6,6 +8,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OfficeOpenXml;
+using System.Globalization;
 
 namespace LeadManager.Api.Controllers;
 
@@ -167,6 +170,22 @@ public class LeadsController : ControllerBase
         _db.Leads.Remove(lead);
         await _db.SaveChangesAsync();
         return NoContent();
+    }
+
+    // PUT /api/leads/{id}/pipeline - Update pipeline status (869ck3j46)
+    [HttpPut("{id:guid}/pipeline")]
+    public async Task<IActionResult> UpdatePipelineStatus(Guid id, [FromBody] UpdatePipelineStatusDto dto)
+    {
+        var userId = GetCurrentUserId();
+        var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == userId);
+        if (lead == null) return NotFound();
+
+        if (!Enum.TryParse<PipelineStatus>(dto.PipelineStatus, out var status))
+            return BadRequest($"Invalid pipeline status: {dto.PipelineStatus}");
+
+        lead.PipelineStatus = status;
+        await _db.SaveChangesAsync();
+        return Ok(ToDto(lead));
     }
 
     // POST /api/leads - Create single lead (Task #3, #4)
@@ -453,68 +472,93 @@ public class LeadsController : ControllerBase
         return Ok(result);
     }
 
-    // POST /api/leads/import
+    // POST /api/leads/import — CSV bulk import (max 500 rows)
     [HttpPost("import")]
     [Consumes("multipart/form-data")]
-    public async Task<IActionResult> ImportLeads(IFormFile file)
+    public async Task<IActionResult> ImportLeadsCsv(IFormFile file)
     {
         if (file == null || file.Length == 0)
             return BadRequest("No file provided.");
 
-        if (!file.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
-            return BadRequest("Only .xlsx files are supported.");
+        if (!file.FileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+            return BadRequest("Only .csv files are supported. For Excel (.xlsx), use the Excel import button.");
 
-        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        var userId = GetCurrentUserId();
+        var leadsToInsert = new List<Lead>();
+        var rowErrors = new List<CsvImportRowError>();
+        int skipped = 0;
 
-        int imported = 0, skipped = 0, errors = 0;
-        var errorDetails = new List<string>();
+        // Load existing website domains for dedup — scoped to this user
+        var existingWebsites = await _db.Leads
+            .Where(l => l.ImportedByUserId == userId && l.Website != null && l.Website != "")
+            .Select(l => l.Website.ToLower())
+            .ToListAsync();
+        var existingWebsiteSet = existingWebsites.ToHashSet();
 
         using var stream = file.OpenReadStream();
-        using var package = new ExcelPackage(stream);
-
-        var worksheet = package.Workbook.Worksheets.FirstOrDefault();
-        if (worksheet == null)
-            return BadRequest("The Excel file contains no worksheets.");
-
-        // Build header map (case-insensitive column name -> column index)
-        var headerMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        for (int col = 1; col <= worksheet.Dimension?.Columns; col++)
+        using var reader = new StreamReader(stream);
+        var csvConfig = new CsvConfiguration(CultureInfo.InvariantCulture)
         {
-            var header = worksheet.Cells[1, col].Text?.Trim();
-            if (!string.IsNullOrEmpty(header))
-                headerMap[header] = col;
-        }
+            HasHeaderRecord = true,
+            MissingFieldFound = null,
+            HeaderValidated = null,
+            BadDataFound = null,
+        };
+        using var csv = new CsvReader(reader, csvConfig);
 
-        string GetCell(int row, string[] aliases)
+        // Read all records as dynamic to allow flexible column mapping
+        await csv.ReadAsync();
+        csv.ReadHeader();
+        var headers = csv.HeaderRecord ?? Array.Empty<string>();
+
+        // Build alias map: normalized header -> field name
+        string? FindHeader(params string[] aliases)
         {
             foreach (var alias in aliases)
-                if (headerMap.TryGetValue(alias, out var col))
-                    return worksheet.Cells[row, col].Text?.Trim() ?? "";
-            return "";
+            {
+                var match = headers.FirstOrDefault(h =>
+                    string.Equals(h?.Trim(), alias, StringComparison.OrdinalIgnoreCase));
+                if (match != null) return match;
+            }
+            return null;
         }
 
-        int totalRows = worksheet.Dimension?.Rows ?? 1;
-        var leadsToInsert = new List<Lead>();
+        var nameHeader    = FindHeader("Name", "Naam", "Bedrijfsnaam", "Company", "company_name");
+        var websiteHeader = FindHeader("Website", "website", "url", "URL");
+        var emailHeader   = FindHeader("Email", "CompanyEmail", "Bedrijfsemail", "email");
+        var sectorHeader  = FindHeader("Sector", "Industry", "Industrie", "sector", "industry");
+        var cityHeader    = FindHeader("City", "Stad", "Gemeente", "city", "plaats");
+        var phoneHeader   = FindHeader("Phone", "Telefoon", "Tel", "phone", "telefoon");
 
-        // Load existing (name, website) pairs for dedup check — scoped to this user
-        var existingList = await _db.Leads
-            .Where(l => l.ImportedByUserId == userId)
-            .Select(l => new { NameLower = l.Name.ToLower(), WebsiteLower = l.Website.ToLower() })
-            .ToListAsync();
-        var existing = existingList.ToHashSet();
+        if (nameHeader == null)
+            return BadRequest("CSV must contain a name column (Name, Naam, Bedrijfsnaam, or Company).");
 
-        for (int row = 2; row <= totalRows; row++)
+        int rowNumber = 1; // header is row 1
+        while (await csv.ReadAsync())
         {
+            rowNumber++;
+            if (rowNumber > 501) // max 500 data rows
+                break;
+
             try
             {
-                var name = GetCell(row, new[] { "Bedrijfsnaam", "Name", "Company", "Naam" });
-                var website = GetCell(row, new[] { "Website" });
+                var name    = nameHeader != null    ? csv.GetField(nameHeader)?.Trim()    ?? "" : "";
+                var website = websiteHeader != null ? csv.GetField(websiteHeader)?.Trim() ?? "" : "";
+                var email   = emailHeader != null   ? csv.GetField(emailHeader)?.Trim()   ?? "" : "";
+                var sector  = sectorHeader != null  ? csv.GetField(sectorHeader)?.Trim()  ?? "" : "";
+                var city    = cityHeader != null    ? csv.GetField(cityHeader)?.Trim()    ?? "" : "";
+                var phone   = phoneHeader != null   ? csv.GetField(phoneHeader)?.Trim()   ?? "" : "";
 
-                if (string.IsNullOrWhiteSpace(name) && string.IsNullOrWhiteSpace(website))
-                    continue; // skip empty rows
+                if (string.IsNullOrWhiteSpace(name))
+                {
+                    rowErrors.Add(new CsvImportRowError(rowNumber, "Name is required."));
+                    continue;
+                }
 
-                var key = new { NameLower = name.ToLower(), WebsiteLower = website.ToLower() };
-                if (existing.Any(e => e.NameLower == key.NameLower && e.WebsiteLower == key.WebsiteLower))
+                // Dedup by website domain
+                var normalizedWebsite = NormalizeWebsiteUrl(website) ?? "";
+                var websiteLower = normalizedWebsite.ToLower();
+                if (!string.IsNullOrWhiteSpace(websiteLower) && existingWebsiteSet.Contains(websiteLower))
                 {
                     skipped++;
                     continue;
@@ -523,26 +567,24 @@ public class LeadsController : ControllerBase
                 var lead = new Lead
                 {
                     Name = name,
-                    Website = website,
-                    Sector = GetCell(row, new[] { "Sector" }),
-                    City = GetCell(row, new[] { "Stad", "City", "Gemeente" }),
-                    Phone = GetCell(row, new[] { "Telefoon", "Phone", "Tel" }),
-                    CompanyEmail = GetCell(row, new[] { "Email", "CompanyEmail", "Bedrijfsemail" }),
-                    Source = GetCell(row, new[] { "Bron", "Source" }),
-                    OwnerName = GetCell(row, new[] { "Eigenaar", "OwnerName" }),
-                    PersonalEmail = GetCell(row, new[] { "Persoonlijk Email", "PersonalEmail", "Persoonlijke Email" }),
+                    Website = normalizedWebsite,
+                    CompanyEmail = email,
+                    Sector = sector,
+                    City = city,
+                    Phone = phone,
+                    Source = "csv_import",
                     ImportedByUserId = userId,
                     ImportedAt = DateTime.UtcNow,
                     CreatedAt = DateTime.UtcNow
                 };
 
                 leadsToInsert.Add(lead);
-                existing.Add(new { NameLower = name.ToLower(), WebsiteLower = website.ToLower() });
+                if (!string.IsNullOrWhiteSpace(websiteLower))
+                    existingWebsiteSet.Add(websiteLower);
             }
             catch (Exception ex)
             {
-                errors++;
-                errorDetails.Add($"Row {row}: {ex.Message}");
+                rowErrors.Add(new CsvImportRowError(rowNumber, ex.Message));
             }
         }
 
@@ -550,10 +592,239 @@ public class LeadsController : ControllerBase
         {
             _db.Leads.AddRange(leadsToInsert);
             await _db.SaveChangesAsync();
-            imported = leadsToInsert.Count;
         }
 
-        return Ok(new ImportResultDto(imported, skipped, errors, errorDetails));
+        return Ok(new CsvImportResultDto(leadsToInsert.Count, skipped, rowErrors));
+    }
+
+    // GET /api/leads/export?format=csv|xlsx&[filter params]
+    [HttpGet("export")]
+    public async Task<IActionResult> ExportLeads([FromQuery] LeadFilterParams filters, [FromQuery] string format = "csv")
+    {
+        var userId = GetCurrentUserId();
+        var query = _db.Leads.Where(l => l.ImportedByUserId == userId);
+
+        if (filters.Enriched.HasValue)
+            query = query.Where(l => l.IsEnriched == filters.Enriched.Value);
+        if (filters.EnrichedAfter.HasValue)
+            query = query.Where(l => l.EnrichedAt >= filters.EnrichedAfter.Value);
+        if (filters.EnrichedBefore.HasValue)
+            query = query.Where(l => l.EnrichedAt <= filters.EnrichedBefore.Value);
+
+        // Apply same sort as list (no paging — export all matching)
+        query = filters.SortBy?.ToLower() switch
+        {
+            "website"    => filters.SortDesc ? query.OrderByDescending(l => l.Website)    : query.OrderBy(l => l.Website),
+            "sector"     => filters.SortDesc ? query.OrderByDescending(l => l.Sector)     : query.OrderBy(l => l.Sector),
+            "city"       => filters.SortDesc ? query.OrderByDescending(l => l.City)       : query.OrderBy(l => l.City),
+            "source"     => filters.SortDesc ? query.OrderByDescending(l => l.Source)     : query.OrderBy(l => l.Source),
+            "createdat"  => filters.SortDesc ? query.OrderByDescending(l => l.CreatedAt)  : query.OrderBy(l => l.CreatedAt),
+            "importedat" => filters.SortDesc ? query.OrderByDescending(l => l.ImportedAt) : query.OrderBy(l => l.ImportedAt),
+            _            => filters.SortDesc ? query.OrderByDescending(l => l.Name)       : query.OrderBy(l => l.Name),
+        };
+
+        var leads = await query.ToListAsync();
+        var dateStr = DateTime.UtcNow.ToString("yyyy-MM-dd");
+
+        if (format.Equals("xlsx", StringComparison.OrdinalIgnoreCase))
+        {
+            ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
+            using var package = new ExcelPackage();
+            var ws = package.Workbook.Worksheets.Add("Leads");
+
+            // Header row
+            var columns = new[]
+            {
+                "Naam", "Email", "Telefoon", "Contactpersoon", "Stad", "Sector",
+                "KvK", "Medewerkers", "Google Rating", "Sales Score",
+                "Verrijkt", "Aangemaakt"
+            };
+            for (int i = 0; i < columns.Length; i++)
+                ws.Cells[1, i + 1].Value = columns[i];
+
+            // Data rows
+            for (int r = 0; r < leads.Count; r++)
+            {
+                var l = leads[r];
+                int row = r + 2;
+                ws.Cells[row, 1].Value  = l.Name;
+                ws.Cells[row, 2].Value  = l.CompanyEmail;
+                ws.Cells[row, 3].Value  = l.Phone;
+                ws.Cells[row, 4].Value  = l.OwnerName;
+                ws.Cells[row, 5].Value  = l.City;
+                ws.Cells[row, 6].Value  = l.Sector;
+                ws.Cells[row, 7].Value  = l.KvkNumber;
+                ws.Cells[row, 8].Value  = l.EmployeeCount;
+                ws.Cells[row, 9].Value  = l.GoogleRating.HasValue ? (object)l.GoogleRating.Value : "";
+                ws.Cells[row, 10].Value = l.SalesPriorityScore.HasValue ? (object)l.SalesPriorityScore.Value : "";
+                ws.Cells[row, 11].Value = l.IsEnriched ? "Ja" : "Nee";
+                ws.Cells[row, 12].Value = l.CreatedAt.ToString("yyyy-MM-dd");
+            }
+
+            ws.Cells[ws.Dimension.Address].AutoFitColumns();
+            var bytes = await package.GetAsByteArrayAsync();
+            return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"leads-{dateStr}.xlsx");
+        }
+        else
+        {
+            // CSV export
+            var sb = new System.Text.StringBuilder();
+            using var writer = new System.IO.StringWriter(sb);
+            var csvConfig = new CsvConfiguration(CultureInfo.InvariantCulture) { HasHeaderRecord = true };
+            using var csvWriter = new CsvWriter(writer, csvConfig);
+
+            // Write header
+            foreach (var col in new[] {
+                "naam", "email", "telefoon", "contactpersoon", "stad", "sector",
+                "kvk", "medewerkers", "google_rating", "google_reviews",
+                "sales_score", "verrijkt", "verrijkingsstatus", "aangemaakt"
+            })
+                csvWriter.WriteField(col);
+            csvWriter.NextRecord();
+
+            // Write rows
+            foreach (var l in leads)
+            {
+                csvWriter.WriteField(l.Name);
+                csvWriter.WriteField(l.CompanyEmail);
+                csvWriter.WriteField(l.Phone);
+                csvWriter.WriteField(l.OwnerName);
+                csvWriter.WriteField(l.City);
+                csvWriter.WriteField(l.Sector);
+                csvWriter.WriteField(l.KvkNumber ?? "");
+                csvWriter.WriteField(l.EmployeeCount ?? "");
+                csvWriter.WriteField(l.GoogleRating.HasValue ? l.GoogleRating.Value.ToString("F1") : "");
+                csvWriter.WriteField(l.GoogleReviewCount.HasValue ? l.GoogleReviewCount.Value.ToString() : "");
+                csvWriter.WriteField(l.SalesPriorityScore.HasValue ? l.SalesPriorityScore.Value.ToString() : "");
+                csvWriter.WriteField(l.IsEnriched ? "ja" : "nee");
+                csvWriter.WriteField(l.IsEnriched ? "verrijkt" : "niet verrijkt");
+                csvWriter.WriteField(l.CreatedAt.ToString("yyyy-MM-dd"));
+                csvWriter.NextRecord();
+            }
+
+            await writer.FlushAsync();
+            var csvBytes = System.Text.Encoding.UTF8.GetBytes(sb.ToString());
+            return File(csvBytes, "text/csv; charset=utf-8", $"leads-{dateStr}.csv");
+        }
+    }
+
+    // POST /api/leads/{id}/generate-outreach
+    [HttpPost("{id:guid}/generate-outreach")]
+    public async Task<IActionResult> GenerateOutreachEmail(Guid id)
+    {
+        var userId = GetCurrentUserId();
+        var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == userId);
+
+        if (lead == null)
+            return NotFound();
+
+        var logger = HttpContext.RequestServices.GetRequiredService<ILogger<Services.Enrichment.OutreachEmailService>>();
+        var service = new Services.Enrichment.OutreachEmailService(_configuration, logger);
+
+        var result = await service.GenerateAsync(lead);
+
+        if (result == null)
+        {
+            return BadRequest("Outreach e-mail kon niet worden gegenereerd. Probeer opnieuw.");
+        }
+
+        return Ok(result);
+    }
+
+    // GET /api/leads/analytics
+    [HttpGet("analytics")]
+    public async Task<IActionResult> GetAnalytics([FromQuery] string? from, [FromQuery] string? to)
+    {
+        var userId = GetCurrentUserId();
+        var query = _db.Leads.Where(l => l.ImportedByUserId == userId);
+
+        // Parse date range
+        DateTime? fromDate = null;
+        DateTime? toDate = null;
+
+        if (!string.IsNullOrWhiteSpace(from) && DateTime.TryParse(from, out var parsedFrom))
+            fromDate = parsedFrom.ToUniversalTime();
+        if (!string.IsNullOrWhiteSpace(to) && DateTime.TryParse(to, out var parsedTo))
+            toDate = parsedTo.ToUniversalTime().AddDays(1); // inclusive
+
+        // Default: last 30 days for time series
+        var thirtyDaysAgo = DateTime.UtcNow.AddDays(-30);
+
+        if (fromDate.HasValue)
+            query = query.Where(l => l.CreatedAt >= fromDate.Value);
+        if (toDate.HasValue)
+            query = query.Where(l => l.CreatedAt < toDate.Value);
+
+        var allLeads = await query.ToListAsync();
+
+        var totalLeads = allLeads.Count;
+        var enrichedLeads = allLeads.Count(l => l.IsEnriched);
+        var avgSalesScore = totalLeads > 0 && allLeads.Any(l => l.SalesPriorityScore.HasValue)
+            ? Math.Round(allLeads.Where(l => l.SalesPriorityScore.HasValue).Average(l => (double)l.SalesPriorityScore!.Value), 1)
+            : 0.0;
+
+        var leadsThisMonth = allLeads.Count(l => l.CreatedAt >= DateTime.UtcNow.AddDays(-30));
+        var conversionRate = totalLeads > 0 ? Math.Round((double)enrichedLeads / totalLeads, 2) : 0.0;
+
+        var leadsByStatus = allLeads
+            .GroupBy(l => l.IsEnriched ? "Verrijkt" : "Nieuw")
+            .Select(g => new { status = g.Key, count = g.Count() })
+            .OrderByDescending(x => x.count)
+            .ToList();
+
+        var leadsByIndustry = allLeads
+            .Where(l => !string.IsNullOrWhiteSpace(l.Sector))
+            .GroupBy(l => l.Sector)
+            .Select(g => new { industry = g.Key, count = g.Count() })
+            .OrderByDescending(x => x.count)
+            .Take(8)
+            .ToList();
+
+        // Time series: group by date, cover last 30 days (or filtered range)
+        var timeSeriesStart = fromDate ?? thirtyDaysAgo;
+        var timeSeriesLeads = await _db.Leads
+            .Where(l => l.ImportedByUserId == userId && l.CreatedAt >= timeSeriesStart)
+            .ToListAsync();
+
+        var leadsOverTime = timeSeriesLeads
+            .GroupBy(l => l.CreatedAt.Date)
+            .Select(g => new { date = g.Key.ToString("yyyy-MM-dd"), count = g.Count() })
+            .OrderBy(x => x.date)
+            .ToList();
+
+        var topSources = allLeads
+            .Where(l => !string.IsNullOrWhiteSpace(l.Source))
+            .GroupBy(l => l.Source)
+            .Select(g => new { source = g.Key, count = g.Count() })
+            .OrderByDescending(x => x.count)
+            .Take(10)
+            .ToList();
+
+        var avgScoreByIndustry = allLeads
+            .Where(l => !string.IsNullOrWhiteSpace(l.Sector) && l.SalesPriorityScore.HasValue)
+            .GroupBy(l => l.Sector)
+            .Select(g => new
+            {
+                industry = g.Key,
+                avgScore = Math.Round(g.Average(l => (double)l.SalesPriorityScore!.Value), 1)
+            })
+            .OrderByDescending(x => x.avgScore)
+            .Take(8)
+            .ToList();
+
+        return Ok(new
+        {
+            totalLeads,
+            enrichedLeads,
+            avgSalesScore,
+            leadsThisMonth,
+            conversionRate,
+            leadsByStatus,
+            leadsByIndustry,
+            leadsOverTime,
+            topSources,
+            avgScoreByIndustry
+        });
     }
 
     // POST /api/leads/search
@@ -704,5 +975,7 @@ public class LeadsController : ControllerBase
         // Signals
         l.Signals,
         // Assignment
-        l.AssignedToUserId);
+        l.AssignedToUserId,
+        // Pipeline status
+        l.PipelineStatus.ToString());
 }

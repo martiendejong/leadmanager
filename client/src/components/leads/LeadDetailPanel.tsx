@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import type { Lead, UserDto } from '../../api/leads'
 import { regenerateSalesApproach, enrichLeads, assignLead, fetchUsers } from '../../api/leads'
 import { useToast } from '../Toast'
+import OutreachEmailPanel from './OutreachEmailPanel'
+import LeadActivityTimeline from './LeadActivityTimeline'
 
 interface Props {
   lead: Lead | null
@@ -367,6 +369,9 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
                 }
               })()}
 
+              {/* Outreach Email Generator */}
+              <OutreachEmailPanel lead={lead} />
+
               {/* Sales Pitch — most prominent, top of panel */}
               {lead.salesPitch && (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4">
@@ -489,6 +494,11 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
                   <Field label="Website status" value={lead.websiteStatus} />
                 </Section>
               )}
+
+              {/* Activity Timeline (869ck3j4b) */}
+              <div className="pb-1 border-t border-gray-100 pt-5">
+                <LeadActivityTimeline leadId={lead.id} />
+              </div>
             </div>
           </>
         )}

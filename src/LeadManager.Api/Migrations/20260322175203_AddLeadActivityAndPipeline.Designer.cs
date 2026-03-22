@@ -3,6 +3,7 @@ using System;
 using LeadManager.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace LeadManager.Api.Migrations
 {
     [DbContext(typeof(LeadManagerDbContext))]
-    partial class LeadManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260322175203_AddLeadActivityAndPipeline")]
+    partial class AddLeadActivityAndPipeline
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.25");
@@ -216,9 +219,6 @@ namespace LeadManager.Api.Migrations
 
                     b.Property<string>("AnymailfinderResult")
                         .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("AssignedToUserId")
                         .HasColumnType("TEXT");
 
                     b.Property<int?>("BranchCount")

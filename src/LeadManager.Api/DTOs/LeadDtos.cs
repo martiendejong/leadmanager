@@ -77,7 +77,9 @@ public record LeadDto(
     // Company signals (869ch4zb0)
     string? Signals,
     // Lead assignment (869ck3j4u)
-    string? AssignedToUserId);
+    string? AssignedToUserId,
+    // Pipeline status (869ck3j46)
+    string PipelineStatus);
 
 public record CreateLeadDto(
     string Name,
@@ -114,6 +116,9 @@ public record LeadFilterParams(
     bool SortDesc = false,
     string? AssignedToUserId = null);
 
+public record CsvImportRowError(int Row, string Message);
+public record CsvImportResultDto(int Created, int Skipped, List<CsvImportRowError> Errors);
+
 public record LeadStatsDto(int Total, int Enriched, int NotEnriched);
 
 public record ImportResultDto(int Imported, int Skipped, int Errors, List<string> ErrorDetails);
@@ -132,3 +137,10 @@ public record MergeLeadDto(Guid SourceLeadId);
 // Assignment (869ck3j4u)
 public record AssignLeadDto(string? UserId);
 public record AssigneeDto(string UserId, string DisplayName, int LeadCount);
+
+// Activity timeline (869ck3j4b)
+public record CreateActivityDto(string ActivityType, string? Note);
+public record LeadActivityDto(Guid Id, Guid LeadId, string? UserId, string ActivityType, string? Note, DateTime CreatedAt);
+
+// Pipeline (869ck3j46)
+public record UpdatePipelineStatusDto(string PipelineStatus);
