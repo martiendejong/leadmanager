@@ -1,7 +1,8 @@
 import React, { useState, useRef } from 'react'
-import { createLead, uploadLeadDocuments } from '../../api/leads'
-import type { CreateLeadDto } from '../../api/leads'
+import { createLeadWithDupCheck, mergeLead, uploadLeadDocuments } from '../../api/leads'
+import type { CreateLeadDto, DuplicateLead } from '../../api/leads'
 import { useToast } from '../Toast'
+import DuplicateModal from './DuplicateModal'
 
 interface CreateLeadFormProps {
   onSuccess: () => void
@@ -13,6 +14,8 @@ export default function CreateLeadForm({ onSuccess, onCancel }: CreateLeadFormPr
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [duplicates, setDuplicates] = useState<DuplicateLead[] | null>(null)
+  const pendingFormDataRef = useRef<CreateLeadDto | null>(null)
 
   const [formData, setFormData] = useState<CreateLeadDto>({
     name: '',
@@ -111,8 +114,17 @@ export default function CreateLeadForm({ onSuccess, onCancel }: CreateLeadFormPr
     setIsSubmitting(true)
 
     try {
-      // Create lead
-      const lead = await createLead(formData)
+      const result = await createLeadWithDupCheck(formData, false)
+
+      if ('duplicates' in result) {
+        // Show duplicate modal
+        pendingFormDataRef.current = formData
+        setDuplicates(result.duplicates)
+        setIsSubmitting(false)
+        return
+      }
+
+      const lead = result.lead
 
       // Upload documents if any
       if (selectedFiles.length > 0) {
@@ -129,7 +141,55 @@ export default function CreateLeadForm({ onSuccess, onCancel }: CreateLeadFormPr
     }
   }
 
+  const handleMerge = async (existingLeadId: string) => {
+    if (!pendingFormDataRef.current) return
+    setIsSubmitting(true)
+    setDuplicates(null)
+    try {
+      // Create the new lead with force, then merge it into the existing one
+      const result = await createLeadWithDupCheck(pendingFormDataRef.current, true)
+      if ('lead' in result) {
+        await mergeLead(existingLeadId, result.lead.id)
+        showToast('Leads samengevoegd!', 'success')
+        onSuccess()
+      }
+    } catch (err: any) {
+      showToast(err.response?.data || 'Samenvoegen mislukt.', 'error')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleForce = async () => {
+    if (!pendingFormDataRef.current) return
+    setIsSubmitting(true)
+    setDuplicates(null)
+    try {
+      const result = await createLeadWithDupCheck(pendingFormDataRef.current, true)
+      if ('lead' in result) {
+        if (selectedFiles.length > 0) {
+          await uploadLeadDocuments(result.lead.id, selectedFiles)
+        }
+        showToast('Lead succesvol aangemaakt!', 'success')
+        onSuccess()
+      }
+    } catch (err: any) {
+      showToast(err.response?.data || 'Fout bij aanmaken van lead.', 'error')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   return (
+    <>
+    {duplicates && (
+      <DuplicateModal
+        duplicates={duplicates}
+        onMerge={handleMerge}
+        onForce={handleForce}
+        onCancel={() => setDuplicates(null)}
+      />
+    )}
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
@@ -230,7 +290,7 @@ export default function CreateLeadForm({ onSuccess, onCancel }: CreateLeadFormPr
                 <input
                   type="url"
                   name="website"
-                  value={formData.website}
+                  value={formData.website ?? ''}
                   onChange={handleChange}
                   className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                   placeholder="https://www.bedrijf.nl"
@@ -248,7 +308,7 @@ export default function CreateLeadForm({ onSuccess, onCancel }: CreateLeadFormPr
                 </p>
                 <textarea
                   name="manualInput"
-                  value={formData.manualInput}
+                  value={formData.manualInput ?? ''}
                   onChange={handleChange}
                   rows={5}
                   maxLength={5000}
@@ -379,5 +439,6 @@ export default function CreateLeadForm({ onSuccess, onCancel }: CreateLeadFormPr
         </form>
       </div>
     </div>
+    </>
   )
 }

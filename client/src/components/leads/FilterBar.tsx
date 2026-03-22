@@ -1,6 +1,7 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import type { LeadFilter, LeadStats } from '../../api/leads'
+import type { LeadFilter, LeadStats, Assignee } from '../../api/leads'
+import { getAssignees } from '../../api/leads'
 
 interface FilterBarProps {
   filter: LeadFilter
@@ -18,12 +19,18 @@ function isFilterActive(filter: LeadFilter): boolean {
   return (
     filter.enriched !== undefined ||
     !!filter.enrichedAfter ||
-    !!filter.enrichedBefore
+    !!filter.enrichedBefore ||
+    !!filter.assignedToUserId
   )
 }
 
 export default function FilterBar({ filter, onChange, stats }: FilterBarProps) {
   const [searchParams, setSearchParams] = useSearchParams()
+  const [assignees, setAssignees] = useState<Assignee[]>([])
+
+  useEffect(() => {
+    getAssignees().then(setAssignees).catch(() => {/* non-critical */})
+  }, [])
 
   // Sync filter → URL
   useEffect(() => {
@@ -72,6 +79,10 @@ export default function FilterBar({ filter, onChange, stats }: FilterBarProps) {
     onChange({ page: 1, pageSize: filter.pageSize, sortBy: filter.sortBy, sortDesc: filter.sortDesc })
   }
 
+  const setAssigneeFilter = (userId: string) => {
+    onChange({ ...filter, assignedToUserId: userId || undefined, page: 1 })
+  }
+
   const activeTab = filter.enriched === true ? 'enriched' : filter.enriched === false ? 'not-enriched' : 'all'
 
   return (
@@ -118,6 +129,25 @@ export default function FilterBar({ filter, onChange, stats }: FilterBarProps) {
           </button>
         )}
       </div>
+
+      {/* Assignee filter (869ck3j4u) */}
+      {assignees.length > 0 && (
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-gray-500 font-medium whitespace-nowrap">Toegewezen aan:</label>
+          <select
+            value={filter.assignedToUserId ?? ''}
+            onChange={(e) => setAssigneeFilter(e.target.value)}
+            className="text-sm border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          >
+            <option value="">Iedereen</option>
+            {assignees.map((a) => (
+              <option key={a.userId} value={a.userId}>
+                {a.displayName} ({a.leadCount})
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* Date filters */}
       <div className="flex flex-wrap items-end gap-4">

@@ -90,4 +90,7 @@ public class Lead
 
     // Company signals layer (869ch4zb0)
     public string? Signals { get; set; } // JSON: List<LeadSignal>
+
+    // Lead assignment (869ck3j4u)
+    public string? AssignedToUserId { get; set; }
 }
