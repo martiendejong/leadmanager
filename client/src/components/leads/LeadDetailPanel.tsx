@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Lead } from '../../api/leads'
 import { regenerateSalesApproach, enrichLeads } from '../../api/leads'
 import { useToast } from '../Toast'
+import LeadActivityTimeline from './LeadActivityTimeline'
 
 interface Props {
   lead: Lead | null
@@ -447,6 +448,11 @@ export default function LeadDetailPanel({ lead, onClose }: Props) {
                   <Field label="Website status" value={lead.websiteStatus} />
                 </Section>
               )}
+
+              {/* Activity Timeline (869ck3j4b) */}
+              <div className="pb-1 border-t border-gray-100 pt-5">
+                <LeadActivityTimeline leadId={lead.id} />
+              </div>
             </div>
           </>
         )}
