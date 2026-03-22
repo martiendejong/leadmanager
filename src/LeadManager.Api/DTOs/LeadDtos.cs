@@ -113,6 +113,9 @@ public record LeadFilterParams(
     string SortBy = "name",
     bool SortDesc = false);
 
+public record CsvImportRowError(int Row, string Message);
+public record CsvImportResultDto(int Created, int Skipped, List<CsvImportRowError> Errors);
+
 public record LeadStatsDto(int Total, int Enriched, int NotEnriched);
 
 public record ImportResultDto(int Imported, int Skipped, int Errors, List<string> ErrorDetails);
