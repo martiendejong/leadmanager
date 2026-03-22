@@ -90,4 +90,7 @@ public class Lead
 
     // Company signals layer (869ch4zb0)
     public string? Signals { get; set; } // JSON: List<LeadSignal>
+
+    // Conversion tracking (869ck3j56)
+    public Guid? ConvertedToClientId { get; set; }
 }

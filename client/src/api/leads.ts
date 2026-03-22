@@ -58,6 +58,8 @@ export interface Lead {
   enrichmentSources?: string | null
   // AI Sales Approach
   salesApproach?: string | null
+  // Conversion tracking (869ck3j56)
+  convertedToClientId?: string | null
 }
 
 export interface LeadsResponse {

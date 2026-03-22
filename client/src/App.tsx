@@ -8,6 +8,8 @@ import LeadsPage from './pages/LeadsPage'
 import FinderPage from './pages/FinderPage'
 import AdminUsersPage from './pages/AdminUsersPage'
 import ProfilePage from './pages/ProfilePage'
+import ClientsPage from './pages/ClientsPage'
+import ClientDetailPage from './pages/ClientDetailPage'
 
 function App() {
   return (
@@ -65,6 +67,29 @@ function App() {
               }
             >
               <Route index element={<AdminUsersPage />} />
+            </Route>
+
+            {/* Clients */}
+            <Route
+              path="/clients"
+              element={
+                <ProtectedRoute>
+                  <Layout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<ClientsPage />} />
+            </Route>
+
+            <Route
+              path="/clients/:id"
+              element={
+                <ProtectedRoute>
+                  <Layout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<ClientDetailPage />} />
             </Route>
 
             {/* Catch-all */}

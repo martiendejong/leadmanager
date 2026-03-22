@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import type { Lead } from '../../api/leads'
 import { regenerateSalesApproach, enrichLeads } from '../../api/leads'
 import { useToast } from '../Toast'
+import ConvertToClientWizard from './ConvertToClientWizard'
 
 interface Props {
   lead: Lead | null
@@ -50,6 +52,7 @@ export default function LeadDetailPanel({ lead, onClose }: Props) {
   const [isRegenerating, setIsRegenerating] = useState(false)
   const [isEnriching, setIsEnriching] = useState(false)
   const [activeTab, setActiveTab] = useState<'linkedin' | 'phone' | 'email'>('linkedin')
+  const [showConvertWizard, setShowConvertWizard] = useState(false)
 
   // Close on Escape
   useEffect(() => {
@@ -74,7 +77,7 @@ export default function LeadDetailPanel({ lead, onClose }: Props) {
 
     setIsRegenerating(true)
     try {
-      const result = await regenerateSalesApproach(lead.id)
+      await regenerateSalesApproach(lead.id)
       showToast('Sales approach opnieuw gegenereerd!', 'success')
       // Update the lead in parent component would require callback - for now just show success
       window.location.reload() // Simple refresh - in production use proper state management
@@ -181,6 +184,36 @@ export default function LeadDetailPanel({ lead, onClose }: Props) {
               >
                 {isEnriching ? 'Bezig...' : 'Verrijk nu'}
               </button>
+            </div>
+
+            {/* Convert to client */}
+            <div className="px-5 py-2 border-b border-gray-100 flex items-center justify-between">
+              {lead.convertedToClientId ? (
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2.5 py-0.5">
+                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                    Klant aangemaakt
+                  </span>
+                  <Link
+                    to={`/clients/${lead.convertedToClientId}`}
+                    className="text-xs text-indigo-600 hover:underline font-medium"
+                  >
+                    Bekijk klant →
+                  </Link>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowConvertWizard(true)}
+                  className="text-xs px-3 py-1.5 bg-emerald-600 text-white rounded hover:bg-emerald-700 font-medium flex items-center gap-1.5 transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  Converteer naar klant
+                </button>
+              )}
             </div>
 
             {/* Scrollable body */}
@@ -451,6 +484,12 @@ export default function LeadDetailPanel({ lead, onClose }: Props) {
           </>
         )}
       </div>
+      {showConvertWizard && lead && (
+        <ConvertToClientWizard
+          lead={lead}
+          onClose={() => setShowConvertWizard(false)}
+        />
+      )}
     </>
   )
 }

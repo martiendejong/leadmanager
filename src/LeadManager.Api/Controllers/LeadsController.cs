@@ -426,6 +426,47 @@ public class LeadsController : ControllerBase
         return Ok(new ImportResultDto(toInsert.Count, skipped, 0, []));
     }
 
+    // POST /api/leads/{id}/convert
+    [HttpPost("{id:guid}/convert")]
+    public async Task<IActionResult> ConvertToClient(Guid id, [FromBody] ConvertLeadDto dto)
+    {
+        var userId = GetCurrentUserId();
+        var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == userId);
+        if (lead == null) return NotFound();
+        if (lead.ConvertedToClientId.HasValue)
+            return Conflict("Lead is al geconverteerd naar een klant.");
+
+        var client = new Client
+        {
+            Name = dto.Name,
+            Plan = dto.Plan,
+            PrimaryContactName = !string.IsNullOrWhiteSpace(dto.PrimaryContactName) ? dto.PrimaryContactName : lead.OwnerName,
+            PrimaryContactEmail = !string.IsNullOrWhiteSpace(dto.PrimaryContactEmail) ? dto.PrimaryContactEmail : (!string.IsNullOrWhiteSpace(lead.PersonalEmail) ? lead.PersonalEmail : lead.CompanyEmail),
+            PrimaryContactPhone = !string.IsNullOrWhiteSpace(dto.PrimaryContactPhone) ? dto.PrimaryContactPhone : lead.Phone,
+            Website = lead.Website,
+            City = lead.City,
+            Sector = lead.Sector,
+            Notes = dto.Notes,
+            SourceLeadId = lead.Id,
+            CreatedByUserId = userId,
+        };
+
+        var project = new Project
+        {
+            ClientId = client.Id,
+            Name = $"Project - {client.Name}",
+            Description = "Standaard project aangemaakt bij conversie"
+        };
+        client.Projects.Add(project);
+
+        lead.ConvertedToClientId = client.Id;
+
+        _db.Clients.Add(client);
+        await _db.SaveChangesAsync();
+
+        return CreatedAtAction("GetClient", "Clients", new { id = client.Id }, ClientsController.MapClientDto(client));
+    }
+
     private static LeadDto ToDto(Lead l) => new(
         l.Id,
         l.Name,
@@ -500,5 +541,7 @@ public class LeadsController : ControllerBase
         l.SalesPriorityLabel,
         l.SalesPriorityReasoning,
         // Signals
-        l.Signals);
+        l.Signals,
+        // Conversion tracking
+        l.ConvertedToClientId);
 }

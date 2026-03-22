@@ -75,7 +75,9 @@ public record LeadDto(
     string? SalesPriorityLabel,
     string? SalesPriorityReasoning,
     // Company signals (869ch4zb0)
-    string? Signals);
+    string? Signals,
+    // Conversion tracking (869ck3j56)
+    Guid? ConvertedToClientId);
 
 public record CreateLeadDto(
     string Name,
