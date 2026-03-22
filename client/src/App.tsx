@@ -9,6 +9,7 @@ import FinderPage from './pages/FinderPage'
 import AdminUsersPage from './pages/AdminUsersPage'
 import ProfilePage from './pages/ProfilePage'
 import AnalyticsPage from './pages/AnalyticsPage'
+import PipelinePage from './pages/PipelinePage'
 
 function App() {
   return (
@@ -32,6 +33,17 @@ function App() {
               }
             >
               <Route index element={<LeadsPage />} />
+            </Route>
+
+            <Route
+              path="/leads/pipeline"
+              element={
+                <ProtectedRoute>
+                  <Layout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<PipelinePage />} />
             </Route>
 
             <Route

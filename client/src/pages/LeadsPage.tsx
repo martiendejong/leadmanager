@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { useSearchParams, Link } from 'react-router-dom'
-import { fetchLeads, fetchLeadStats, importLeads, enrichLeads } from '../api/leads'
-import type { Lead, LeadFilter, LeadStats } from '../api/leads'
+import { useSearchParams, Link, useNavigate } from 'react-router-dom'
+import { fetchLeads, fetchLeadStats, importLeads, enrichLeads, exportLeads } from '../api/leads'
+import type { Lead, LeadFilter, LeadStats, CsvImportResult } from '../api/leads'
 import { useLeadSelection } from '../hooks/useLeadSelection'
 import { useToast } from '../components/Toast'
 import LeadsTable from '../components/leads/LeadsTable'
@@ -10,6 +10,7 @@ import LeadsToolbar from '../components/leads/LeadsToolbar'
 import EnrichmentProgress from '../components/leads/EnrichmentProgress'
 import LeadDetailPanel from '../components/leads/LeadDetailPanel'
 import CreateLeadForm from '../components/leads/CreateLeadForm'
+import CsvImportDropzone from '../components/leads/CsvImportDropzone'
 
 const PAGE_SIZE = 50
 
@@ -33,6 +34,7 @@ function buildInitialFilter(searchParams: URLSearchParams): LeadFilter {
 export default function LeadsPage() {
   const [searchParams] = useSearchParams()
   const { showToast } = useToast()
+  const navigate = useNavigate()
 
   const [filter, setFilter] = useState<LeadFilter>(() => buildInitialFilter(searchParams))
   const [leads, setLeads] = useState<Lead[]>([])
@@ -43,6 +45,7 @@ export default function LeadsPage() {
   const [isEnriching, setIsEnriching] = useState(false)
   const [detailLead, setDetailLead] = useState<Lead | null>(null)
   const [showCreateForm, setShowCreateForm] = useState(false)
+  const [showCsvImport, setShowCsvImport] = useState(false)
   const [onboardingDismissed, setOnboardingDismissed] = useState(
     () => localStorage.getItem('lm_onboarding_dismissed') === '1'
   )
@@ -227,6 +230,30 @@ export default function LeadsPage() {
     }
   }, [selectedIds, showToast])
 
+  const handleExportCsv = useCallback(async () => {
+    try {
+      await exportLeads('csv', filter)
+      showToast('CSV export gedownload', 'success')
+    } catch {
+      showToast('CSV export mislukt', 'error')
+    }
+  }, [filter, showToast])
+
+  const handleExportExcel = useCallback(async () => {
+    try {
+      await exportLeads('xlsx', filter)
+      showToast('Excel export gedownload', 'success')
+    } catch {
+      showToast('Excel export mislukt', 'error')
+    }
+  }, [filter, showToast])
+
+  const handleCsvImportSuccess = useCallback(async (result: CsvImportResult) => {
+    showToast(`${result.created} leads geïmporteerd!`, 'success')
+    await loadLeads(filter)
+    await loadStats()
+  }, [filter, loadLeads, loadStats, showToast])
+
   const handleEnrichmentComplete = useCallback(async () => {
     setActiveJobId(null)
     setIsEnriching(false)
@@ -307,15 +334,37 @@ export default function LeadsPage() {
             </p>
           )}
         </div>
-        <button
-          onClick={() => setShowCreateForm(true)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Nieuwe lead
-        </button>
+        <div className="flex items-center gap-2">
+          {/* View toggle */}
+          <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden">
+            <button
+              className="px-3 py-2 text-sm bg-indigo-600 text-white font-medium"
+              title="Lijstweergave"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+              </svg>
+            </button>
+            <button
+              onClick={() => navigate('/leads/pipeline')}
+              className="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 border-l border-gray-300"
+              title="Pipeline weergave"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+              </svg>
+            </button>
+          </div>
+          <button
+            onClick={() => setShowCreateForm(true)}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Nieuwe lead
+          </button>
+        </div>
       </div>
 
       {/* Filter bar */}
@@ -326,7 +375,10 @@ export default function LeadsPage() {
         selectedCount={selectedIds.size}
         onEnrich={handleEnrich}
         onExport={handleExport}
+        onExportCsv={handleExportCsv}
+        onExportExcel={handleExportExcel}
         onImport={handleImport}
+        onImportCsv={() => setShowCsvImport(true)}
         onClearSelection={clearSelection}
         isEnriching={isEnriching}
       />
@@ -444,6 +496,14 @@ export default function LeadsPage() {
         <CreateLeadForm
           onSuccess={handleCreateLeadSuccess}
           onCancel={() => setShowCreateForm(false)}
+        />
+      )}
+
+      {/* CSV import modal */}
+      {showCsvImport && (
+        <CsvImportDropzone
+          onSuccess={handleCsvImportSuccess}
+          onCancel={() => setShowCsvImport(false)}
         />
       )}
     </div>

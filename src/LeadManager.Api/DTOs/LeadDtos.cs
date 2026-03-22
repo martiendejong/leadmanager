@@ -75,7 +75,9 @@ public record LeadDto(
     string? SalesPriorityLabel,
     string? SalesPriorityReasoning,
     // Company signals (869ch4zb0)
-    string? Signals);
+    string? Signals,
+    // Pipeline status (869ck3j46)
+    string PipelineStatus);
 
 public record CreateLeadDto(
     string Name,
@@ -111,6 +113,9 @@ public record LeadFilterParams(
     string SortBy = "name",
     bool SortDesc = false);
 
+public record CsvImportRowError(int Row, string Message);
+public record CsvImportResultDto(int Created, int Skipped, List<CsvImportRowError> Errors);
+
 public record LeadStatsDto(int Total, int Enriched, int NotEnriched);
 
 public record ImportResultDto(int Imported, int Skipped, int Errors, List<string> ErrorDetails);
@@ -118,3 +123,10 @@ public record ImportResultDto(int Imported, int Skipped, int Errors, List<string
 public record LeadSearchRequest(string Sector, string? Location, int Limit = 25);
 public record LeadSearchResult(string Name, string Website, string City, string Sector, string Phone, string Email, string Source, string Snippet = "", string? OwnerName = null, string? Description = null, string? Services = null, string? TargetAudience = null);
 public record LeadSearchImportRequest(List<LeadSearchResult> Leads);
+
+// Activity timeline (869ck3j4b)
+public record CreateActivityDto(string ActivityType, string? Note);
+public record LeadActivityDto(Guid Id, Guid LeadId, string? UserId, string ActivityType, string? Note, DateTime CreatedAt);
+
+// Pipeline (869ck3j46)
+public record UpdatePipelineStatusDto(string PipelineStatus);
