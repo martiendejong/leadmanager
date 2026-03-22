@@ -3,6 +3,7 @@ using System;
 using LeadManager.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace LeadManager.Api.Migrations
 {
     [DbContext(typeof(LeadManagerDbContext))]
-    partial class LeadManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260322175203_AddLeadActivityAndPipeline")]
+    partial class AddLeadActivityAndPipeline
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.25");
@@ -93,57 +96,6 @@ namespace LeadManager.Api.Migrations
                         .HasDatabaseName("UserNameIndex");
 
                     b.ToTable("AspNetUsers", (string)null);
-                });
-
-            modelBuilder.Entity("LeadManager.Api.Models.Client", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("City")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CreatedByUserId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Notes")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Plan")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("PrimaryContactEmail")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("PrimaryContactName")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("PrimaryContactPhone")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Sector")
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid?>("SourceLeadId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Website")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("Clients");
                 });
 
             modelBuilder.Entity("LeadManager.Api.Models.CompanyProfile", b =>
@@ -269,9 +221,6 @@ namespace LeadManager.Api.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("AssignedToUserId")
-                        .HasColumnType("TEXT");
-
                     b.Property<int?>("BranchCount")
                         .HasColumnType("INTEGER");
 
@@ -287,9 +236,6 @@ namespace LeadManager.Api.Migrations
 
                     b.Property<string>("CompanyEmail")
                         .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid?>("ConvertedToClientId")
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("CrawledAt")
@@ -574,36 +520,6 @@ namespace LeadManager.Api.Migrations
                     b.ToTable("LeadPageContents");
                 });
 
-            modelBuilder.Entity("LeadManager.Api.Models.Project", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("ClientId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Description")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ClientId");
-
-                    b.ToTable("Projects");
-                });
-
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
                 {
                     b.Property<string>("Id")
@@ -787,17 +703,6 @@ namespace LeadManager.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("Lead");
-                });
-
-            modelBuilder.Entity("LeadManager.Api.Models.Project", b =>
-                {
-                    b.HasOne("LeadManager.Api.Models.Client", "Client")
-                        .WithMany("Projects")
-                        .HasForeignKey("ClientId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Client");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>

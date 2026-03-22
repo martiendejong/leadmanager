@@ -8,8 +8,8 @@ import LeadsPage from './pages/LeadsPage'
 import FinderPage from './pages/FinderPage'
 import AdminUsersPage from './pages/AdminUsersPage'
 import ProfilePage from './pages/ProfilePage'
-import ClientsPage from './pages/ClientsPage'
-import ClientDetailPage from './pages/ClientDetailPage'
+import AnalyticsPage from './pages/AnalyticsPage'
+import PipelinePage from './pages/PipelinePage'
 
 function App() {
   return (
@@ -36,6 +36,17 @@ function App() {
             </Route>
 
             <Route
+              path="/leads/pipeline"
+              element={
+                <ProtectedRoute>
+                  <Layout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<PipelinePage />} />
+            </Route>
+
+            <Route
               path="/leads/zoeken"
               element={
                 <ProtectedRoute>
@@ -55,6 +66,17 @@ function App() {
               }
             >
               <Route index element={<ProfilePage />} />
+            </Route>
+
+            <Route
+              path="/leads/analytics"
+              element={
+                <ProtectedRoute>
+                  <Layout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<AnalyticsPage />} />
             </Route>
 
             {/* Protected: Admin only */}

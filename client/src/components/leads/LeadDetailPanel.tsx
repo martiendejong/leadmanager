@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import type { Lead } from '../../api/leads'
-import { regenerateSalesApproach, enrichLeads } from '../../api/leads'
+import type { Lead, UserDto } from '../../api/leads'
+import { regenerateSalesApproach, enrichLeads, assignLead, fetchUsers } from '../../api/leads'
 import { useToast } from '../Toast'
-import ConvertToClientWizard from './ConvertToClientWizard'
+import OutreachEmailPanel from './OutreachEmailPanel'
+import LeadActivityTimeline from './LeadActivityTimeline'
 
 interface Props {
   lead: Lead | null
   onClose: () => void
+  onLeadUpdated?: (lead: Lead) => void
 }
 
 function Field({ label, value }: { label: string; value?: string | number | null }) {
@@ -47,12 +48,13 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
-export default function LeadDetailPanel({ lead, onClose }: Props) {
+export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props) {
   const { showToast } = useToast()
   const [isRegenerating, setIsRegenerating] = useState(false)
   const [isEnriching, setIsEnriching] = useState(false)
   const [activeTab, setActiveTab] = useState<'linkedin' | 'phone' | 'email'>('linkedin')
-  const [showConvertWizard, setShowConvertWizard] = useState(false)
+  const [users, setUsers] = useState<UserDto[]>([])
+  const [isAssigning, setIsAssigning] = useState(false)
 
   // Close on Escape
   useEffect(() => {
@@ -62,6 +64,25 @@ export default function LeadDetailPanel({ lead, onClose }: Props) {
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
+
+  // Load users for assignment dropdown
+  useEffect(() => {
+    fetchUsers().then(setUsers).catch(() => {/* non-critical */})
+  }, [])
+
+  const handleAssign = async (userId: string | null) => {
+    if (!lead) return
+    setIsAssigning(true)
+    try {
+      const updated = await assignLead(lead.id, userId)
+      showToast(userId ? 'Lead toegewezen!' : 'Toewijzing verwijderd', 'success')
+      if (onLeadUpdated) onLeadUpdated(updated)
+    } catch {
+      showToast('Toewijzen mislukt', 'error')
+    } finally {
+      setIsAssigning(false)
+    }
+  }
 
   const copyToClipboard = async (text: string, label: string) => {
     try {
@@ -378,6 +399,9 @@ export default function LeadDetailPanel({ lead, onClose }: Props) {
                 }
               })()}
 
+              {/* Outreach Email Generator */}
+              <OutreachEmailPanel lead={lead} />
+
               {/* Sales Pitch — most prominent, top of panel */}
               {lead.salesPitch && (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4">
@@ -403,6 +427,26 @@ export default function LeadDetailPanel({ lead, onClose }: Props) {
                   <p className="text-sm text-indigo-900 leading-relaxed">{lead.aiSummary}</p>
                 </div>
               )}
+
+              {/* Assignee (869ck3j4u) */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-3 pb-1.5 border-b border-gray-100">
+                  Toegewezen aan
+                </h3>
+                <select
+                  value={lead.assignedToUserId ?? ''}
+                  onChange={(e) => handleAssign(e.target.value || null)}
+                  disabled={isAssigning}
+                  className="w-full text-sm border border-gray-300 rounded-md px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-gray-100"
+                >
+                  <option value="">— Niet toegewezen —</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {[u.firstName, u.lastName].filter(Boolean).join(' ') || u.email}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
               <Section title="Bedrijfsinfo">
                 <Field label="Naam" value={lead.name} />
@@ -480,6 +524,11 @@ export default function LeadDetailPanel({ lead, onClose }: Props) {
                   <Field label="Website status" value={lead.websiteStatus} />
                 </Section>
               )}
+
+              {/* Activity Timeline (869ck3j4b) */}
+              <div className="pb-1 border-t border-gray-100 pt-5">
+                <LeadActivityTimeline leadId={lead.id} />
+              </div>
             </div>
           </>
         )}
