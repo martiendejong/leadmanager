@@ -110,6 +110,58 @@ export async function importLeads(file: File): Promise<void> {
   })
 }
 
+export interface CsvImportRowError {
+  row: number
+  message: string
+}
+
+export interface CsvImportResult {
+  created: number
+  skipped: number
+  errors: CsvImportRowError[]
+}
+
+export async function importLeadsFromCsv(file: File): Promise<CsvImportResult> {
+  const formData = new FormData()
+  formData.append('file', file)
+  const res = await apiClient.post<CsvImportResult>('/api/leads/import', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return res.data
+}
+
+export async function exportLeads(format: 'csv' | 'xlsx', filters: LeadFilter): Promise<void> {
+  const params: Record<string, string | number | boolean> = { format }
+  if (filters.enriched !== undefined) params.enriched = filters.enriched
+  if (filters.enrichedAfter) params.enrichedAfter = filters.enrichedAfter
+  if (filters.enrichedBefore) params.enrichedBefore = filters.enrichedBefore
+  if (filters.sortBy) params.sortBy = filters.sortBy
+  if (filters.sortDesc !== undefined) params.sortDesc = filters.sortDesc
+
+  const token = localStorage.getItem('lm_token')
+  const baseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:5000'
+  const queryString = new URLSearchParams(
+    Object.entries(params).map(([k, v]) => [k, String(v)])
+  ).toString()
+  const url = `${baseUrl}/api/leads/export?${queryString}`
+
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!response.ok) throw new Error('Export failed')
+
+  const blob = await response.blob()
+  const objectUrl = URL.createObjectURL(blob)
+  const dateStr = new Date().toISOString().slice(0, 10)
+  const a = document.createElement('a')
+  a.href = objectUrl
+  a.download = `leads-${dateStr}.${format}`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 100)
+}
+
 export async function enrichLeads(ids: string[]): Promise<{ jobId: string }> {
   const res = await apiClient.post<{ jobId: string }>('/api/leads/enrich', { ids })
   return res.data

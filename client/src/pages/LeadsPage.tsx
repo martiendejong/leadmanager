@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
-import { fetchLeads, fetchLeadStats, importLeads, enrichLeads } from '../api/leads'
-import type { Lead, LeadFilter, LeadStats } from '../api/leads'
+import { fetchLeads, fetchLeadStats, importLeads, enrichLeads, exportLeads } from '../api/leads'
+import type { Lead, LeadFilter, LeadStats, CsvImportResult } from '../api/leads'
 import { useLeadSelection } from '../hooks/useLeadSelection'
 import { useToast } from '../components/Toast'
 import LeadsTable from '../components/leads/LeadsTable'
@@ -10,6 +10,7 @@ import LeadsToolbar from '../components/leads/LeadsToolbar'
 import EnrichmentProgress from '../components/leads/EnrichmentProgress'
 import LeadDetailPanel from '../components/leads/LeadDetailPanel'
 import CreateLeadForm from '../components/leads/CreateLeadForm'
+import CsvImportDropzone from '../components/leads/CsvImportDropzone'
 
 const PAGE_SIZE = 50
 
@@ -43,6 +44,7 @@ export default function LeadsPage() {
   const [isEnriching, setIsEnriching] = useState(false)
   const [detailLead, setDetailLead] = useState<Lead | null>(null)
   const [showCreateForm, setShowCreateForm] = useState(false)
+  const [showCsvImport, setShowCsvImport] = useState(false)
   const [onboardingDismissed, setOnboardingDismissed] = useState(
     () => localStorage.getItem('lm_onboarding_dismissed') === '1'
   )
@@ -227,6 +229,30 @@ export default function LeadsPage() {
     }
   }, [selectedIds, showToast])
 
+  const handleExportCsv = useCallback(async () => {
+    try {
+      await exportLeads('csv', filter)
+      showToast('CSV export gedownload', 'success')
+    } catch {
+      showToast('CSV export mislukt', 'error')
+    }
+  }, [filter, showToast])
+
+  const handleExportExcel = useCallback(async () => {
+    try {
+      await exportLeads('xlsx', filter)
+      showToast('Excel export gedownload', 'success')
+    } catch {
+      showToast('Excel export mislukt', 'error')
+    }
+  }, [filter, showToast])
+
+  const handleCsvImportSuccess = useCallback(async (result: CsvImportResult) => {
+    showToast(`${result.created} leads geïmporteerd!`, 'success')
+    await loadLeads(filter)
+    await loadStats()
+  }, [filter, loadLeads, loadStats, showToast])
+
   const handleEnrichmentComplete = useCallback(async () => {
     setActiveJobId(null)
     setIsEnriching(false)
@@ -326,7 +352,10 @@ export default function LeadsPage() {
         selectedCount={selectedIds.size}
         onEnrich={handleEnrich}
         onExport={handleExport}
+        onExportCsv={handleExportCsv}
+        onExportExcel={handleExportExcel}
         onImport={handleImport}
+        onImportCsv={() => setShowCsvImport(true)}
         onClearSelection={clearSelection}
         isEnriching={isEnriching}
       />
@@ -444,6 +473,14 @@ export default function LeadsPage() {
         <CreateLeadForm
           onSuccess={handleCreateLeadSuccess}
           onCancel={() => setShowCreateForm(false)}
+        />
+      )}
+
+      {/* CSV import modal */}
+      {showCsvImport && (
+        <CsvImportDropzone
+          onSuccess={handleCsvImportSuccess}
+          onCancel={() => setShowCsvImport(false)}
         />
       )}
     </div>

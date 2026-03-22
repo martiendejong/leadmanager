@@ -74,7 +74,7 @@ export default function LeadDetailPanel({ lead, onClose }: Props) {
 
     setIsRegenerating(true)
     try {
-      const result = await regenerateSalesApproach(lead.id)
+      await regenerateSalesApproach(lead.id)
       showToast('Sales approach opnieuw gegenereerd!', 'success')
       // Update the lead in parent component would require callback - for now just show success
       window.location.reload() // Simple refresh - in production use proper state management
