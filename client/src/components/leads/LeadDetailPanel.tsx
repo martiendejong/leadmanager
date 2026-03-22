@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Lead } from '../../api/leads'
 import { regenerateSalesApproach, enrichLeads } from '../../api/leads'
 import { useToast } from '../Toast'
+import OutreachEmailPanel from './OutreachEmailPanel'
 
 interface Props {
   lead: Lead | null
@@ -74,7 +75,7 @@ export default function LeadDetailPanel({ lead, onClose }: Props) {
 
     setIsRegenerating(true)
     try {
-      const result = await regenerateSalesApproach(lead.id)
+      await regenerateSalesApproach(lead.id)
       showToast('Sales approach opnieuw gegenereerd!', 'success')
       // Update the lead in parent component would require callback - for now just show success
       window.location.reload() // Simple refresh - in production use proper state management
@@ -344,6 +345,9 @@ export default function LeadDetailPanel({ lead, onClose }: Props) {
                   return null
                 }
               })()}
+
+              {/* Outreach Email Generator */}
+              <OutreachEmailPanel lead={lead} />
 
               {/* Sales Pitch — most prominent, top of panel */}
               {lead.salesPitch && (

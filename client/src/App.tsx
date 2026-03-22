@@ -8,6 +8,7 @@ import LeadsPage from './pages/LeadsPage'
 import FinderPage from './pages/FinderPage'
 import AdminUsersPage from './pages/AdminUsersPage'
 import ProfilePage from './pages/ProfilePage'
+import AnalyticsPage from './pages/AnalyticsPage'
 
 function App() {
   return (
@@ -53,6 +54,17 @@ function App() {
               }
             >
               <Route index element={<ProfilePage />} />
+            </Route>
+
+            <Route
+              path="/leads/analytics"
+              element={
+                <ProtectedRoute>
+                  <Layout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<AnalyticsPage />} />
             </Route>
 
             {/* Protected: Admin only */}

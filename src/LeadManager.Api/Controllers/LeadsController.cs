@@ -354,6 +354,125 @@ public class LeadsController : ControllerBase
         return Ok(new ImportResultDto(imported, skipped, errors, errorDetails));
     }
 
+    // POST /api/leads/{id}/generate-outreach
+    [HttpPost("{id:guid}/generate-outreach")]
+    public async Task<IActionResult> GenerateOutreachEmail(Guid id)
+    {
+        var userId = GetCurrentUserId();
+        var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == userId);
+
+        if (lead == null)
+            return NotFound();
+
+        var logger = HttpContext.RequestServices.GetRequiredService<ILogger<Services.Enrichment.OutreachEmailService>>();
+        var service = new Services.Enrichment.OutreachEmailService(_configuration, logger);
+
+        var result = await service.GenerateAsync(lead);
+
+        if (result == null)
+        {
+            return BadRequest("Outreach e-mail kon niet worden gegenereerd. Probeer opnieuw.");
+        }
+
+        return Ok(result);
+    }
+
+    // GET /api/leads/analytics
+    [HttpGet("analytics")]
+    public async Task<IActionResult> GetAnalytics([FromQuery] string? from, [FromQuery] string? to)
+    {
+        var userId = GetCurrentUserId();
+        var query = _db.Leads.Where(l => l.ImportedByUserId == userId);
+
+        // Parse date range
+        DateTime? fromDate = null;
+        DateTime? toDate = null;
+
+        if (!string.IsNullOrWhiteSpace(from) && DateTime.TryParse(from, out var parsedFrom))
+            fromDate = parsedFrom.ToUniversalTime();
+        if (!string.IsNullOrWhiteSpace(to) && DateTime.TryParse(to, out var parsedTo))
+            toDate = parsedTo.ToUniversalTime().AddDays(1); // inclusive
+
+        // Default: last 30 days for time series
+        var thirtyDaysAgo = DateTime.UtcNow.AddDays(-30);
+
+        if (fromDate.HasValue)
+            query = query.Where(l => l.CreatedAt >= fromDate.Value);
+        if (toDate.HasValue)
+            query = query.Where(l => l.CreatedAt < toDate.Value);
+
+        var allLeads = await query.ToListAsync();
+
+        var totalLeads = allLeads.Count;
+        var enrichedLeads = allLeads.Count(l => l.IsEnriched);
+        var avgSalesScore = totalLeads > 0 && allLeads.Any(l => l.SalesPriorityScore.HasValue)
+            ? Math.Round(allLeads.Where(l => l.SalesPriorityScore.HasValue).Average(l => (double)l.SalesPriorityScore!.Value), 1)
+            : 0.0;
+
+        var leadsThisMonth = allLeads.Count(l => l.CreatedAt >= DateTime.UtcNow.AddDays(-30));
+        var conversionRate = totalLeads > 0 ? Math.Round((double)enrichedLeads / totalLeads, 2) : 0.0;
+
+        var leadsByStatus = allLeads
+            .GroupBy(l => l.IsEnriched ? "Verrijkt" : "Nieuw")
+            .Select(g => new { status = g.Key, count = g.Count() })
+            .OrderByDescending(x => x.count)
+            .ToList();
+
+        var leadsByIndustry = allLeads
+            .Where(l => !string.IsNullOrWhiteSpace(l.Sector))
+            .GroupBy(l => l.Sector)
+            .Select(g => new { industry = g.Key, count = g.Count() })
+            .OrderByDescending(x => x.count)
+            .Take(8)
+            .ToList();
+
+        // Time series: group by date, cover last 30 days (or filtered range)
+        var timeSeriesStart = fromDate ?? thirtyDaysAgo;
+        var timeSeriesLeads = await _db.Leads
+            .Where(l => l.ImportedByUserId == userId && l.CreatedAt >= timeSeriesStart)
+            .ToListAsync();
+
+        var leadsOverTime = timeSeriesLeads
+            .GroupBy(l => l.CreatedAt.Date)
+            .Select(g => new { date = g.Key.ToString("yyyy-MM-dd"), count = g.Count() })
+            .OrderBy(x => x.date)
+            .ToList();
+
+        var topSources = allLeads
+            .Where(l => !string.IsNullOrWhiteSpace(l.Source))
+            .GroupBy(l => l.Source)
+            .Select(g => new { source = g.Key, count = g.Count() })
+            .OrderByDescending(x => x.count)
+            .Take(10)
+            .ToList();
+
+        var avgScoreByIndustry = allLeads
+            .Where(l => !string.IsNullOrWhiteSpace(l.Sector) && l.SalesPriorityScore.HasValue)
+            .GroupBy(l => l.Sector)
+            .Select(g => new
+            {
+                industry = g.Key,
+                avgScore = Math.Round(g.Average(l => (double)l.SalesPriorityScore!.Value), 1)
+            })
+            .OrderByDescending(x => x.avgScore)
+            .Take(8)
+            .ToList();
+
+        return Ok(new
+        {
+            totalLeads,
+            enrichedLeads,
+            avgSalesScore,
+            leadsThisMonth,
+            conversionRate,
+            leadsByStatus,
+            leadsByIndustry,
+            leadsOverTime,
+            topSources,
+            avgScoreByIndustry
+        });
+    }
+
     // POST /api/leads/search
     [HttpPost("search")]
     public async Task<IActionResult> SearchLeads([FromBody] LeadSearchRequest request)

@@ -230,7 +230,7 @@ export default function CreateLeadForm({ onSuccess, onCancel }: CreateLeadFormPr
                 <input
                   type="url"
                   name="website"
-                  value={formData.website}
+                  value={formData.website ?? ''}
                   onChange={handleChange}
                   className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                   placeholder="https://www.bedrijf.nl"
@@ -248,7 +248,7 @@ export default function CreateLeadForm({ onSuccess, onCancel }: CreateLeadFormPr
                 </p>
                 <textarea
                   name="manualInput"
-                  value={formData.manualInput}
+                  value={formData.manualInput ?? ''}
                   onChange={handleChange}
                   rows={5}
                   maxLength={5000}
