@@ -812,6 +812,41 @@ public class LeadsController : ControllerBase
             .Take(8)
             .ToList();
 
+        // Team performance: leads grouped by assigned user
+        var assignedLeadGroups = allLeads
+            .Where(l => !string.IsNullOrWhiteSpace(l.AssignedToUserId))
+            .GroupBy(l => l.AssignedToUserId!)
+            .ToList();
+
+        var userIds = assignedLeadGroups.Select(g => g.Key).ToList();
+        var users = await _db.Users
+            .Where(u => userIds.Contains(u.Id))
+            .Select(u => new { u.Id, u.FirstName, u.LastName, u.Email })
+            .ToListAsync();
+        var userLookup = users.ToDictionary(u => u.Id);
+
+        var teamPerformance = assignedLeadGroups
+            .Select(g =>
+            {
+                var user = userLookup.GetValueOrDefault(g.Key);
+                var name = user != null && (!string.IsNullOrWhiteSpace(user.FirstName) || !string.IsNullOrWhiteSpace(user.LastName))
+                    ? $"{user.FirstName} {user.LastName}".Trim()
+                    : user?.Email ?? g.Key;
+                var leadsInGroup = g.ToList();
+                return new
+                {
+                    userName = name,
+                    totalLeads = leadsInGroup.Count,
+                    enrichedLeads = leadsInGroup.Count(l => l.IsEnriched),
+                    avgScore = leadsInGroup.Any(l => l.SalesPriorityScore.HasValue)
+                        ? Math.Round(leadsInGroup.Where(l => l.SalesPriorityScore.HasValue).Average(l => (double)l.SalesPriorityScore!.Value), 1)
+                        : 0.0,
+                    wonLeads = leadsInGroup.Count(l => l.PipelineStatus == PipelineStatus.Won)
+                };
+            })
+            .OrderByDescending(x => x.totalLeads)
+            .ToList();
+
         return Ok(new
         {
             totalLeads,
@@ -823,7 +858,8 @@ public class LeadsController : ControllerBase
             leadsByIndustry,
             leadsOverTime,
             topSources,
-            avgScoreByIndustry
+            avgScoreByIndustry,
+            teamPerformance
         });
     }
 

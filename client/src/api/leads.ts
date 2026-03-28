@@ -372,6 +372,14 @@ export interface LeadsAnalyticsScoreItem {
   avgScore: number
 }
 
+export interface LeadsAnalyticsTeamItem {
+  userName: string
+  totalLeads: number
+  enrichedLeads: number
+  avgScore: number
+  wonLeads: number
+}
+
 export interface LeadsAnalytics {
   totalLeads: number
   enrichedLeads: number
@@ -383,6 +391,7 @@ export interface LeadsAnalytics {
   leadsOverTime: LeadsAnalyticsTimeItem[]
   topSources: LeadsAnalyticsSourceItem[]
   avgScoreByIndustry: LeadsAnalyticsScoreItem[]
+  teamPerformance: LeadsAnalyticsTeamItem[]
 }
 
 export async function getLeadsAnalytics(from?: string, to?: string): Promise<LeadsAnalytics> {
