@@ -75,11 +75,41 @@ public class EnrichmentBackgroundService : BackgroundService
                 displayName = await EnrichLeadAsync(lead, jobId, stoppingToken);
                 job.SuccessCount++;
                 isSuccess = true;
+
+                // Clear retry tracking on success so the lead is not considered "failed"
+                using var successScope = _scopeFactory.CreateScope();
+                var successDb = successScope.ServiceProvider.GetRequiredService<LeadManagerDbContext>();
+                var successLead = await successDb.Leads.FindAsync(new object[] { lead.Id }, stoppingToken);
+                if (successLead != null && (successLead.EnrichmentRetryCount != 0 || successLead.EnrichmentLastError != null))
+                {
+                    successLead.EnrichmentRetryCount = 0;
+                    successLead.EnrichmentLastError = null;
+                    await successDb.SaveChangesAsync(stoppingToken);
+                }
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Failed to enrich lead {LeadId}", lead.Id);
                 job.ErrorCount++;
+
+                // Persist the last error so failures are visible in the dashboard and API.
+                // RetryCount was already incremented by the Hangfire sweep before enqueue,
+                // so no increment here — just capture the message.
+                try
+                {
+                    using var failScope = _scopeFactory.CreateScope();
+                    var failDb = failScope.ServiceProvider.GetRequiredService<LeadManagerDbContext>();
+                    var failLead = await failDb.Leads.FindAsync(new object[] { lead.Id }, stoppingToken);
+                    if (failLead != null)
+                    {
+                        failLead.EnrichmentLastError = ex.Message.Length > 500 ? ex.Message[..500] : ex.Message;
+                        await failDb.SaveChangesAsync(stoppingToken);
+                    }
+                }
+                catch (Exception persistEx)
+                {
+                    _logger.LogError(persistEx, "Could not persist enrichment error for lead {LeadId}", lead.Id);
+                }
             }
 
             job.ProcessedLeads++;

@@ -1,3 +1,4 @@
+using Hangfire;
 using LeadManager.Api.Data;
 using LeadManager.Api.Models;
 using LeadManager.Api.Services.Enrichment;
@@ -10,6 +11,7 @@ public class HangfireEnrichmentJob
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<HangfireEnrichmentJob> _logger;
     private const int BatchSize = 10;
+    private const int MaxRetries = 3;
 
     public HangfireEnrichmentJob(IServiceScopeFactory scopeFactory, ILogger<HangfireEnrichmentJob> logger)
     {
@@ -17,21 +19,45 @@ public class HangfireEnrichmentJob
         _logger = logger;
     }
 
+    // Sweep-level retry: if the sweep throws, Hangfire retries with exponential backoff.
+    // Per-lead retry/backoff is handled via EnrichmentRetryCount + LastEnrichmentAttempt below.
+    [AutomaticRetry(Attempts = 3)]
     public async Task RunAsync()
+    {
+        try
+        {
+            await DoSweepAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Enrichment sweep failed; Hangfire will retry with exponential backoff");
+            throw;
+        }
+    }
+
+    private async Task DoSweepAsync()
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<LeadManagerDbContext>();
         var channel = scope.ServiceProvider.GetRequiredService<EnrichmentChannel>();
 
         var now = DateTime.UtcNow;
-        var retryThreshold = now.AddMinutes(-10);
 
-        // Pick leads that need enrichment:
-        // - IsEnriched = false
-        // - LastEnrichmentAttempt is null (never tried) OR older than 10 minutes (retry)
+        // Per-lead exponential backoff. EF LINQ cannot translate Math.Pow, so we
+        // compute the cutoffs in C# and reference them in the query.
+        //   retry 0 (never tried)      → eligible immediately
+        //   retry 1 (1 failure so far) → wait 5 minutes since last attempt
+        //   retry 2 (2 failures)       → wait 25 minutes since last attempt
+        //   retry 3 (3 failures)       → permanent failure, never pick again
+        var retry1Cutoff = now.AddMinutes(-5);
+        var retry2Cutoff = now.AddMinutes(-25);
+
         var leadsToEnrich = await db.Leads
             .Where(l => !l.IsEnriched
-                     && (l.LastEnrichmentAttempt == null || l.LastEnrichmentAttempt < retryThreshold))
+                     && l.EnrichmentRetryCount < MaxRetries
+                     && (l.LastEnrichmentAttempt == null
+                         || (l.EnrichmentRetryCount == 1 && l.LastEnrichmentAttempt < retry1Cutoff)
+                         || (l.EnrichmentRetryCount == 2 && l.LastEnrichmentAttempt < retry2Cutoff)))
             .OrderBy(l => l.CreatedAt)
             .Take(BatchSize)
             .ToListAsync();
@@ -42,7 +68,6 @@ public class HangfireEnrichmentJob
             return;
         }
 
-        // Create a single EnrichmentJob for this batch
         var job = new EnrichmentJob
         {
             Id = Guid.NewGuid(),
@@ -54,13 +79,17 @@ public class HangfireEnrichmentJob
 
         db.EnrichmentJobs.Add(job);
 
-        // Stamp LastEnrichmentAttempt to prevent duplicate queueing
+        // Stamp LastEnrichmentAttempt + increment RetryCount BEFORE enqueue so crashes
+        // mid-flight still count as an attempt and trigger backoff (rather than leaving
+        // the lead in an eligible-forever state).
         foreach (var lead in leadsToEnrich)
+        {
             lead.LastEnrichmentAttempt = now;
+            lead.EnrichmentRetryCount += 1;
+        }
 
         await db.SaveChangesAsync();
 
-        // Enqueue via the existing channel — EnrichmentBackgroundService does the actual work
         await channel.Writer.WriteAsync(job.Id);
 
         _logger.LogInformation(

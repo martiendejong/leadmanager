@@ -211,7 +211,10 @@ app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.UseHangfireDashboard("/hangfire"); // no auth — dev mode
+app.UseHangfireDashboard("/hangfire", new DashboardOptions
+{
+    Authorization = new[] { new HangfireDashboardAuthorizationFilter(app.Environment) }
+});
 
 RecurringJob.AddOrUpdate<HangfireEnrichmentJob>(
     "enrichment-sweep",
