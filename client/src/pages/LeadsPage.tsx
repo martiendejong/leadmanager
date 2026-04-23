@@ -249,7 +249,12 @@ export default function LeadsPage() {
   }, [filter, showToast])
 
   const handleCsvImportSuccess = useCallback(async (result: CsvImportResult) => {
-    showToast(`${result.created} leads geïmporteerd!`, 'success')
+    const enrichMsg = result.enrichmentJobId ? ' Verrijking gestart.' : ''
+    showToast(`${result.created} leads geïmporteerd!${enrichMsg}`, 'success')
+    if (result.enrichmentJobId) {
+      setActiveJobId(result.enrichmentJobId)
+      setIsEnriching(true)
+    }
     await loadLeads(filter)
     await loadStats()
   }, [filter, loadLeads, loadStats, showToast])
