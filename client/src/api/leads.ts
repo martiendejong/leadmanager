@@ -130,6 +130,7 @@ export interface CsvImportResult {
   created: number
   skipped: number
   errors: CsvImportRowError[]
+  enrichmentJobId?: string | null
 }
 
 export async function importLeadsFromCsv(file: File): Promise<CsvImportResult> {

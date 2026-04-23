@@ -121,7 +121,7 @@ public record LeadFilterParams(
     string? AssignedToUserId = null);
 
 public record CsvImportRowError(int Row, string Message);
-public record CsvImportResultDto(int Created, int Skipped, List<CsvImportRowError> Errors);
+public record CsvImportResultDto(int Created, int Skipped, List<CsvImportRowError> Errors, Guid? EnrichmentJobId = null);
 
 public record LeadStatsDto(int Total, int Enriched, int NotEnriched);
 

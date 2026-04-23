@@ -4,6 +4,7 @@ using LeadManager.Api.Data;
 using LeadManager.Api.DTOs;
 using LeadManager.Api.Models;
 using LeadManager.Api.Services;
+using LeadManager.Api.Services.Enrichment;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -17,15 +18,19 @@ namespace LeadManager.Api.Controllers;
 [Authorize]
 public class LeadsController : ControllerBase
 {
+    private const int CsvImportMaxBytes = 5 * 1024 * 1024; // 5 MB
+
     private readonly LeadManagerDbContext _db;
     private readonly SearchService _search;
     private readonly IConfiguration _configuration;
+    private readonly EnrichmentChannel _enrichmentChannel;
 
-    public LeadsController(LeadManagerDbContext db, SearchService search, IConfiguration configuration)
+    public LeadsController(LeadManagerDbContext db, SearchService search, IConfiguration configuration, EnrichmentChannel enrichmentChannel)
     {
         _db = db;
         _search = search;
         _configuration = configuration;
+        _enrichmentChannel = enrichmentChannel;
     }
 
     private string? GetCurrentUserId() =>
@@ -472,13 +477,18 @@ public class LeadsController : ControllerBase
         return Ok(result);
     }
 
-    // POST /api/leads/import — CSV bulk import (max 500 rows)
+    // POST /api/leads/import — CSV bulk import (max 500 rows, max 5 MB)
     [HttpPost("import")]
     [Consumes("multipart/form-data")]
+    [RequestSizeLimit(CsvImportMaxBytes)]
+    [RequestFormLimits(MultipartBodyLengthLimit = CsvImportMaxBytes)]
     public async Task<IActionResult> ImportLeadsCsv(IFormFile file)
     {
         if (file == null || file.Length == 0)
             return BadRequest("No file provided.");
+
+        if (file.Length > CsvImportMaxBytes)
+            return BadRequest($"CSV file exceeds the {CsvImportMaxBytes / (1024 * 1024)} MB limit.");
 
         if (!file.FileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
             return BadRequest("Only .csv files are supported. For Excel (.xlsx), use the Excel import button.");
@@ -588,13 +598,33 @@ public class LeadsController : ControllerBase
             }
         }
 
+        Guid? enrichmentJobId = null;
         if (leadsToInsert.Count > 0)
         {
             _db.Leads.AddRange(leadsToInsert);
             await _db.SaveChangesAsync();
+
+            var enrichableIds = leadsToInsert
+                .Where(l => !string.IsNullOrWhiteSpace(l.Website))
+                .Select(l => l.Id)
+                .ToList();
+
+            if (enrichableIds.Count > 0)
+            {
+                var job = new EnrichmentJob
+                {
+                    LeadIds = enrichableIds,
+                    TotalLeads = enrichableIds.Count,
+                    RequestedByUserId = userId
+                };
+                _db.EnrichmentJobs.Add(job);
+                await _db.SaveChangesAsync();
+                await _enrichmentChannel.Writer.WriteAsync(job.Id);
+                enrichmentJobId = job.Id;
+            }
         }
 
-        return Ok(new CsvImportResultDto(leadsToInsert.Count, skipped, rowErrors));
+        return Ok(new CsvImportResultDto(leadsToInsert.Count, skipped, rowErrors, enrichmentJobId));
     }
 
     // GET /api/leads/export?format=csv|xlsx&[filter params]

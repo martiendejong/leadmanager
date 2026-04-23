@@ -376,6 +376,12 @@ export default function CsvImportDropzone({ onSuccess, onCancel }: CsvImportDrop
                 </div>
               )}
 
+              {result.enrichmentJobId && (
+                <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 mb-4 text-xs text-indigo-700">
+                  Verrijking gestart op de achtergrond voor leads met een website.
+                </div>
+              )}
+
               <div className="flex gap-3 justify-end">
                 <button
                   onClick={handleReset}
