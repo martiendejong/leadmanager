@@ -935,6 +935,20 @@ public class LeadsController : ControllerBase
         return Ok(new ImportResultDto(toInsert.Count, skipped, 0, []));
     }
 
+    // PUT /api/leads/{id}/reminder — set or clear stale-lead reminder (869ck3j52/869ck3j58)
+    [HttpPut("{id:guid}/reminder")]
+    public async Task<IActionResult> SetReminder(Guid id, [FromBody] SetReminderDto dto)
+    {
+        var userId = GetCurrentUserId();
+        var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == userId);
+        if (lead == null) return NotFound();
+
+        lead.ReminderDate = dto.ReminderDate;
+        await _db.SaveChangesAsync();
+
+        return Ok(ToDto(lead));
+    }
+
     // POST /api/leads/{id}/convert
     [HttpPost("{id:guid}/convert")]
     public async Task<IActionResult> ConvertToClient(Guid id, [FromBody] ConvertLeadDto dto)
@@ -1054,5 +1068,9 @@ public class LeadsController : ControllerBase
         // Assignment
         l.AssignedToUserId,
         // Pipeline status
-        l.PipelineStatus.ToString());
+        l.PipelineStatus.ToString(),
+        // Stale-lead reminder
+        l.ReminderDate,
+        // Lead-to-client conversion
+        l.ConvertedToClientId);
 }

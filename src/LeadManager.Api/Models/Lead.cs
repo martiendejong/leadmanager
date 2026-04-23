@@ -99,6 +99,13 @@ public class Lead
     // Pipeline Kanban (869ck3j46)
     public PipelineStatus PipelineStatus { get; set; } = PipelineStatus.New;
 
+    // Hangfire enrichment sweep + stale-lead reminders (869ck3j52, 869ck3j58)
+    public DateTime? LastEnrichmentAttempt { get; set; }
+    public DateTime? ReminderDate { get; set; }
+
+    // Lead-to-client conversion (869ck3j56)
+    public Guid? ConvertedToClientId { get; set; }
+
     // Navigation: activity timeline (869ck3j4b)
     public ICollection<LeadActivity> Activities { get; set; } = new List<LeadActivity>();
 }
