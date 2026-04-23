@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import type { Lead, UserDto } from '../../api/leads'
-import { regenerateSalesApproach, enrichLeads, assignLead, fetchUsers } from '../../api/leads'
+import { regenerateSalesApproach, enrichLeads, assignLead, fetchUsers, setReminder } from '../../api/leads'
 import { useToast } from '../Toast'
 import OutreachEmailPanel from './OutreachEmailPanel'
 import LeadActivityTimeline from './LeadActivityTimeline'
+import ConvertToClientWizard from './ConvertToClientWizard'
 
 interface Props {
   lead: Lead | null
@@ -55,6 +57,14 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
   const [activeTab, setActiveTab] = useState<'linkedin' | 'phone' | 'email'>('linkedin')
   const [users, setUsers] = useState<UserDto[]>([])
   const [isAssigning, setIsAssigning] = useState(false)
+  const [reminderDate, setReminderDate] = useState<string>('')
+  const [isSavingReminder, setIsSavingReminder] = useState(false)
+  const [showConvertWizard, setShowConvertWizard] = useState(false)
+
+  // Sync reminderDate input with the lead whenever the panel opens on a different lead
+  useEffect(() => {
+    setReminderDate(lead?.reminderDate ? lead.reminderDate.slice(0, 10) : '')
+  }, [lead?.id, lead?.reminderDate])
 
   // Close on Escape
   useEffect(() => {

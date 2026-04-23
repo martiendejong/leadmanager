@@ -79,7 +79,11 @@ public record LeadDto(
     // Lead assignment (869ck3j4u)
     string? AssignedToUserId,
     // Pipeline status (869ck3j46)
-    string PipelineStatus);
+    string PipelineStatus,
+    // Stale-lead reminder (869ck3j52/869ck3j58)
+    DateTime? ReminderDate,
+    // Lead-to-client conversion (869ck3j56)
+    Guid? ConvertedToClientId);
 
 public record CreateLeadDto(
     string Name,

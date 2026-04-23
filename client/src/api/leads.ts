@@ -63,6 +63,10 @@ export interface Lead {
   assignedToUserId?: string | null
   // Pipeline status (869ck3j46)
   pipelineStatus?: string
+  // Stale-lead reminder (869ck3j52/869ck3j58)
+  reminderDate?: string | null
+  // Lead-to-client conversion (869ck3j56)
+  convertedToClientId?: string | null
 }
 
 export interface LeadsResponse {
@@ -449,4 +453,10 @@ export async function fetchLeadsByPipeline(): Promise<Lead[]> {
     params: { page: 1, pageSize: 500 },
   })
   return res.data.items
+}
+
+// Reminder (869ck3j52/869ck3j58)
+export async function setReminder(leadId: string, reminderDate: string | null): Promise<Lead> {
+  const res = await apiClient.put<Lead>(`/api/leads/${leadId}/reminder`, { reminderDate })
+  return res.data
 }

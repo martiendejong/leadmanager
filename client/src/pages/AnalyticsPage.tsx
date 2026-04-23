@@ -71,7 +71,6 @@ function Sparkline({ data }: { data: { date: string; count: number }[] }) {
 async function exportChartAsPng(element: HTMLElement, filename: string) {
   // Use html2canvas-style approach with SVG foreignObject
   const clone = element.cloneNode(true) as HTMLElement
-  const styles = document.querySelectorAll('style, link[rel="stylesheet"]')
 
   const svgNs = 'http://www.w3.org/2000/svg'
   const { width, height } = element.getBoundingClientRect()
