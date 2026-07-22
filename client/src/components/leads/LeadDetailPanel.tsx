@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { Lead, UserDto } from '../../api/leads'
-import { regenerateSalesApproach, enrichLeads, assignLead, fetchUsers, setReminder } from '../../api/leads'
+import { regenerateSalesApproach, enrichLeads, assignLead, fetchUsers, setReminder, updateLeadStatus } from '../../api/leads'
 import { useToast } from '../Toast'
 import OutreachEmailPanel from './OutreachEmailPanel'
 import LeadActivityTimeline from './LeadActivityTimeline'
@@ -55,6 +55,7 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
   const { showToast } = useToast()
   const [isRegenerating, setIsRegenerating] = useState(false)
   const [isEnriching, setIsEnriching] = useState(false)
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
   const [activeTab, setActiveTab] = useState<'linkedin' | 'phone' | 'email'>('linkedin')
   const [users, setUsers] = useState<UserDto[]>([])
   const [isAssigning, setIsAssigning] = useState(false)
@@ -148,6 +149,23 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
     }
   }
 
+  const handleStatusTransition = async () => {
+    if (!lead || lead.status !== 'Lead') return
+
+    if (!confirm('Weet je zeker dat je deze lead wilt promoveren tot prospect?')) return
+
+    setIsUpdatingStatus(true)
+    try {
+      await updateLeadStatus(lead.id, { status: 'Prospect' })
+      showToast('Lead gepromoveerd tot prospect!', 'success')
+      setTimeout(() => window.location.reload(), 1000) // Reload to show updated status
+    } catch (err: any) {
+      showToast(err.response?.data || 'Status update mislukt', 'error')
+    } finally {
+      setIsUpdatingStatus(false)
+    }
+  }
+
   return (
     <>
       {/* Backdrop */}
@@ -191,9 +209,21 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
               </button>
             </div>
 
-            {/* Enrichment status badge */}
+            {/* Status and enrichment badges */}
             <div className="px-5 py-2 border-b border-gray-100 flex items-center justify-between">
               <div className="flex items-center gap-2">
+                {/* Lead/Prospect Status Badge */}
+                <span className={`inline-flex items-center gap-1 text-xs font-medium rounded-full px-2.5 py-0.5 ${
+                  lead.status === 'Prospect'
+                    ? 'text-blue-700 bg-blue-50 border border-blue-200'
+                    : 'text-gray-700 bg-gray-50 border border-gray-200'
+                }`}>
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                  {lead.status}
+                </span>
+
                 {lead.isEnriched ? (
                   <>
                     <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-full px-2.5 py-0.5">
@@ -222,13 +252,28 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
                   </span>
                 )}
               </div>
-              <button
-                onClick={handleEnrichNow}
-                disabled={isEnriching}
-                className="text-xs px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-              >
-                {isEnriching ? 'Bezig...' : 'Verrijk nu'}
-              </button>
+              <div className="flex items-center gap-2">
+                {/* Promote to Prospect button (only show if status is Lead) */}
+                {lead.status === 'Lead' && (
+                  <button
+                    onClick={handleStatusTransition}
+                    disabled={isUpdatingStatus}
+                    className="text-xs px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-1"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                    </svg>
+                    {isUpdatingStatus ? 'Bezig...' : 'Promoveer tot Prospect'}
+                  </button>
+                )}
+                <button
+                  onClick={handleEnrichNow}
+                  disabled={isEnriching}
+                  className="text-xs px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                >
+                  {isEnriching ? 'Bezig...' : 'Verrijk nu'}
+                </button>
+              </div>
             </div>
 
             {/* Convert to client */}

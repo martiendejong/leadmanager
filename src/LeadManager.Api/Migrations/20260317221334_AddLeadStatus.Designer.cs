@@ -3,6 +3,7 @@ using System;
 using LeadManager.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace LeadManager.Api.Migrations
 {
     [DbContext(typeof(LeadManagerDbContext))]
-    partial class LeadManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260317221334_AddLeadStatus")]
+    partial class AddLeadStatus
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.25");
@@ -218,14 +221,8 @@ namespace LeadManager.Api.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("AssignedToUserId")
-                        .HasColumnType("TEXT");
-
                     b.Property<int?>("BranchCount")
                         .HasColumnType("INTEGER");
-
-                    b.Property<string>("Certifications")
-                        .HasColumnType("TEXT");
 
                     b.Property<int>("ChunksIndexed")
                         .HasColumnType("INTEGER");
@@ -289,12 +286,6 @@ namespace LeadManager.Api.Migrations
                     b.Property<string>("InstagramUrl")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("InternalContactName")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("InternalContactRole")
-                        .HasColumnType("TEXT");
-
                     b.Property<bool>("IsEnriched")
                         .HasColumnType("INTEGER");
 
@@ -302,9 +293,6 @@ namespace LeadManager.Api.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("KvkNumber")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("LastEnrichmentAttempt")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("LegalForm")
@@ -324,21 +312,12 @@ namespace LeadManager.Api.Migrations
                     b.Property<string>("NotableClients")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("OpeningHours")
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("OwnerFirstName")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<string>("OwnerLastName")
                         .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("OwnerLinkedInUrl")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("OwnerMobile")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("OwnerName")
@@ -359,15 +338,6 @@ namespace LeadManager.Api.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<int>("PipelineStatus")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("PricingInfo")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("ReminderDate")
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("ResolvedUrl")
                         .HasColumnType("TEXT");
 
@@ -375,12 +345,6 @@ namespace LeadManager.Api.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("SalesPitch")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("SalesPriorityLabel")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("SalesPriorityReasoning")
                         .HasColumnType("TEXT");
 
                     b.Property<int?>("SalesPriorityScore")
@@ -391,9 +355,6 @@ namespace LeadManager.Api.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Services")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Signals")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Source")
@@ -422,9 +383,6 @@ namespace LeadManager.Api.Migrations
                     b.Property<int>("WebsiteStatus")
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("WorkingArea")
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("ZipCode")
                         .HasColumnType("TEXT");
 
@@ -434,34 +392,6 @@ namespace LeadManager.Api.Migrations
                         .IsUnique();
 
                     b.ToTable("Leads");
-                });
-
-            modelBuilder.Entity("LeadManager.Api.Models.LeadActivity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("ActivityType")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("LeadId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Note")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("UserId")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("LeadId");
-
-                    b.ToTable("Activities");
                 });
 
             modelBuilder.Entity("LeadManager.Api.Models.LeadDocumentChunk", b =>
@@ -556,37 +486,6 @@ namespace LeadManager.Api.Migrations
                     b.HasIndex("LeadId");
 
                     b.ToTable("LeadPageContents");
-                });
-
-            modelBuilder.Entity("LeadManager.Api.Models.Notification", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsRead")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<Guid?>("LinkedLeadId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Message")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("Type")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("Notifications");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
@@ -733,17 +632,6 @@ namespace LeadManager.Api.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
-            modelBuilder.Entity("LeadManager.Api.Models.LeadActivity", b =>
-                {
-                    b.HasOne("LeadManager.Api.Models.Lead", "Lead")
-                        .WithMany("Activities")
-                        .HasForeignKey("LeadId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Lead");
-                });
-
             modelBuilder.Entity("LeadManager.Api.Models.LeadDocumentChunk", b =>
                 {
                     b.HasOne("LeadManager.Api.Models.Lead", "Lead")
@@ -842,11 +730,6 @@ namespace LeadManager.Api.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-                });
-
-            modelBuilder.Entity("LeadManager.Api.Models.Lead", b =>
-                {
-                    b.Navigation("Activities");
                 });
 
             modelBuilder.Entity("LeadManager.Api.Models.LeadPageContent", b =>
