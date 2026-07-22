@@ -279,6 +279,16 @@ public class LeadsController : ControllerBase
         _db.Leads.Add(lead);
         await _db.SaveChangesAsync();
 
+        _db.Activities.Add(new LeadActivity
+        {
+            LeadId = lead.Id,
+            UserId = userId,
+            ActivityType = ActivityType.Created,
+            Note = null,
+            CreatedAt = DateTime.UtcNow
+        });
+        await _db.SaveChangesAsync();
+
         return CreatedAtAction(nameof(GetLead), new { id = lead.Id }, ToDto(lead));
     }
 
