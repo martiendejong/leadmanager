@@ -58,6 +58,18 @@ function SalesScoreBadge({ score }: { score?: number | null }) {
   )
 }
 
+function LeadStatusBadge({ status }: { status: Lead['status'] }) {
+  return (
+    <span
+      className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium flex-shrink-0 ${
+        status === 'Prospect' ? 'text-blue-700 bg-blue-50 border border-blue-200' : 'text-gray-700 bg-gray-50 border border-gray-200'
+      }`}
+    >
+      {status}
+    </span>
+  )
+}
+
 function EmptyState({ onImport }: { onImport?: () => void }) {
   return (
     <tr>
@@ -207,8 +219,9 @@ export default function LeadsTable({
                   />
                 </td>
                 <td className="px-4 py-3 text-sm font-medium text-gray-900 max-w-48 truncate">
-                  <span className="flex items-center gap-1">
+                  <span className="flex items-center gap-1.5">
                     {lead.name || '—'}
+                    <LeadStatusBadge status={lead.status} />
                     {isStale(lead) && (
                       <span
                         title="Lead niet bijgewerkt in 7+ dagen"
