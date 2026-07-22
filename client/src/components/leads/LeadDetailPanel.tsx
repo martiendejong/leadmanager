@@ -6,6 +6,7 @@ import { useToast } from '../Toast'
 import OutreachEmailPanel from './OutreachEmailPanel'
 import LeadActivityTimeline from './LeadActivityTimeline'
 import ConvertToClientWizard from './ConvertToClientWizard'
+import LeadNotesPanel from './LeadNotesPanel'
 
 interface Props {
   lead: Lead | null
@@ -469,6 +470,17 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
                     </option>
                   ))}
                 </select>
+              </div>
+
+              {/* Notes & Conversations Feed */}
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <div className="flex items-center gap-1.5 mb-4">
+                  <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                  </svg>
+                  <span className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Notities & Gesprekken</span>
+                </div>
+                <LeadNotesPanel leadId={lead.id} />
               </div>
 
               <Section title="Bedrijfsinfo">

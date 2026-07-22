@@ -20,6 +20,7 @@ public class LeadManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Notification> Notifications { get; set; }
     public DbSet<Client> Clients { get; set; }
     public DbSet<Project> Projects { get; set; }
+    public DbSet<LeadNote> LeadNotes { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -82,5 +83,17 @@ public class LeadManagerDbContext : IdentityDbContext<ApplicationUser>
             .WithMany(l => l.Activities)
             .HasForeignKey(a => a.LeadId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<LeadNote>()
+            .HasOne(n => n.Lead)
+            .WithMany()
+            .HasForeignKey(n => n.LeadId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<LeadNote>()
+            .HasOne(n => n.CreatedBy)
+            .WithMany()
+            .HasForeignKey(n => n.CreatedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }
