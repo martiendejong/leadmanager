@@ -11,10 +11,10 @@ public class OutreachEmailService
     private readonly HttpClient _http;
     private readonly ILogger<OutreachEmailService> _logger;
 
-    public OutreachEmailService(IConfiguration configuration, ILogger<OutreachEmailService> logger)
+    public OutreachEmailService(HttpClient http, IConfiguration configuration, ILogger<OutreachEmailService> logger)
     {
         var apiKey = configuration["OpenAI:ApiKey"] ?? throw new InvalidOperationException("OpenAI:ApiKey not configured");
-        _http = new HttpClient();
+        _http = http;
         _http.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
         _logger = logger;
     }

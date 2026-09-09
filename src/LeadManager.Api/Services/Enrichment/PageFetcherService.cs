@@ -8,15 +8,9 @@ public class PageFetcherService
 {
     private readonly HttpClient _http;
 
-    public PageFetcherService()
+    public PageFetcherService(HttpClient http)
     {
-        var handler = new HttpClientHandler
-        {
-            AllowAutoRedirect = true,
-            ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
-        };
-        _http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(10) };
-        _http.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (compatible; LeadManager/1.0)");
+        _http = http;
     }
 
     public async Task<(string text, int httpStatus)> FetchAndStripAsync(string url)

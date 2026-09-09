@@ -104,6 +104,7 @@ public class Lead
 
     // Hangfire notifications & reminders
     public DateTime? LastEnrichmentAttempt { get; set; }
+    public int EnrichmentAttempts { get; set; }
     public DateTime? ReminderDate { get; set; }
 
     // Client conversion

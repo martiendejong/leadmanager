@@ -10,10 +10,10 @@ public class EmbeddingService
     private const int ChunkSize = 500;   // chars (approx 125 tokens)
     private const int ChunkOverlap = 80; // chars overlap
 
-    public EmbeddingService(IConfiguration configuration)
+    public EmbeddingService(HttpClient http, IConfiguration configuration)
     {
         var apiKey = configuration["OpenAI:ApiKey"] ?? throw new InvalidOperationException("OpenAI:ApiKey not configured");
-        _http = new HttpClient();
+        _http = http;
         _http.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
     }
 

@@ -6,16 +6,11 @@ public class UrlNormalizerService
 {
     private readonly HttpClient _http;
 
-    public UrlNormalizerService()
+    // HttpClient comes from IHttpClientFactory (typed client, see Program.cs):
+    // constructing one per service instance leaked a connection pool per lead (#844).
+    public UrlNormalizerService(HttpClient http)
     {
-        var handler = new HttpClientHandler
-        {
-            AllowAutoRedirect = true,
-            MaxAutomaticRedirections = 3,
-            ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
-        };
-        _http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(10) };
-        _http.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (compatible; LeadManager/1.0)");
+        _http = http;
     }
 
     public async Task<(string resolvedUrl, WebsiteStatus status)> NormalizeAndCheckAsync(string rawUrl)

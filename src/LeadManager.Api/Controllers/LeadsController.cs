@@ -471,9 +471,8 @@ public class LeadsController : ControllerBase
         if (lead == null)
             return NotFound();
 
-        // Generate sales approach
-        var logger = HttpContext.RequestServices.GetRequiredService<ILogger<Services.Enrichment.AiSalesApproachService>>();
-        var service = new Services.Enrichment.AiSalesApproachService(_configuration, logger);
+        // Generate sales approach (typed client via DI — no per-request HttpClient, #844)
+        var service = HttpContext.RequestServices.GetRequiredService<Services.Enrichment.AiSalesApproachService>();
 
         var result = await service.GenerateAsync(lead);
 
@@ -735,8 +734,7 @@ public class LeadsController : ControllerBase
         if (lead == null)
             return NotFound();
 
-        var logger = HttpContext.RequestServices.GetRequiredService<ILogger<Services.Enrichment.OutreachEmailService>>();
-        var service = new Services.Enrichment.OutreachEmailService(_configuration, logger);
+        var service = HttpContext.RequestServices.GetRequiredService<Services.Enrichment.OutreachEmailService>();
 
         var result = await service.GenerateAsync(lead);
 

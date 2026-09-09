@@ -10,9 +10,9 @@ public class GooglePlacesEnrichmentService
     private readonly ILogger<GooglePlacesEnrichmentService> _logger;
     private readonly string? _apiKey;
 
-    public GooglePlacesEnrichmentService(IConfiguration configuration, ILogger<GooglePlacesEnrichmentService> logger)
+    public GooglePlacesEnrichmentService(HttpClient http, IConfiguration configuration, ILogger<GooglePlacesEnrichmentService> logger)
     {
-        _http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+        _http = http;
         _logger = logger;
         _apiKey = configuration["GooglePlaces:ApiKey"];
     }

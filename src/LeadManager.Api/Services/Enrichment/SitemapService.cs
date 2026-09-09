@@ -6,15 +6,9 @@ public class SitemapService
 {
     private readonly HttpClient _http;
 
-    public SitemapService()
+    public SitemapService(HttpClient http)
     {
-        var handler = new HttpClientHandler
-        {
-            AllowAutoRedirect = true,
-            ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
-        };
-        _http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(10) };
-        _http.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (compatible; LeadManager/1.0)");
+        _http = http;
     }
 
     public async Task<List<string>> DiscoverUrlsAsync(string baseUrl, int maxPages = 50)

@@ -8,10 +8,10 @@ public class NameExtractorService
     private readonly HttpClient _http;
     private readonly string _apiKey;
 
-    public NameExtractorService(IConfiguration configuration)
+    public NameExtractorService(HttpClient http, IConfiguration configuration)
     {
         _apiKey = configuration["OpenAI:ApiKey"] ?? throw new InvalidOperationException("OpenAI:ApiKey is not configured.");
-        _http = new HttpClient();
+        _http = http;
         _http.DefaultRequestHeaders.Add("Authorization", $"Bearer {_apiKey}");
     }
 

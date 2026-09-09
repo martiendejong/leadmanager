@@ -13,34 +13,46 @@ public class EnrichmentBackgroundService : BackgroundService
     private readonly EnrichmentChannel _channel;
     private readonly IHubContext<EnrichmentHub> _hub;
     private readonly ILogger<EnrichmentBackgroundService> _logger;
-    private readonly IConfiguration _configuration;
+    private readonly WebSearchEnrichmentService _webSearch;
 
     public EnrichmentBackgroundService(
         IServiceScopeFactory scopeFactory,
         EnrichmentChannel channel,
         IHubContext<EnrichmentHub> hub,
         ILogger<EnrichmentBackgroundService> logger,
-        IConfiguration configuration)
+        WebSearchEnrichmentService webSearch)
     {
         _scopeFactory = scopeFactory;
         _channel = channel;
         _hub = hub;
         _logger = logger;
-        _configuration = configuration;
+        _webSearch = webSearch;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await foreach (var jobId in _channel.Reader.ReadAllAsync(stoppingToken))
+        try
         {
-            try
+            await foreach (var jobId in _channel.Reader.ReadAllAsync(stoppingToken))
             {
-                await ProcessJobAsync(jobId, stoppingToken);
+                try
+                {
+                    await ProcessJobAsync(jobId, stoppingToken);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Unhandled error processing enrichment job {JobId}", jobId);
+                }
             }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Unhandled error processing enrichment job {JobId}", jobId);
-            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Service is stopping; letting this escape crashed the process on
+            // every stop (unhandled-exception entries in the Application log).
         }
     }
 
@@ -117,23 +129,23 @@ public class EnrichmentBackgroundService : BackgroundService
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<LeadManagerDbContext>();
 
-        var urlNormalizer = new UrlNormalizerService();
-        var sitemapService = new SitemapService();
-        var pageFetcher = new PageFetcherService();
-        var embeddingService = new EmbeddingService(_configuration);
-        var ragService = new RagEnrichmentService(_configuration);
-        var webSearchLogger = scope.ServiceProvider.GetRequiredService<ILogger<WebSearchEnrichmentService>>();
-        var webSearchService = new WebSearchEnrichmentService(webSearchLogger);
-        var kvkLogger = scope.ServiceProvider.GetRequiredService<ILogger<KvkEnrichmentService>>();
-        var kvkService = new KvkEnrichmentService(kvkLogger);
-        var googleLogger = scope.ServiceProvider.GetRequiredService<ILogger<GooglePlacesEnrichmentService>>();
-        var googleService = new GooglePlacesEnrichmentService(_configuration, googleLogger);
-        var salesScoreService = new SalesScoreService();
+        // Resolve enrichment services from the scope: their typed HttpClients come
+        // from IHttpClientFactory with pooled handlers, instead of leaking one
+        // connection pool per lead (#844 — the 42.5 GB commit incident on prod).
+        // WebSearch is a singleton so its cache and rate limiter actually apply
+        // across leads instead of resetting per lead.
+        var urlNormalizer = scope.ServiceProvider.GetRequiredService<UrlNormalizerService>();
+        var sitemapService = scope.ServiceProvider.GetRequiredService<SitemapService>();
+        var pageFetcher = scope.ServiceProvider.GetRequiredService<PageFetcherService>();
+        var embeddingService = scope.ServiceProvider.GetRequiredService<EmbeddingService>();
+        var ragService = scope.ServiceProvider.GetRequiredService<RagEnrichmentService>();
+        var webSearchService = _webSearch;
+        var kvkService = scope.ServiceProvider.GetRequiredService<KvkEnrichmentService>();
+        var googleService = scope.ServiceProvider.GetRequiredService<GooglePlacesEnrichmentService>();
+        var salesScoreService = scope.ServiceProvider.GetRequiredService<SalesScoreService>();
         var signalsService = new SignalsGeneratorService();
-        var textInputLogger = scope.ServiceProvider.GetRequiredService<ILogger<TextInputEnrichmentService>>();
-        var textInputService = new TextInputEnrichmentService(_configuration, textInputLogger);
-        var salesApproachLogger = scope.ServiceProvider.GetRequiredService<ILogger<AiSalesApproachService>>();
-        var salesApproachService = new AiSalesApproachService(_configuration, salesApproachLogger);
+        var textInputService = scope.ServiceProvider.GetRequiredService<TextInputEnrichmentService>();
+        var salesApproachService = scope.ServiceProvider.GetRequiredService<AiSalesApproachService>();
 
         // Step 0a: Text Input Enrichment (Task #3 - enrich from manual text if provided)
         TextEnrichmentResult? textResult = null;

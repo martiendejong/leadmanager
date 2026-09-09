@@ -11,12 +11,12 @@ public class RagEnrichmentService
     private readonly EmbeddingService _embedding;
     private readonly VectorSearchService _vectorSearch;
 
-    public RagEnrichmentService(IConfiguration configuration)
+    public RagEnrichmentService(HttpClient http, IConfiguration configuration, EmbeddingService embedding)
     {
         var apiKey = configuration["OpenAI:ApiKey"] ?? throw new InvalidOperationException("OpenAI:ApiKey not configured");
-        _http = new HttpClient();
+        _http = http;
         _http.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
-        _embedding = new EmbeddingService(configuration);
+        _embedding = embedding;
         _vectorSearch = new VectorSearchService();
     }
 
