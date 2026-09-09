@@ -13,6 +13,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Host.UseWindowsService();
 
 // CORS
 builder.Services.AddCors(options =>
@@ -86,6 +87,15 @@ builder.Services.AddAuthorization();
 
 // JWT service
 builder.Services.AddScoped<JwtService>();
+
+// Sales platform: intake + estimation + minox-poc connector + script + offerte
+builder.Services.AddHttpClient<EstimationService>();
+builder.Services.AddHttpClient<MinoxPocConnectorService>();
+builder.Services.AddHttpClient<ScriptGeneratorService>();
+builder.Services.AddScoped<EstimationService>();
+builder.Services.AddScoped<MinoxPocConnectorService>();
+builder.Services.AddScoped<ScriptGeneratorService>();
+builder.Services.AddScoped<OfferteService>();
 
 // Search service
 builder.Services.AddScoped<SearchService>();
@@ -168,33 +178,39 @@ using (var scope = app.Services.CreateScope())
             await roleManager.CreateAsync(new IdentityRole(role));
     }
 
-    // Seed admin user
-    const string adminEmail = "info@prospergenics.com";
-    const string adminPassword = "SpaceElevator1tam!";
-    var adminUser = await userManager.FindByEmailAsync(adminEmail);
-    if (adminUser == null)
+    // Seed admin users
+    var admins = new[]
     {
-        adminUser = new ApplicationUser
+        (Email: "info@prospergenics.com",    Password: "SpaceElevator1tam!", First: "Admin",   Last: "Prospergenics"),
+        (Email: "info@martiendejong.nl",     Password: "SpaceElevator1tam!", First: "Martien", Last: "de Jong"),
+    };
+
+    foreach (var (email, password, first, last) in admins)
+    {
+        var user = await userManager.FindByEmailAsync(email);
+        if (user == null)
         {
-            UserName = adminEmail,
-            Email = adminEmail,
-            FirstName = "Admin",
-            LastName = "User",
-            CreatedAt = DateTime.UtcNow,
-            IsActive = true,
-            EmailConfirmed = true
-        };
-        var result = await userManager.CreateAsync(adminUser, adminPassword);
-        if (result.Succeeded)
-            await userManager.AddToRoleAsync(adminUser, "Admin");
-    }
-    else
-    {
-        // Ensure password is correct and user has Admin role
-        var token = await userManager.GeneratePasswordResetTokenAsync(adminUser);
-        await userManager.ResetPasswordAsync(adminUser, token, adminPassword);
-        if (!await userManager.IsInRoleAsync(adminUser, "Admin"))
-            await userManager.AddToRoleAsync(adminUser, "Admin");
+            user = new ApplicationUser
+            {
+                UserName = email,
+                Email = email,
+                FirstName = first,
+                LastName = last,
+                CreatedAt = DateTime.UtcNow,
+                IsActive = true,
+                EmailConfirmed = true
+            };
+            var result = await userManager.CreateAsync(user, password);
+            if (result.Succeeded)
+                await userManager.AddToRoleAsync(user, "Admin");
+        }
+        else
+        {
+            var token = await userManager.GeneratePasswordResetTokenAsync(user);
+            await userManager.ResetPasswordAsync(user, token, password);
+            if (!await userManager.IsInRoleAsync(user, "Admin"))
+                await userManager.AddToRoleAsync(user, "Admin");
+        }
     }
 }
 

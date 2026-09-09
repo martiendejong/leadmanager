@@ -101,4 +101,15 @@ public class Lead
 
     // Navigation: activity timeline (869ck3j4b)
     public ICollection<LeadActivity> Activities { get; set; } = new List<LeadActivity>();
+
+    // Hangfire notifications & reminders
+    public DateTime? LastEnrichmentAttempt { get; set; }
+    public DateTime? ReminderDate { get; set; }
+
+    // Client conversion
+    public Guid? ConvertedToClientId { get; set; }
+
+    // Workflow automation (stap 1-10)
+    public int WorkflowStep { get; set; } = 1;
+    public string? WorkflowDataJson { get; set; }
 }

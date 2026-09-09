@@ -3,6 +3,7 @@ using System;
 using LeadManager.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace LeadManager.Api.Migrations
 {
     [DbContext(typeof(LeadManagerDbContext))]
-    partial class LeadManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260817071113_AddSalesPlatformIntakeAndBundle")]
+    partial class AddSalesPlatformIntakeAndBundle
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.30");
@@ -581,12 +584,6 @@ namespace LeadManager.Api.Migrations
                     b.Property<int>("WebsiteStatus")
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("WorkflowDataJson")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("WorkflowStep")
-                        .HasColumnType("INTEGER");
-
                     b.Property<string>("WorkingArea")
                         .HasColumnType("TEXT");
 
@@ -753,116 +750,6 @@ namespace LeadManager.Api.Migrations
                     b.HasIndex("ClientId");
 
                     b.ToTable("Projects");
-                });
-
-            modelBuilder.Entity("LeadManager.Api.Models.SalesSettings", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<decimal>("BundleHourlyRate")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CallScriptSectionsJson")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CompanyAddress")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CompanyCity")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CompanyEmail")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CompanyIban")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CompanyKvk")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CompanyName")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CompanyPhone")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CompanyVat")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CompanyWebsite")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CompanyZipCode")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("EmailBodyTemplate")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("EmailSubjectTemplate")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("FedhaApiKey")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("FedhaBaseUrl")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("FedhaDefaultProjectId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<decimal>("LooseHourlyRate")
-                        .HasColumnType("TEXT");
-
-                    b.Property<decimal>("OverageHourlyRate")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("QuoteFooterText")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("QuoteIntroText")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("QuoteNumberCurrent")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("QuoteNumberPrefix")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("QuoteTerms")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("QuoteValidityDays")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<decimal>("StarterHours")
-                        .HasColumnType("TEXT");
-
-                    b.Property<decimal>("StarterMonthlyPrice")
-                        .HasColumnType("TEXT");
-
-                    b.Property<decimal>("TeamHours")
-                        .HasColumnType("TEXT");
-
-                    b.Property<decimal>("TeamMonthlyPrice")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("SalesSettings");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>

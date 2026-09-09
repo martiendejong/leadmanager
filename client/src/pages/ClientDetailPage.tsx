@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { getClient, type Client } from '../api/clients'
 import { useToast } from '../components/Toast'
+import { intakeApi, type ClientIntake, type ClientBundle, STATUS_LABELS, STATUS_COLORS, PRODUCT_LABELS, BUNDLE_LABELS } from '../api/intake'
 
 function StatusBadge({ status }: { status: string }) {
   const colorMap: Record<string, string> = {
@@ -23,11 +24,22 @@ export default function ClientDetailPage() {
   const navigate = useNavigate()
   const [client, setClient] = useState<Client | null>(null)
   const [loading, setLoading] = useState(true)
+  const [intakes, setIntakes] = useState<ClientIntake[]>([])
+  const [bundle, setBundle] = useState<ClientBundle | null>(null)
 
   useEffect(() => {
     if (!id) return
-    getClient(id)
-      .then(setClient)
+    Promise.all([
+      getClient(id),
+      intakeApi.list(id).catch(() => ({ data: [] })),
+      intakeApi.getBundles(id).catch(() => ({ data: [] })),
+    ])
+      .then(([clientData, intakesRes, bundlesRes]) => {
+        setClient(clientData)
+        setIntakes((intakesRes as any).data ?? [])
+        const bundles = (bundlesRes as any).data ?? []
+        setBundle(bundles.find((b: ClientBundle) => b.isActive) ?? null)
+      })
       .catch(() => {
         showToast('Klant niet gevonden', 'error')
         navigate('/clients')
@@ -161,6 +173,85 @@ export default function ClientDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Bundle status */}
+      {bundle && (
+        <div className="bg-white rounded-xl border border-gray-200 p-6 mb-4">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-base font-semibold text-gray-900">Bundel</h2>
+            <span className="text-xs text-gray-500">{BUNDLE_LABELS[bundle.bundleType]}</span>
+          </div>
+          {bundle.bundleType !== 'PayPerHour' && (
+            <div>
+              <div className="flex justify-between text-xs text-gray-600 mb-1">
+                <span>{bundle.hoursUsed.toFixed(1)} uur gebruikt</span>
+                <span>{bundle.hoursRemaining.toFixed(1)} uur resterend</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div
+                  className={`h-2 rounded-full ${bundle.isOverBudget ? 'bg-red-500' : 'bg-green-500'}`}
+                  style={{ width: `${Math.min(100, (bundle.hoursUsed / bundle.totalHours) * 100)}%` }}
+                />
+              </div>
+              {bundle.isOverBudget && (
+                <p className="text-xs text-red-600 mt-1">Bundel overschreden — losse uren à €{bundle.hourlyRate}/u</p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Intakes */}
+      <div className="bg-white rounded-xl border border-gray-200 p-6 mb-4">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-semibold text-gray-900">
+            Intakes
+            <span className="ml-2 text-sm font-normal text-gray-400">({intakes.length})</span>
+          </h2>
+          <button
+            onClick={() => navigate(`/clients/${id}/intake`)}
+            className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+          >
+            + Nieuwe intake
+          </button>
+        </div>
+        {intakes.length === 0 ? (
+          <p className="text-sm text-gray-400">Nog geen intakes. Klik op "Nieuwe intake" om te starten.</p>
+        ) : (
+          <div className="space-y-2">
+            {intakes.slice(0, 3).map((intake) => (
+              <div
+                key={intake.id}
+                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100"
+                onClick={() => navigate(`/clients/${id}/intake`)}
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">
+                    {intake.firstTask || intake.requirements.slice(0, 50)}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-0.5">{PRODUCT_LABELS[intake.productType]}</p>
+                </div>
+                <div className="flex items-center gap-3 ml-4 flex-shrink-0">
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_COLORS[intake.status]}`}>
+                    {STATUS_LABELS[intake.status]}
+                  </span>
+                  {intake.estimatedHours && (
+                    <span className="text-xs text-gray-500">~{intake.estimatedHours}u</span>
+                  )}
+                </div>
+              </div>
+            ))}
+            {intakes.length > 3 && (
+              <button
+                onClick={() => navigate(`/clients/${id}/intake`)}
+                className="text-xs text-blue-600 hover:underline mt-1"
+              >
+                Alle {intakes.length} intakes bekijken →
+              </button>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Projects */}
       <div className="bg-white rounded-xl border border-gray-200 p-6">

@@ -79,7 +79,10 @@ public record LeadDto(
     // Lead assignment (869ck3j4u)
     string? AssignedToUserId,
     // Pipeline status (869ck3j46)
-    string PipelineStatus);
+    string PipelineStatus,
+    // Workflow automation (stap 1-10)
+    int WorkflowStep,
+    string? WorkflowDataJson);
 
 public record CreateLeadDto(
     string Name,
@@ -146,3 +149,6 @@ public record LeadActivityDto(Guid Id, Guid LeadId, string? UserId, string Activ
 
 // Pipeline (869ck3j46)
 public record UpdatePipelineStatusDto(string PipelineStatus);
+
+// Workflow automation
+public record UpdateWorkflowDto(int? Step, string? WorkflowDataJson);

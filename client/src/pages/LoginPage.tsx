@@ -1,19 +1,38 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../components/Toast'
+import api from '../api/client'
 
 export default function LoginPage() {
   const { login } = useAuth()
   const { showToast } = useToast()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const [ssoLoading, setSsoLoading] = useState(false)
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const ssoError = searchParams.get('sso_error')
+    if (ssoError) setError(`SSO fout: ${ssoError}`)
+  }, [searchParams])
+
+  const handleSso = async () => {
+    setSsoLoading(true)
+    try {
+      const res = await api.get<{ authorizeUrl: string }>('/api/auth/sso/start')
+      window.location.href = res.data.authorizeUrl
+    } catch {
+      showToast('SSO starten mislukt', 'error')
+      setSsoLoading(false)
+    }
+  }
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -121,6 +140,29 @@ export default function LoginPage() {
               )}
             </button>
           </form>
+
+          {/* Divider */}
+          <div className="flex items-center gap-3 my-5">
+            <div className="flex-1 h-px bg-gray-200" />
+            <span className="text-xs text-gray-400">of</span>
+            <div className="flex-1 h-px bg-gray-200" />
+          </div>
+
+          {/* SSO */}
+          <button
+            onClick={handleSso}
+            disabled={ssoLoading}
+            className="w-full border border-gray-300 hover:border-gray-400 hover:bg-gray-50 disabled:opacity-60 text-gray-700 font-medium py-2 px-4 rounded-lg text-sm transition-colors flex items-center justify-center gap-2"
+          >
+            {ssoLoading ? (
+              <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-500" />
+            ) : (
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+              </svg>
+            )}
+            Inloggen via SSO (Jengo IAM)
+          </button>
         </div>
       </div>
     </div>

@@ -188,6 +188,23 @@ public class LeadsController : ControllerBase
         return Ok(ToDto(lead));
     }
 
+    // PATCH /api/leads/{id}/workflow - Update workflow step and data
+    [HttpPatch("{id:guid}/workflow")]
+    public async Task<IActionResult> UpdateWorkflow(Guid id, [FromBody] UpdateWorkflowDto dto)
+    {
+        var userId = GetCurrentUserId();
+        var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == userId);
+        if (lead == null) return NotFound();
+
+        if (dto.Step.HasValue)
+            lead.WorkflowStep = Math.Clamp(dto.Step.Value, 1, 10);
+        if (dto.WorkflowDataJson != null)
+            lead.WorkflowDataJson = dto.WorkflowDataJson;
+
+        await _db.SaveChangesAsync();
+        return Ok(new { workflowStep = lead.WorkflowStep, workflowDataJson = lead.WorkflowDataJson });
+    }
+
     // POST /api/leads - Create single lead (Task #3, #4)
     [HttpPost]
     public async Task<IActionResult> CreateLead([FromBody] CreateLeadDto dto, [FromQuery] bool force = false)
@@ -1018,5 +1035,8 @@ public class LeadsController : ControllerBase
         // Assignment
         l.AssignedToUserId,
         // Pipeline status
-        l.PipelineStatus.ToString());
+        l.PipelineStatus.ToString(),
+        // Workflow
+        l.WorkflowStep,
+        l.WorkflowDataJson);
 }

@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import type { Lead, UserDto } from '../../api/leads'
-import { regenerateSalesApproach, enrichLeads, assignLead, fetchUsers } from '../../api/leads'
+import { regenerateSalesApproach, enrichLeads, assignLead, fetchUsers, setReminder } from '../../api/leads'
+import { salesSettingsApi } from '../../api/salesSettings'
 import { useToast } from '../Toast'
 import OutreachEmailPanel from './OutreachEmailPanel'
 import LeadActivityTimeline from './LeadActivityTimeline'
+import ConvertToClientWizard from './ConvertToClientWizard'
 
 interface Props {
   lead: Lead | null
@@ -55,6 +58,12 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
   const [activeTab, setActiveTab] = useState<'linkedin' | 'phone' | 'email'>('linkedin')
   const [users, setUsers] = useState<UserDto[]>([])
   const [isAssigning, setIsAssigning] = useState(false)
+  const [showConvertWizard, setShowConvertWizard] = useState(false)
+  const [reminderDate, setReminderDate] = useState('')
+  const [isSavingReminder, setIsSavingReminder] = useState(false)
+  const [scriptText, setScriptText] = useState<string | null>(null)
+  const [isGeneratingScript, setIsGeneratingScript] = useState(false)
+  const [isGeneratingQuote, setIsGeneratingQuote] = useState(false)
 
   // Close on Escape
   useEffect(() => {
@@ -119,6 +128,42 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
       showToast('Herinnering opslaan mislukt', 'error')
     } finally {
       setIsSavingReminder(false)
+    }
+  }
+
+  const handleGenerateScript = async () => {
+    if (!lead) return
+    setIsGeneratingScript(true)
+    try {
+      const res = await salesSettingsApi.generateScript({ leadId: lead.id })
+      setScriptText(res.script)
+    } catch {
+      showToast('Belscript genereren mislukt', 'error')
+    } finally {
+      setIsGeneratingScript(false)
+    }
+  }
+
+  const handleGenerateQuote = async () => {
+    if (!lead) return
+    setIsGeneratingQuote(true)
+    try {
+      const blob = await salesSettingsApi.generateQuote({
+        leadId: lead.id,
+        productType: 'Website',
+        bundleType: 'Starter',
+      })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `Offerte-${lead.name.replace(/ /g, '_')}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+      showToast('Offerte gedownload', 'success')
+    } catch {
+      showToast('Offerte genereren mislukt', 'error')
+    } finally {
+      setIsGeneratingQuote(false)
     }
   }
 
@@ -527,6 +572,48 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
                   {lead.twitterUrl && <Field label="Twitter/X" value={lead.twitterUrl} />}
                 </Section>
               )}
+
+              {/* Sales tools */}
+              <Section title="Sales tools">
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={handleGenerateScript}
+                    disabled={isGeneratingScript}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-60 transition-colors"
+                  >
+                    {isGeneratingScript ? 'Genereren...' : 'Belscript genereren'}
+                  </button>
+                  <button
+                    onClick={handleGenerateQuote}
+                    disabled={isGeneratingQuote}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-60 transition-colors"
+                  >
+                    {isGeneratingQuote ? 'Genereren...' : 'Offerte downloaden (PDF)'}
+                  </button>
+                </div>
+                {scriptText && (
+                  <div className="mt-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-medium text-gray-600 uppercase tracking-wide">Belscript</span>
+                      <button
+                        onClick={() => setScriptText(null)}
+                        className="text-xs text-gray-400 hover:text-gray-700"
+                      >
+                        Sluiten
+                      </button>
+                    </div>
+                    <pre className="text-xs text-gray-700 whitespace-pre-wrap bg-gray-50 border border-gray-200 rounded-lg p-3 max-h-96 overflow-y-auto font-sans">
+                      {scriptText}
+                    </pre>
+                    <button
+                      onClick={() => { navigator.clipboard.writeText(scriptText); showToast('Gekopieerd!', 'success') }}
+                      className="mt-2 text-xs text-indigo-600 hover:underline"
+                    >
+                      Kopieer naar klembord
+                    </button>
+                  </div>
+                )}
+              </Section>
 
               {/* Reminder */}
               <Section title="Herinnering instellen">
