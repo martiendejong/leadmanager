@@ -15,6 +15,7 @@ public record LeadDto(
     string AnymailfinderResult,
     string LinkedInUrl,
     string Source,
+    string Status,
     bool IsEnriched,
     DateTime? EnrichedAt,
     DateTime ImportedAt,
@@ -82,7 +83,11 @@ public record LeadDto(
     string PipelineStatus,
     // Workflow automation (stap 1-10)
     int WorkflowStep,
-    string? WorkflowDataJson);
+    string? WorkflowDataJson,
+    // Stale-lead reminder (869ck3j52/869ck3j58)
+    DateTime? ReminderDate,
+    // Lead-to-client conversion (869ck3j56)
+    Guid? ConvertedToClientId);
 
 public record CreateLeadDto(
     string Name,
@@ -120,7 +125,7 @@ public record LeadFilterParams(
     string? AssignedToUserId = null);
 
 public record CsvImportRowError(int Row, string Message);
-public record CsvImportResultDto(int Created, int Skipped, List<CsvImportRowError> Errors);
+public record CsvImportResultDto(int Created, int Skipped, List<CsvImportRowError> Errors, Guid? EnrichmentJobId = null);
 
 public record LeadStatsDto(int Total, int Enriched, int NotEnriched);
 
@@ -152,3 +157,11 @@ public record UpdatePipelineStatusDto(string PipelineStatus);
 
 // Workflow automation
 public record UpdateWorkflowDto(int? Step, string? WorkflowDataJson);
+
+// Lead Notes DTOs
+public record LeadNoteDto(Guid Id, Guid LeadId, string Content, DateTime CreatedAt, string CreatedByUserId, string? CreatedByName);
+public record CreateLeadNoteDto(string Content);
+public record UpdateLeadNoteDto(string Content);
+
+// Lead Status DTO
+public record UpdateLeadStatusDto(string Status);

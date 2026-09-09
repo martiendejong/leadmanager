@@ -307,7 +307,8 @@ app.MapControllers();
 app.MapHub<EnrichmentHub>("/hubs/enrichment");
 
 // Health endpoint
-app.MapGet("/api/health", () => Results.Ok(new { status = "ok", timestamp = DateTime.UtcNow }))
+var appVersion = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "unknown";
+app.MapGet("/api/health", () => Results.Ok(new { status = "ok", version = appVersion, timestamp = DateTime.UtcNow }))
    .WithName("Health");
 
 app.Run();

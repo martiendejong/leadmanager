@@ -137,7 +137,7 @@ export default function LeadActivityTimeline({ leadId }: Props) {
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-gray-700">Activiteit</h3>
+        <h3 className="text-sm font-semibold text-gray-700">Activiteit tijdlijn</h3>
         <button
           onClick={() => setShowAddForm((v) => !v)}
           className="text-xs px-2 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700"

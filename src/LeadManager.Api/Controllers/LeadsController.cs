@@ -4,6 +4,7 @@ using LeadManager.Api.Data;
 using LeadManager.Api.DTOs;
 using LeadManager.Api.Models;
 using LeadManager.Api.Services;
+using LeadManager.Api.Services.Enrichment;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -17,15 +18,19 @@ namespace LeadManager.Api.Controllers;
 [Authorize]
 public class LeadsController : ControllerBase
 {
+    private const int CsvImportMaxBytes = 5 * 1024 * 1024; // 5 MB
+
     private readonly LeadManagerDbContext _db;
     private readonly SearchService _search;
     private readonly IConfiguration _configuration;
+    private readonly EnrichmentChannel _enrichmentChannel;
 
-    public LeadsController(LeadManagerDbContext db, SearchService search, IConfiguration configuration)
+    public LeadsController(LeadManagerDbContext db, SearchService search, IConfiguration configuration, EnrichmentChannel enrichmentChannel)
     {
         _db = db;
         _search = search;
         _configuration = configuration;
+        _enrichmentChannel = enrichmentChannel;
     }
 
     private string? GetCurrentUserId() =>
@@ -155,6 +160,31 @@ public class LeadsController : ControllerBase
         lead.PersonalEmail = dto.PersonalEmail;
         lead.LinkedInUrl = dto.LinkedInUrl;
 
+        await _db.SaveChangesAsync();
+        return Ok(ToDto(lead));
+    }
+
+    // POST /api/leads/{id}/status - Update lead status (forward transitions only)
+    [HttpPost("{id:guid}/status")]
+    public async Task<IActionResult> UpdateLeadStatus(Guid id, [FromBody] UpdateLeadStatusDto dto)
+    {
+        var userId = GetCurrentUserId();
+        var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == userId);
+        if (lead == null) return NotFound("Lead not found");
+
+        // Parse target status
+        if (!Enum.TryParse<LeadStatus>(dto.Status, out var targetStatus))
+            return BadRequest($"Invalid status: {dto.Status}");
+
+        // Only allow forward transitions: Lead -> Prospect
+        if (lead.Status == LeadStatus.Prospect && targetStatus == LeadStatus.Lead)
+            return BadRequest("Cannot move prospect back to lead status");
+
+        // No-op if already at target status
+        if (lead.Status == targetStatus)
+            return Ok(ToDto(lead));
+
+        lead.Status = targetStatus;
         await _db.SaveChangesAsync();
         return Ok(ToDto(lead));
     }
@@ -289,6 +319,16 @@ public class LeadsController : ControllerBase
         };
 
         _db.Leads.Add(lead);
+        await _db.SaveChangesAsync();
+
+        _db.Activities.Add(new LeadActivity
+        {
+            LeadId = lead.Id,
+            UserId = userId,
+            ActivityType = ActivityType.Created,
+            Note = null,
+            CreatedAt = DateTime.UtcNow
+        });
         await _db.SaveChangesAsync();
 
         return CreatedAtAction(nameof(GetLead), new { id = lead.Id }, ToDto(lead));
@@ -488,13 +528,18 @@ public class LeadsController : ControllerBase
         return Ok(result);
     }
 
-    // POST /api/leads/import — CSV bulk import (max 500 rows)
+    // POST /api/leads/import — CSV bulk import (max 500 rows, max 5 MB)
     [HttpPost("import")]
     [Consumes("multipart/form-data")]
+    [RequestSizeLimit(CsvImportMaxBytes)]
+    [RequestFormLimits(MultipartBodyLengthLimit = CsvImportMaxBytes)]
     public async Task<IActionResult> ImportLeadsCsv(IFormFile file)
     {
         if (file == null || file.Length == 0)
             return BadRequest("No file provided.");
+
+        if (file.Length > CsvImportMaxBytes)
+            return BadRequest($"CSV file exceeds the {CsvImportMaxBytes / (1024 * 1024)} MB limit.");
 
         if (!file.FileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
             return BadRequest("Only .csv files are supported. For Excel (.xlsx), use the Excel import button.");
@@ -604,13 +649,33 @@ public class LeadsController : ControllerBase
             }
         }
 
+        Guid? enrichmentJobId = null;
         if (leadsToInsert.Count > 0)
         {
             _db.Leads.AddRange(leadsToInsert);
             await _db.SaveChangesAsync();
+
+            var enrichableIds = leadsToInsert
+                .Where(l => !string.IsNullOrWhiteSpace(l.Website))
+                .Select(l => l.Id)
+                .ToList();
+
+            if (enrichableIds.Count > 0)
+            {
+                var job = new EnrichmentJob
+                {
+                    LeadIds = enrichableIds,
+                    TotalLeads = enrichableIds.Count,
+                    RequestedByUserId = userId
+                };
+                _db.EnrichmentJobs.Add(job);
+                await _db.SaveChangesAsync();
+                await _enrichmentChannel.Writer.WriteAsync(job.Id);
+                enrichmentJobId = job.Id;
+            }
         }
 
-        return Ok(new CsvImportResultDto(leadsToInsert.Count, skipped, rowErrors));
+        return Ok(new CsvImportResultDto(leadsToInsert.Count, skipped, rowErrors, enrichmentJobId));
     }
 
     // GET /api/leads/export?format=csv|xlsx&[filter params]
@@ -827,6 +892,41 @@ public class LeadsController : ControllerBase
             .Take(8)
             .ToList();
 
+        // Team performance: leads grouped by assigned user
+        var assignedLeadGroups = allLeads
+            .Where(l => !string.IsNullOrWhiteSpace(l.AssignedToUserId))
+            .GroupBy(l => l.AssignedToUserId!)
+            .ToList();
+
+        var userIds = assignedLeadGroups.Select(g => g.Key).ToList();
+        var users = await _db.Users
+            .Where(u => userIds.Contains(u.Id))
+            .Select(u => new { u.Id, u.FirstName, u.LastName, u.Email })
+            .ToListAsync();
+        var userLookup = users.ToDictionary(u => u.Id);
+
+        var teamPerformance = assignedLeadGroups
+            .Select(g =>
+            {
+                var user = userLookup.GetValueOrDefault(g.Key);
+                var name = user != null && (!string.IsNullOrWhiteSpace(user.FirstName) || !string.IsNullOrWhiteSpace(user.LastName))
+                    ? $"{user.FirstName} {user.LastName}".Trim()
+                    : user?.Email ?? g.Key;
+                var leadsInGroup = g.ToList();
+                return new
+                {
+                    userName = name,
+                    totalLeads = leadsInGroup.Count,
+                    enrichedLeads = leadsInGroup.Count(l => l.IsEnriched),
+                    avgScore = leadsInGroup.Any(l => l.SalesPriorityScore.HasValue)
+                        ? Math.Round(leadsInGroup.Where(l => l.SalesPriorityScore.HasValue).Average(l => (double)l.SalesPriorityScore!.Value), 1)
+                        : 0.0,
+                    wonLeads = leadsInGroup.Count(l => l.PipelineStatus == PipelineStatus.Won)
+                };
+            })
+            .OrderByDescending(x => x.totalLeads)
+            .ToList();
+
         return Ok(new
         {
             totalLeads,
@@ -838,7 +938,8 @@ public class LeadsController : ControllerBase
             leadsByIndustry,
             leadsOverTime,
             topSources,
-            avgScoreByIndustry
+            avgScoreByIndustry,
+            teamPerformance
         });
     }
 
@@ -914,6 +1015,20 @@ public class LeadsController : ControllerBase
         return Ok(new ImportResultDto(toInsert.Count, skipped, 0, []));
     }
 
+    // PUT /api/leads/{id}/reminder — set or clear stale-lead reminder (869ck3j52/869ck3j58)
+    [HttpPut("{id:guid}/reminder")]
+    public async Task<IActionResult> SetReminder(Guid id, [FromBody] SetReminderDto dto)
+    {
+        var userId = GetCurrentUserId();
+        var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == userId);
+        if (lead == null) return NotFound();
+
+        lead.ReminderDate = dto.ReminderDate;
+        await _db.SaveChangesAsync();
+
+        return Ok(ToDto(lead));
+    }
+
     // POST /api/leads/{id}/convert
     [HttpPost("{id:guid}/convert")]
     public async Task<IActionResult> ConvertToClient(Guid id, [FromBody] ConvertLeadDto dto)
@@ -970,6 +1085,7 @@ public class LeadsController : ControllerBase
         l.AnymailfinderResult,
         l.LinkedInUrl,
         l.Source,
+        l.Status.ToString(),
         l.IsEnriched,
         l.EnrichedAt,
         l.ImportedAt,
@@ -1036,5 +1152,9 @@ public class LeadsController : ControllerBase
         l.PipelineStatus.ToString(),
         // Workflow
         l.WorkflowStep,
-        l.WorkflowDataJson);
+        l.WorkflowDataJson,
+        // Stale-lead reminder
+        l.ReminderDate,
+        // Lead-to-client conversion
+        l.ConvertedToClientId);
 }

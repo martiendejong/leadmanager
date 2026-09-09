@@ -3,6 +3,7 @@ using System;
 using LeadManager.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,12 +11,14 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace LeadManager.Api.Migrations
 {
     [DbContext(typeof(LeadManagerDbContext))]
-    partial class LeadManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260317220546_AddLeadNotes")]
+    partial class AddLeadNotes
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "8.0.31");
+            modelBuilder.HasAnnotation("ProductVersion", "8.0.25");
 
             modelBuilder.Entity("LeadManager.Api.Models.ApplicationUser", b =>
                 {
@@ -93,165 +96,6 @@ namespace LeadManager.Api.Migrations
                         .HasDatabaseName("UserNameIndex");
 
                     b.ToTable("AspNetUsers", (string)null);
-                });
-
-            modelBuilder.Entity("LeadManager.Api.Models.Client", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("City")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CreatedByUserId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Notes")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Plan")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("PrimaryContactEmail")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("PrimaryContactName")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("PrimaryContactPhone")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Sector")
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid?>("SourceLeadId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Website")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("Clients");
-                });
-
-            modelBuilder.Entity("LeadManager.Api.Models.ClientBundle", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("BundleType")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<Guid>("ClientId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CreatedByUserId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<decimal>("HourlyRate")
-                        .HasColumnType("TEXT");
-
-                    b.Property<decimal>("HoursUsed")
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<decimal>("MonthlyPrice")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("PeriodEnd")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("PeriodStart")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("TotalHours")
-                        .HasColumnType("INTEGER");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ClientId");
-
-                    b.ToTable("ClientBundles");
-                });
-
-            modelBuilder.Entity("LeadManager.Api.Models.ClientIntake", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("AdditionalNotes")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("ApprovedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ApprovedByUserId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("BundleType")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<Guid>("ClientId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CreatedByUserId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<decimal?>("EstimatedHours")
-                        .HasColumnType("TEXT");
-
-                    b.Property<decimal?>("EstimatedPrice")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("EstimationReasoning")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("FirstTask")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("ProductType")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Requirements")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("WorkQueueItemId")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ClientId");
-
-                    b.ToTable("ClientIntakes");
                 });
 
             modelBuilder.Entity("LeadManager.Api.Models.CompanyProfile", b =>
@@ -377,14 +221,8 @@ namespace LeadManager.Api.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("AssignedToUserId")
-                        .HasColumnType("TEXT");
-
                     b.Property<int?>("BranchCount")
                         .HasColumnType("INTEGER");
-
-                    b.Property<string>("Certifications")
-                        .HasColumnType("TEXT");
 
                     b.Property<int>("ChunksIndexed")
                         .HasColumnType("INTEGER");
@@ -395,9 +233,6 @@ namespace LeadManager.Api.Migrations
 
                     b.Property<string>("CompanyEmail")
                         .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid?>("ConvertedToClientId")
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("CrawledAt")
@@ -414,9 +249,6 @@ namespace LeadManager.Api.Migrations
 
                     b.Property<DateTime?>("EnrichedAt")
                         .HasColumnType("TEXT");
-
-                    b.Property<int>("EnrichmentAttempts")
-                        .HasColumnType("INTEGER");
 
                     b.Property<string>("EnrichmentSources")
                         .HasColumnType("TEXT");
@@ -454,12 +286,6 @@ namespace LeadManager.Api.Migrations
                     b.Property<string>("InstagramUrl")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("InternalContactName")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("InternalContactRole")
-                        .HasColumnType("TEXT");
-
                     b.Property<bool>("IsEnriched")
                         .HasColumnType("INTEGER");
 
@@ -467,9 +293,6 @@ namespace LeadManager.Api.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("KvkNumber")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("LastEnrichmentAttempt")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("LegalForm")
@@ -489,21 +312,12 @@ namespace LeadManager.Api.Migrations
                     b.Property<string>("NotableClients")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("OpeningHours")
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("OwnerFirstName")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<string>("OwnerLastName")
                         .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("OwnerLinkedInUrl")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("OwnerMobile")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("OwnerName")
@@ -524,15 +338,6 @@ namespace LeadManager.Api.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<int>("PipelineStatus")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("PricingInfo")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("ReminderDate")
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("ResolvedUrl")
                         .HasColumnType("TEXT");
 
@@ -540,12 +345,6 @@ namespace LeadManager.Api.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("SalesPitch")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("SalesPriorityLabel")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("SalesPriorityReasoning")
                         .HasColumnType("TEXT");
 
                     b.Property<int?>("SalesPriorityScore")
@@ -558,15 +357,9 @@ namespace LeadManager.Api.Migrations
                     b.Property<string>("Services")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("Signals")
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("Source")
                         .IsRequired()
                         .HasColumnType("TEXT");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Street")
                         .HasColumnType("TEXT");
@@ -587,15 +380,6 @@ namespace LeadManager.Api.Migrations
                     b.Property<int>("WebsiteStatus")
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("WorkflowDataJson")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("WorkflowStep")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("WorkingArea")
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("ZipCode")
                         .HasColumnType("TEXT");
 
@@ -605,34 +389,6 @@ namespace LeadManager.Api.Migrations
                         .IsUnique();
 
                     b.ToTable("Leads");
-                });
-
-            modelBuilder.Entity("LeadManager.Api.Models.LeadActivity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("ActivityType")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("LeadId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Note")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("UserId")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("LeadId");
-
-                    b.ToTable("Activities");
                 });
 
             modelBuilder.Entity("LeadManager.Api.Models.LeadDocumentChunk", b =>
@@ -727,177 +483,6 @@ namespace LeadManager.Api.Migrations
                     b.HasIndex("LeadId");
 
                     b.ToTable("LeadPageContents");
-                });
-
-            modelBuilder.Entity("LeadManager.Api.Models.Notification", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsRead")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<Guid?>("LinkedLeadId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Message")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("Type")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("Notifications");
-                });
-
-            modelBuilder.Entity("LeadManager.Api.Models.Project", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("ClientId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Description")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ClientId");
-
-                    b.ToTable("Projects");
-                });
-
-            modelBuilder.Entity("LeadManager.Api.Models.SalesSettings", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<decimal>("BundleHourlyRate")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CallScriptSectionsJson")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CompanyAddress")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CompanyCity")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CompanyEmail")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CompanyIban")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CompanyKvk")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CompanyName")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CompanyPhone")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CompanyVat")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CompanyWebsite")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CompanyZipCode")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("EmailBodyTemplate")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("EmailSubjectTemplate")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("FedhaApiKey")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("FedhaBaseUrl")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("FedhaDefaultProjectId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<decimal>("LooseHourlyRate")
-                        .HasColumnType("TEXT");
-
-                    b.Property<decimal>("OverageHourlyRate")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("QuoteFooterText")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("QuoteIntroText")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("QuoteNumberCurrent")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("QuoteNumberPrefix")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("QuoteTerms")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("QuoteValidityDays")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<decimal>("StarterHours")
-                        .HasColumnType("TEXT");
-
-                    b.Property<decimal>("StarterMonthlyPrice")
-                        .HasColumnType("TEXT");
-
-                    b.Property<decimal>("TeamHours")
-                        .HasColumnType("TEXT");
-
-                    b.Property<decimal>("TeamMonthlyPrice")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("SalesSettings");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
@@ -1044,39 +629,6 @@ namespace LeadManager.Api.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
-            modelBuilder.Entity("LeadManager.Api.Models.ClientBundle", b =>
-                {
-                    b.HasOne("LeadManager.Api.Models.Client", "Client")
-                        .WithMany()
-                        .HasForeignKey("ClientId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Client");
-                });
-
-            modelBuilder.Entity("LeadManager.Api.Models.ClientIntake", b =>
-                {
-                    b.HasOne("LeadManager.Api.Models.Client", "Client")
-                        .WithMany()
-                        .HasForeignKey("ClientId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Client");
-                });
-
-            modelBuilder.Entity("LeadManager.Api.Models.LeadActivity", b =>
-                {
-                    b.HasOne("LeadManager.Api.Models.Lead", "Lead")
-                        .WithMany("Activities")
-                        .HasForeignKey("LeadId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Lead");
-                });
-
             modelBuilder.Entity("LeadManager.Api.Models.LeadDocumentChunk", b =>
                 {
                     b.HasOne("LeadManager.Api.Models.Lead", "Lead")
@@ -1124,17 +676,6 @@ namespace LeadManager.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("Lead");
-                });
-
-            modelBuilder.Entity("LeadManager.Api.Models.Project", b =>
-                {
-                    b.HasOne("LeadManager.Api.Models.Client", "Client")
-                        .WithMany("Projects")
-                        .HasForeignKey("ClientId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Client");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
@@ -1186,16 +727,6 @@ namespace LeadManager.Api.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-                });
-
-            modelBuilder.Entity("LeadManager.Api.Models.Client", b =>
-                {
-                    b.Navigation("Projects");
-                });
-
-            modelBuilder.Entity("LeadManager.Api.Models.Lead", b =>
-                {
-                    b.Navigation("Activities");
                 });
 
             modelBuilder.Entity("LeadManager.Api.Models.LeadPageContent", b =>

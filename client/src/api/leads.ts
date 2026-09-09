@@ -13,6 +13,7 @@ export interface Lead {
   ownerLastName: string
   personalEmail: string
   linkedInUrl?: string
+  status: 'Lead' | 'Prospect'
   isEnriched: boolean
   enrichedAt: string | null
   importedAt: string
@@ -79,6 +80,7 @@ export interface Lead {
   pipelineStatus?: string
   // Client conversion
   convertedToClientId?: string | null
+  // Stale-lead reminder (869ck3j52/869ck3j58)
   reminderDate?: string | null
   // Workflow automation (stap 1-10)
   workflowStep?: number
@@ -160,6 +162,7 @@ export interface CsvImportResult {
   created: number
   skipped: number
   errors: CsvImportRowError[]
+  enrichmentJobId?: string | null
 }
 
 export async function importLeadsFromCsv(file: File): Promise<CsvImportResult> {
@@ -256,10 +259,6 @@ export async function searchLeads(
 export async function importSearchResults(leads: LeadSearchResult[]): Promise<ImportResultDto> {
   const res = await apiClient.post<ImportResultDto>('/api/leads/search/import', { leads })
   return res.data
-}
-
-export async function setReminder(leadId: string, date: string | null): Promise<void> {
-  await apiClient.put(`/api/leads/${leadId}`, { reminderDate: date })
 }
 
 export interface CreateLeadDto {
@@ -410,6 +409,14 @@ export interface LeadsAnalyticsScoreItem {
   avgScore: number
 }
 
+export interface LeadsAnalyticsTeamItem {
+  userName: string
+  totalLeads: number
+  enrichedLeads: number
+  avgScore: number
+  wonLeads: number
+}
+
 export interface LeadsAnalytics {
   totalLeads: number
   enrichedLeads: number
@@ -421,6 +428,7 @@ export interface LeadsAnalytics {
   leadsOverTime: LeadsAnalyticsTimeItem[]
   topSources: LeadsAnalyticsSourceItem[]
   avgScoreByIndustry: LeadsAnalyticsScoreItem[]
+  teamPerformance: LeadsAnalyticsTeamItem[]
 }
 
 export async function getLeadsAnalytics(from?: string, to?: string): Promise<LeadsAnalytics> {
@@ -478,4 +486,48 @@ export async function fetchLeadsByPipeline(): Promise<Lead[]> {
     params: { page: 1, pageSize: 500 },
   })
   return res.data.items
+}
+
+// Reminder (869ck3j52/869ck3j58)
+export async function setReminder(leadId: string, reminderDate: string | null): Promise<Lead> {
+  const res = await apiClient.put<Lead>(`/api/leads/${leadId}/reminder`, { reminderDate })
+  return res.data
+}
+
+// Lead Notes
+export interface LeadNote {
+  id: string
+  leadId: string
+  content: string
+  createdAt: string
+  createdByUserId: string
+  createdByName?: string | null
+}
+
+export interface CreateLeadNoteDto {
+  content: string
+}
+
+export async function fetchLeadNotes(leadId: string): Promise<LeadNote[]> {
+  const res = await apiClient.get<LeadNote[]>(`/api/leads/${leadId}/notes`)
+  return res.data
+}
+
+export async function createLeadNote(leadId: string, dto: CreateLeadNoteDto): Promise<LeadNote> {
+  const res = await apiClient.post<LeadNote>(`/api/leads/${leadId}/notes`, dto)
+  return res.data
+}
+
+export async function deleteLeadNote(leadId: string, noteId: string): Promise<void> {
+  await apiClient.delete(`/api/leads/${leadId}/notes/${noteId}`)
+}
+
+// Lead Status
+export interface UpdateLeadStatusDto {
+  status: 'Lead' | 'Prospect'
+}
+
+export async function updateLeadStatus(leadId: string, dto: UpdateLeadStatusDto): Promise<Lead> {
+  const res = await apiClient.post<Lead>(`/api/leads/${leadId}/status`, dto)
+  return res.data
 }

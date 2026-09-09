@@ -23,6 +23,7 @@ public class LeadManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<ClientIntake> ClientIntakes { get; set; }
     public DbSet<ClientBundle> ClientBundles { get; set; }
     public DbSet<SalesSettings> SalesSettings { get; set; }
+    public DbSet<LeadNote> LeadNotes { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -85,5 +86,17 @@ public class LeadManagerDbContext : IdentityDbContext<ApplicationUser>
             .WithMany(l => l.Activities)
             .HasForeignKey(a => a.LeadId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<LeadNote>()
+            .HasOne(n => n.Lead)
+            .WithMany()
+            .HasForeignKey(n => n.LeadId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<LeadNote>()
+            .HasOne(n => n.CreatedBy)
+            .WithMany()
+            .HasForeignKey(n => n.CreatedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

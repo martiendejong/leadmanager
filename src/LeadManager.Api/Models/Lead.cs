@@ -1,5 +1,7 @@
 namespace LeadManager.Api.Models;
 
+public enum LeadStatus { Lead, Prospect }
+
 public enum WebsiteStatus { Unknown, Reachable, Unreachable }
 
 public enum PipelineStatus { New, Contacted, Qualified, ProposalSent, Won, Lost }
@@ -20,6 +22,7 @@ public class Lead
     public string AnymailfinderResult { get; set; } = "";
     public string LinkedInUrl { get; set; } = "";
     public string Source { get; set; } = "";
+    public LeadStatus Status { get; set; } = LeadStatus.Lead;
     public bool IsEnriched { get; set; } = false;
     public DateTime? EnrichedAt { get; set; }
     public DateTime ImportedAt { get; set; } = DateTime.UtcNow;
@@ -99,16 +102,16 @@ public class Lead
     // Pipeline Kanban (869ck3j46)
     public PipelineStatus PipelineStatus { get; set; } = PipelineStatus.New;
 
-    // Navigation: activity timeline (869ck3j4b)
-    public ICollection<LeadActivity> Activities { get; set; } = new List<LeadActivity>();
-
-    // Hangfire notifications & reminders
+    // Hangfire enrichment sweep + stale-lead reminders (869ck3j52, 869ck3j58)
     public DateTime? LastEnrichmentAttempt { get; set; }
     public int EnrichmentAttempts { get; set; }
     public DateTime? ReminderDate { get; set; }
 
-    // Client conversion
+    // Lead-to-client conversion (869ck3j56)
     public Guid? ConvertedToClientId { get; set; }
+
+    // Navigation: activity timeline (869ck3j4b)
+    public ICollection<LeadActivity> Activities { get; set; } = new List<LeadActivity>();
 
     // Workflow automation (stap 1-10)
     public int WorkflowStep { get; set; } = 1;
