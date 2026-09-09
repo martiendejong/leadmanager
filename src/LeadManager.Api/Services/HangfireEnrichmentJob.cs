@@ -10,6 +10,11 @@ public class HangfireEnrichmentJob
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<HangfireEnrichmentJob> _logger;
     private const int BatchSize = 10;
+    // A lead that fails MaxAttempts times stays unenriched until someone looks at
+    // it; without this cap the sweep retried failing leads forever, which is what
+    // kept the 09-09 memory-restart-storm alive.
+    private const int MaxAttempts = 5;
+    private const int RetryDelayMinutes = 30;
 
     public HangfireEnrichmentJob(IServiceScopeFactory scopeFactory, ILogger<HangfireEnrichmentJob> logger)
     {
@@ -24,13 +29,15 @@ public class HangfireEnrichmentJob
         var channel = scope.ServiceProvider.GetRequiredService<EnrichmentChannel>();
 
         var now = DateTime.UtcNow;
-        var retryThreshold = now.AddMinutes(-10);
+        var retryThreshold = now.AddMinutes(-RetryDelayMinutes);
 
         // Pick leads that need enrichment:
         // - IsEnriched = false
-        // - LastEnrichmentAttempt is null (never tried) OR older than 10 minutes (retry)
+        // - fewer than MaxAttempts tries so far
+        // - LastEnrichmentAttempt is null (never tried) OR older than the retry delay
         var leadsToEnrich = await db.Leads
             .Where(l => !l.IsEnriched
+                     && l.EnrichmentAttempts < MaxAttempts
                      && (l.LastEnrichmentAttempt == null || l.LastEnrichmentAttempt < retryThreshold))
             .OrderBy(l => l.CreatedAt)
             .Take(BatchSize)
@@ -56,7 +63,14 @@ public class HangfireEnrichmentJob
 
         // Stamp LastEnrichmentAttempt to prevent duplicate queueing
         foreach (var lead in leadsToEnrich)
+        {
             lead.LastEnrichmentAttempt = now;
+            lead.EnrichmentAttempts++;
+            if (lead.EnrichmentAttempts >= MaxAttempts)
+                _logger.LogWarning(
+                    "Lead {LeadId} ({Name}) reached {MaxAttempts} enrichment attempts; sweep will stop retrying it",
+                    lead.Id, lead.Name, MaxAttempts);
+        }
 
         await db.SaveChangesAsync();
 

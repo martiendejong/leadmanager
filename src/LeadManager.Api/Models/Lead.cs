@@ -104,6 +104,7 @@ public class Lead
 
     // Hangfire enrichment sweep + stale-lead reminders (869ck3j52, 869ck3j58)
     public DateTime? LastEnrichmentAttempt { get; set; }
+    public int EnrichmentAttempts { get; set; }
     public DateTime? ReminderDate { get; set; }
 
     // Lead-to-client conversion (869ck3j56)
@@ -111,4 +112,8 @@ public class Lead
 
     // Navigation: activity timeline (869ck3j4b)
     public ICollection<LeadActivity> Activities { get; set; } = new List<LeadActivity>();
+
+    // Workflow automation (stap 1-10)
+    public int WorkflowStep { get; set; } = 1;
+    public string? WorkflowDataJson { get; set; }
 }

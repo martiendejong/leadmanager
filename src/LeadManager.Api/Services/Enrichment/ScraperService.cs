@@ -8,15 +8,9 @@ public class ScraperService
     private readonly HttpClient _http;
     private readonly string[] _aboutPaths = ["/about", "/over-ons", "/over", "/team", "/contact", "/management", "/bedrijf", "/wie-zijn-wij", "/about-us", "/ons-team", "/over-ons/team"];
 
-    public ScraperService()
+    public ScraperService(HttpClient http)
     {
-        _http = new HttpClient(new HttpClientHandler
-        {
-            AllowAutoRedirect = true,
-            ServerCertificateCustomValidationCallback = (_, _, _, _) => true
-        });
-        _http.Timeout = TimeSpan.FromSeconds(8);
-        _http.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+        _http = http;
     }
 
     /// <summary>

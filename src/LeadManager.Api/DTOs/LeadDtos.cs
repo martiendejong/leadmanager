@@ -81,6 +81,9 @@ public record LeadDto(
     string? AssignedToUserId,
     // Pipeline status (869ck3j46)
     string PipelineStatus,
+    // Workflow automation (stap 1-10)
+    int WorkflowStep,
+    string? WorkflowDataJson,
     // Stale-lead reminder (869ck3j52/869ck3j58)
     DateTime? ReminderDate,
     // Lead-to-client conversion (869ck3j56)
@@ -151,6 +154,9 @@ public record LeadActivityDto(Guid Id, Guid LeadId, string? UserId, string Activ
 
 // Pipeline (869ck3j46)
 public record UpdatePipelineStatusDto(string PipelineStatus);
+
+// Workflow automation
+public record UpdateWorkflowDto(int? Step, string? WorkflowDataJson);
 
 // Lead Notes DTOs
 public record LeadNoteDto(Guid Id, Guid LeadId, string Content, DateTime CreatedAt, string CreatedByUserId, string? CreatedByName);

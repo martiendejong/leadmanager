@@ -13,6 +13,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Host.UseWindowsService();
 
 // CORS
 builder.Services.AddCors(options =>
@@ -87,21 +88,89 @@ builder.Services.AddAuthorization();
 // JWT service
 builder.Services.AddScoped<JwtService>();
 
+// Sales platform: intake + estimation + minox-poc connector + script + offerte
+builder.Services.AddHttpClient<EstimationService>();
+builder.Services.AddHttpClient<MinoxPocConnectorService>();
+builder.Services.AddHttpClient<ScriptGeneratorService>();
+builder.Services.AddScoped<EstimationService>();
+builder.Services.AddScoped<MinoxPocConnectorService>();
+builder.Services.AddScoped<ScriptGeneratorService>();
+builder.Services.AddScoped<OfferteService>();
+
+// All HTTP-calling services are typed clients on IHttpClientFactory so they
+// share pooled handlers. Constructing HttpClients per service instance (and
+// per lead in the enrichment loop) leaked sockets until the process hit the
+// commit limit — the 42.5 GB incident of 2026-08-27 (#844).
+Func<HttpMessageHandler> insecureCrawlerHandler = () => new HttpClientHandler
+{
+    AllowAutoRedirect = true,
+    ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+};
+// Crawler responses are read fully into memory (GetStringAsync / ReadAsStringAsync),
+// so an uncapped response — a 50 MB webshop sitemap, a huge page — balloons the
+// process. 5 MB is far above any legitimate page/sitemap we strip to 10k chars.
+const long CrawlerMaxResponseBytes = 5 * 1024 * 1024;
+Action<HttpClient> crawlerDefaults = c =>
+{
+    c.Timeout = TimeSpan.FromSeconds(10);
+    c.MaxResponseContentBufferSize = CrawlerMaxResponseBytes;
+    c.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (compatible; LeadManager/1.0)");
+};
+
 // Search service
-builder.Services.AddScoped<SearchService>();
+builder.Services.AddHttpClient<SearchService>(c =>
+{
+    c.Timeout = TimeSpan.FromSeconds(15);
+    c.MaxResponseContentBufferSize = CrawlerMaxResponseBytes;
+    c.DefaultRequestHeaders.Add("User-Agent",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+    c.DefaultRequestHeaders.Add("Accept-Language", "nl-NL,nl;q=0.9,en;q=0.8");
+    c.DefaultRequestHeaders.Add("Accept",
+        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8");
+}).ConfigurePrimaryHttpMessageHandler(insecureCrawlerHandler);
 
 // Profile + Smart Search services
-builder.Services.AddScoped<CompanyProfileService>();
-builder.Services.AddScoped<GptLeadGeneratorService>();
+builder.Services.AddHttpClient<CompanyProfileService>();
+builder.Services.AddHttpClient<GptLeadGeneratorService>();
 builder.Services.AddScoped<SmartSearchService>();
+// Named client for CompanyProfileService's WordPress REST probe
+builder.Services.AddHttpClient("wp-probe", c =>
+{
+    c.Timeout = TimeSpan.FromSeconds(8);
+    c.MaxResponseContentBufferSize = CrawlerMaxResponseBytes;
+    c.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (compatible; LeadManager/1.0)");
+});
 
 // Enrichment services
-builder.Services.AddScoped<KvkEnrichmentService>();
-builder.Services.AddScoped<GooglePlacesEnrichmentService>();
+builder.Services.AddHttpClient<UrlNormalizerService>(crawlerDefaults)
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+    {
+        AllowAutoRedirect = true,
+        MaxAutomaticRedirections = 3,
+        ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+    });
+builder.Services.AddHttpClient<SitemapService>(crawlerDefaults).ConfigurePrimaryHttpMessageHandler(insecureCrawlerHandler);
+builder.Services.AddHttpClient<PageFetcherService>(crawlerDefaults).ConfigurePrimaryHttpMessageHandler(insecureCrawlerHandler);
+builder.Services.AddHttpClient<ScraperService>(c =>
+{
+    c.Timeout = TimeSpan.FromSeconds(8);
+    c.MaxResponseContentBufferSize = CrawlerMaxResponseBytes;
+    c.DefaultRequestHeaders.Add("User-Agent",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+}).ConfigurePrimaryHttpMessageHandler(insecureCrawlerHandler);
+builder.Services.AddHttpClient<EmbeddingService>();
+builder.Services.AddHttpClient<RagEnrichmentService>();
+builder.Services.AddHttpClient<NameExtractorService>();
+builder.Services.AddHttpClient<OutreachEmailService>();
+builder.Services.AddHttpClient<KvkEnrichmentService>(c => c.Timeout = TimeSpan.FromSeconds(10));
+builder.Services.AddHttpClient<GooglePlacesEnrichmentService>(c => c.Timeout = TimeSpan.FromSeconds(10));
+builder.Services.AddHttpClient<TextInputEnrichmentService>();
+builder.Services.AddHttpClient<AiSalesApproachService>();
 builder.Services.AddScoped<SalesScoreService>();
 builder.Services.AddScoped<DocumentParserService>();
-builder.Services.AddScoped<TextInputEnrichmentService>();
-builder.Services.AddScoped<AiSalesApproachService>();
+// Singleton so its internal MemoryCache and 30/min rate limiter are shared
+// across all leads instead of being recreated (and reset) per lead.
+builder.Services.AddSingleton<WebSearchEnrichmentService>();
 builder.Services.AddSingleton<EnrichmentChannel>();
 builder.Services.AddHostedService<EnrichmentBackgroundService>();
 
@@ -168,33 +237,39 @@ using (var scope = app.Services.CreateScope())
             await roleManager.CreateAsync(new IdentityRole(role));
     }
 
-    // Seed admin user
-    const string adminEmail = "info@prospergenics.com";
-    const string adminPassword = "SpaceElevator1tam!";
-    var adminUser = await userManager.FindByEmailAsync(adminEmail);
-    if (adminUser == null)
+    // Seed admin users
+    var admins = new[]
     {
-        adminUser = new ApplicationUser
+        (Email: "info@prospergenics.com",    Password: "SpaceElevator1tam!", First: "Admin",   Last: "Prospergenics"),
+        (Email: "info@martiendejong.nl",     Password: "SpaceElevator1tam!", First: "Martien", Last: "de Jong"),
+    };
+
+    foreach (var (email, password, first, last) in admins)
+    {
+        var user = await userManager.FindByEmailAsync(email);
+        if (user == null)
         {
-            UserName = adminEmail,
-            Email = adminEmail,
-            FirstName = "Admin",
-            LastName = "User",
-            CreatedAt = DateTime.UtcNow,
-            IsActive = true,
-            EmailConfirmed = true
-        };
-        var result = await userManager.CreateAsync(adminUser, adminPassword);
-        if (result.Succeeded)
-            await userManager.AddToRoleAsync(adminUser, "Admin");
-    }
-    else
-    {
-        // Ensure password is correct and user has Admin role
-        var token = await userManager.GeneratePasswordResetTokenAsync(adminUser);
-        await userManager.ResetPasswordAsync(adminUser, token, adminPassword);
-        if (!await userManager.IsInRoleAsync(adminUser, "Admin"))
-            await userManager.AddToRoleAsync(adminUser, "Admin");
+            user = new ApplicationUser
+            {
+                UserName = email,
+                Email = email,
+                FirstName = first,
+                LastName = last,
+                CreatedAt = DateTime.UtcNow,
+                IsActive = true,
+                EmailConfirmed = true
+            };
+            var result = await userManager.CreateAsync(user, password);
+            if (result.Succeeded)
+                await userManager.AddToRoleAsync(user, "Admin");
+        }
+        else
+        {
+            var token = await userManager.GeneratePasswordResetTokenAsync(user);
+            await userManager.ResetPasswordAsync(user, token, password);
+            if (!await userManager.IsInRoleAsync(user, "Admin"))
+                await userManager.AddToRoleAsync(user, "Admin");
+        }
     }
 }
 
@@ -211,7 +286,12 @@ app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.UseHangfireDashboard("/hangfire"); // no auth — dev mode
+// IIS only proxies /api/* to this process, but the dashboard is still reachable
+// on the server itself; restrict it to local requests explicitly.
+app.UseHangfireDashboard("/hangfire", new DashboardOptions
+{
+    Authorization = new[] { new Hangfire.Dashboard.LocalRequestsOnlyAuthorizationFilter() }
+});
 
 RecurringJob.AddOrUpdate<HangfireEnrichmentJob>(
     "enrichment-sweep",

@@ -220,7 +220,13 @@ export default function LeadsTable({
                 </td>
                 <td className="px-4 py-3 text-sm font-medium text-gray-900 max-w-48 truncate">
                   <span className="flex items-center gap-1.5">
-                    {lead.name || '—'}
+                    <Link
+                      to={`/leads/${lead.id}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="hover:text-indigo-600 hover:underline transition-colors"
+                    >
+                      {lead.name || '—'}
+                    </Link>
                     <LeadStatusBadge status={lead.status} />
                     {isStale(lead) && (
                       <span

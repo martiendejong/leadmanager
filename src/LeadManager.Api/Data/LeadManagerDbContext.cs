@@ -17,9 +17,12 @@ public class LeadManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<LeadDocumentChunk> LeadDocumentChunks { get; set; }
     public DbSet<CompanyProfile> CompanyProfiles { get; set; }
     public DbSet<LeadActivity> Activities { get; set; }
-    public DbSet<Notification> Notifications { get; set; }
     public DbSet<Client> Clients { get; set; }
     public DbSet<Project> Projects { get; set; }
+    public DbSet<Notification> Notifications { get; set; }
+    public DbSet<ClientIntake> ClientIntakes { get; set; }
+    public DbSet<ClientBundle> ClientBundles { get; set; }
+    public DbSet<SalesSettings> SalesSettings { get; set; }
     public DbSet<LeadNote> LeadNotes { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)

@@ -43,7 +43,7 @@ public class LeadsExportTests : IDisposable
         _db.Database.EnsureCreated();
 
         var enrichmentChannel = new EnrichmentChannel();
-        var searchService = new SearchService(NullLogger<SearchService>.Instance);
+        var searchService = new SearchService(new HttpClient(), NullLogger<SearchService>.Instance);
         var configuration = new ConfigurationBuilder().Build();
 
         _controller = new LeadsController(_db, searchService, configuration, enrichmentChannel)

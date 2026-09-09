@@ -24,6 +24,7 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.*" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="8.*" />
     <PackageReference Include="PdfPig" Version="0.1.13" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="7.*" />
     <!-- Force .NET 8.0 versions to prevent version conflicts with WebSearch multi-targeting -->
@@ -32,7 +33,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="C:\Projects\websearch\WebSearch\WebSearch.csproj" Properties="TargetFramework=net8.0" />
+    <ProjectReference Include="E:\projects\websearch\WebSearch\WebSearch.csproj" Properties="TargetFramework=net8.0" />
   </ItemGroup>
 
 </Project>

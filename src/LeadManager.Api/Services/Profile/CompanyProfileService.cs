@@ -12,18 +12,26 @@ namespace LeadManager.Api.Services.Profile;
 public class CompanyProfileService
 {
     private readonly HttpClient _http;
+    private readonly IHttpClientFactory _httpClientFactory;
     private readonly UrlNormalizerService _urlNormalizer;
     private readonly SitemapService _sitemapService;
     private readonly PageFetcherService _pageFetcher;
 
-    public CompanyProfileService(IConfiguration configuration)
+    public CompanyProfileService(
+        HttpClient http,
+        IHttpClientFactory httpClientFactory,
+        IConfiguration configuration,
+        UrlNormalizerService urlNormalizer,
+        SitemapService sitemapService,
+        PageFetcherService pageFetcher)
     {
         var apiKey = configuration["OpenAI:ApiKey"] ?? throw new InvalidOperationException("OpenAI:ApiKey not configured");
-        _http = new HttpClient();
+        _http = http;
         _http.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
-        _urlNormalizer = new UrlNormalizerService();
-        _sitemapService = new SitemapService();
-        _pageFetcher = new PageFetcherService();
+        _httpClientFactory = httpClientFactory;
+        _urlNormalizer = urlNormalizer;
+        _sitemapService = sitemapService;
+        _pageFetcher = pageFetcher;
     }
 
     public async Task<CompanyProfile> GenerateProfileAsync(string websiteUrl, string userId)
@@ -72,8 +80,7 @@ public class CompanyProfileService
     private async Task<List<string>> TryCrawlWordPressAsync(string baseUrl)
     {
         var texts = new List<string>();
-        var wpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
-        wpClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (compatible; LeadManager/1.0)");
+        var wpClient = _httpClientFactory.CreateClient("wp-probe");
 
         foreach (var endpoint in new[] { "/wp-json/wp/v2/pages?per_page=20", "/wp-json/wp/v2/posts?per_page=10" })
         {

@@ -218,6 +218,23 @@ public class LeadsController : ControllerBase
         return Ok(ToDto(lead));
     }
 
+    // PATCH /api/leads/{id}/workflow - Update workflow step and data
+    [HttpPatch("{id:guid}/workflow")]
+    public async Task<IActionResult> UpdateWorkflow(Guid id, [FromBody] UpdateWorkflowDto dto)
+    {
+        var userId = GetCurrentUserId();
+        var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == userId);
+        if (lead == null) return NotFound();
+
+        if (dto.Step.HasValue)
+            lead.WorkflowStep = Math.Clamp(dto.Step.Value, 1, 10);
+        if (dto.WorkflowDataJson != null)
+            lead.WorkflowDataJson = dto.WorkflowDataJson;
+
+        await _db.SaveChangesAsync();
+        return Ok(new { workflowStep = lead.WorkflowStep, workflowDataJson = lead.WorkflowDataJson });
+    }
+
     // POST /api/leads - Create single lead (Task #3, #4)
     [HttpPost]
     public async Task<IActionResult> CreateLead([FromBody] CreateLeadDto dto, [FromQuery] bool force = false)
@@ -494,9 +511,8 @@ public class LeadsController : ControllerBase
         if (lead == null)
             return NotFound();
 
-        // Generate sales approach
-        var logger = HttpContext.RequestServices.GetRequiredService<ILogger<Services.Enrichment.AiSalesApproachService>>();
-        var service = new Services.Enrichment.AiSalesApproachService(_configuration, logger);
+        // Generate sales approach (typed client via DI — no per-request HttpClient, #844)
+        var service = HttpContext.RequestServices.GetRequiredService<Services.Enrichment.AiSalesApproachService>();
 
         var result = await service.GenerateAsync(lead);
 
@@ -783,8 +799,7 @@ public class LeadsController : ControllerBase
         if (lead == null)
             return NotFound();
 
-        var logger = HttpContext.RequestServices.GetRequiredService<ILogger<Services.Enrichment.OutreachEmailService>>();
-        var service = new Services.Enrichment.OutreachEmailService(_configuration, logger);
+        var service = HttpContext.RequestServices.GetRequiredService<Services.Enrichment.OutreachEmailService>();
 
         var result = await service.GenerateAsync(lead);
 
@@ -1135,6 +1150,9 @@ public class LeadsController : ControllerBase
         l.AssignedToUserId,
         // Pipeline status
         l.PipelineStatus.ToString(),
+        // Workflow
+        l.WorkflowStep,
+        l.WorkflowDataJson,
         // Stale-lead reminder
         l.ReminderDate,
         // Lead-to-client conversion

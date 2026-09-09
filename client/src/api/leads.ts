@@ -58,16 +58,33 @@ export interface Lead {
   manualInput?: string | null
   hasUploadedDocuments?: boolean
   enrichmentSources?: string | null
+  // Owner identity
+  ownerLinkedInUrl?: string | null
+  ownerMobile?: string | null
+  internalContactName?: string | null
+  internalContactRole?: string | null
+  // Operational
+  workingArea?: string | null
+  certifications?: string | null
+  pricingInfo?: string | null
+  openingHours?: string | null
+  // Sales priority
+  salesPriorityLabel?: string | null
+  salesPriorityReasoning?: string | null
+  signals?: string | null
   // AI Sales Approach
   salesApproach?: string | null
   // Lead assignment (869ck3j4u)
   assignedToUserId?: string | null
   // Pipeline status (869ck3j46)
   pipelineStatus?: string
+  // Client conversion
+  convertedToClientId?: string | null
   // Stale-lead reminder (869ck3j52/869ck3j58)
   reminderDate?: string | null
-  // Lead-to-client conversion (869ck3j56)
-  convertedToClientId?: string | null
+  // Workflow automation (stap 1-10)
+  workflowStep?: number
+  workflowDataJson?: string | null
 }
 
 export interface LeadsResponse {
@@ -92,6 +109,20 @@ export interface LeadStats {
   total: number
   enriched: number
   notEnriched: number
+}
+
+export async function getLead(id: string): Promise<Lead> {
+  const res = await apiClient.get<Lead>(`/api/leads/${id}`)
+  return res.data
+}
+
+export async function updateLeadWorkflow(
+  id: string,
+  step?: number,
+  workflowDataJson?: string
+): Promise<{ workflowStep: number; workflowDataJson: string | null }> {
+  const res = await apiClient.patch(`/api/leads/${id}/workflow`, { step, workflowDataJson })
+  return res.data
 }
 
 export async function fetchLeads(filter: LeadFilter): Promise<LeadsResponse> {
