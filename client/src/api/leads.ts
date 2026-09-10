@@ -103,6 +103,9 @@ export interface LeadFilter {
   sortBy?: string
   sortDesc?: boolean
   assignedToUserId?: string
+  hasOwner?: boolean
+  hasLinkedIn?: boolean
+  priorityLabel?: string
 }
 
 export interface LeadStats {
@@ -135,6 +138,9 @@ export async function fetchLeads(filter: LeadFilter): Promise<LeadsResponse> {
   if (filter.sortBy) params.sortBy = filter.sortBy
   if (filter.sortDesc !== undefined) params.sortDesc = filter.sortDesc
   if (filter.assignedToUserId) params.assignedToUserId = filter.assignedToUserId
+  if (filter.hasOwner !== undefined) params.hasOwner = filter.hasOwner
+  if (filter.hasLinkedIn !== undefined) params.hasLinkedIn = filter.hasLinkedIn
+  if (filter.priorityLabel) params.priorityLabel = filter.priorityLabel
 
   const res = await apiClient.get<LeadsResponse>('/api/leads', { params })
   return res.data

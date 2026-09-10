@@ -120,9 +120,12 @@ public record LeadFilterParams(
     DateTime? EnrichedBefore = null,
     int Page = 1,
     int PageSize = 50,
-    string SortBy = "name",
-    bool SortDesc = false,
-    string? AssignedToUserId = null);
+    string SortBy = "salesPriorityScore",
+    bool SortDesc = true,
+    string? AssignedToUserId = null,
+    bool? HasOwner = null,
+    bool? HasLinkedIn = null,
+    string? PriorityLabel = null);
 
 public record CsvImportRowError(int Row, string Message);
 public record CsvImportResultDto(int Created, int Skipped, List<CsvImportRowError> Errors, Guid? EnrichmentJobId = null);
