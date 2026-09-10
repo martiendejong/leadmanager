@@ -186,6 +186,76 @@ public class ExportController : ControllerBase
                 sb.AppendLine("            </div>");
             }
 
+            // Extended contact info
+            if (!string.IsNullOrWhiteSpace(lead.OwnerLinkedInUrl) || !string.IsNullOrWhiteSpace(lead.OwnerMobile) || !string.IsNullOrWhiteSpace(lead.InternalContactName))
+            {
+                sb.AppendLine("            <div class=\"section-title\">Eigenaar & Contact</div>");
+                sb.AppendLine("            <div class=\"lead-grid\">");
+                if (!string.IsNullOrWhiteSpace(lead.OwnerLinkedInUrl))
+                    AppendField(sb, "LinkedIn eigenaar", lead.OwnerLinkedInUrl, isUrl: true);
+                if (!string.IsNullOrWhiteSpace(lead.OwnerMobile))
+                    AppendField(sb, "Mobiel eigenaar", lead.OwnerMobile);
+                if (!string.IsNullOrWhiteSpace(lead.InternalContactName))
+                    AppendField(sb, "Interne contactpersoon", lead.InternalContactName + (!string.IsNullOrWhiteSpace(lead.InternalContactRole) ? $" ({lead.InternalContactRole})" : ""));
+                sb.AppendLine("            </div>");
+            }
+
+            // Operational info
+            if (!string.IsNullOrWhiteSpace(lead.WorkingArea) || !string.IsNullOrWhiteSpace(lead.Certifications) || !string.IsNullOrWhiteSpace(lead.PricingInfo) || !string.IsNullOrWhiteSpace(lead.OpeningHours))
+            {
+                sb.AppendLine("            <div class=\"section-title\">Bedrijfsinformatie</div>");
+                sb.AppendLine("            <div class=\"lead-grid\">");
+                if (!string.IsNullOrWhiteSpace(lead.WorkingArea))
+                    AppendField(sb, "Werkgebied", lead.WorkingArea);
+                if (!string.IsNullOrWhiteSpace(lead.Certifications))
+                    AppendField(sb, "Certificeringen", lead.Certifications);
+                if (!string.IsNullOrWhiteSpace(lead.PricingInfo))
+                    AppendField(sb, "Prijsinformatie", lead.PricingInfo);
+                if (!string.IsNullOrWhiteSpace(lead.OpeningHours))
+                    AppendField(sb, "Openingstijden", lead.OpeningHours);
+                sb.AppendLine("            </div>");
+            }
+
+            // Priority reasoning
+            if (!string.IsNullOrWhiteSpace(lead.SalesPriorityLabel) || !string.IsNullOrWhiteSpace(lead.SalesPriorityReasoning))
+            {
+                sb.AppendLine("            <div class=\"section-title\">Sales Prioriteit</div>");
+                sb.AppendLine("            <div class=\"lead-grid\">");
+                if (!string.IsNullOrWhiteSpace(lead.SalesPriorityLabel))
+                    AppendField(sb, "Label", lead.SalesPriorityLabel);
+                if (!string.IsNullOrWhiteSpace(lead.SalesPriorityReasoning))
+                    AppendField(sb, "Onderbouwing", lead.SalesPriorityReasoning);
+                sb.AppendLine("            </div>");
+            }
+
+            // Signals
+            if (!string.IsNullOrWhiteSpace(lead.Signals))
+            {
+                try
+                {
+                    var signals = System.Text.Json.JsonSerializer.Deserialize<List<Dictionary<string, string>>>(lead.Signals);
+                    if (signals != null && signals.Count > 0)
+                    {
+                        sb.AppendLine("            <div class=\"section-title\">Signalen</div>");
+                        sb.AppendLine("            <div class=\"sales-approach\">");
+                        foreach (var signal in signals)
+                        {
+                            if (signal.TryGetValue("message", out var msg))
+                            {
+                                var severity = signal.GetValueOrDefault("severity", "info");
+                                var icon = severity == "alert" ? "🔴" : severity == "warning" ? "🟡" : "🔵";
+                                sb.AppendLine($"                <p>{icon} {Escape(msg)}</p>");
+                            }
+                        }
+                        sb.AppendLine("            </div>");
+                    }
+                }
+                catch
+                {
+                    // Ignore JSON parsing errors
+                }
+            }
+
             // Sales Approach
             if (!string.IsNullOrWhiteSpace(lead.SalesApproach))
             {
