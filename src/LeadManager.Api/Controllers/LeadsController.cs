@@ -173,6 +173,8 @@ public class LeadsController : ControllerBase
         lead.OwnerLastName = dto.OwnerLastName;
         lead.PersonalEmail = dto.PersonalEmail;
         lead.LinkedInUrl = dto.LinkedInUrl;
+        lead.FacebookUrl = dto.FacebookUrl ?? "";
+        lead.InstagramUrl = dto.InstagramUrl ?? "";
 
         await _db.SaveChangesAsync();
         return Ok(ToDto(lead));
@@ -327,6 +329,9 @@ public class LeadsController : ControllerBase
             CompanyEmail = dto.CompanyEmail,
             Source = dto.Source,
             ManualInput = dto.ManualInput,
+            LinkedInUrl = dto.LinkedInUrl ?? "",
+            FacebookUrl = dto.FacebookUrl ?? "",
+            InstagramUrl = dto.InstagramUrl ?? "",
             ImportedByUserId = userId,
             ImportedAt = DateTime.UtcNow,
             CreatedAt = DateTime.UtcNow
