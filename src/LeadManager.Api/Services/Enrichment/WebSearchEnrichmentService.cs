@@ -129,37 +129,54 @@ public class WebSearchEnrichmentService
         return await PerformSearchAsync(query, "Domain Info", cancellationToken);
     }
 
+    private static readonly ProviderType[] _providerChain =
+        [ProviderType.DuckDuckGo, ProviderType.Google, ProviderType.Bing];
+
     private async Task<List<SearchResultInfo>> PerformSearchAsync(
         string query,
         string searchType,
         CancellationToken cancellationToken)
     {
-        try
+        var options = new SearchOptions { MaxResults = 5 };
+
+        foreach (var providerType in _providerChain)
         {
-            // Use DuckDuckGo provider (most reliable, no API keys needed)
-            var searchService = _searchFactory.Create(ProviderType.DuckDuckGo);
-            var options = new SearchOptions { MaxResults = 5 };
-
-            var searchResults = await searchService.SearchAsync(query, options, cancellationToken);
-
-            return searchResults.Select(r => new SearchResultInfo
+            try
             {
-                Title = r.Title,
-                Url = r.Url,
-                Snippet = r.Snippet,
-                SearchType = searchType,
-                SearchQuery = query,
-                Source = "DuckDuckGo"
-            }).ToList();
+                var searchService = _searchFactory.Create(providerType);
+                var searchResults = await searchService.SearchAsync(query, options, cancellationToken);
+
+                if (searchResults.Any())
+                {
+                    _logger.LogInformation(
+                        "Search succeeded with {Provider} for '{Query}'",
+                        providerType, query);
+
+                    return searchResults.Select(r => new SearchResultInfo
+                    {
+                        Title = r.Title,
+                        Url = r.Url,
+                        Snippet = r.Snippet,
+                        SearchType = searchType,
+                        SearchQuery = query,
+                        Source = providerType.ToString()
+                    }).ToList();
+                }
+
+                _logger.LogWarning(
+                    "Provider {Provider} returned 0 results for '{Query}', trying next",
+                    providerType, query);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    "Provider {Provider} failed for '{Query}': {Err} — trying next",
+                    providerType, query, ex.Message);
+            }
         }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex,
-                "Search failed for query '{Query}' (type: {SearchType})",
-                query, searchType
-            );
-            return new List<SearchResultInfo>();
-        }
+
+        _logger.LogWarning("All search providers failed for '{Query}' (type: {SearchType})", query, searchType);
+        return new List<SearchResultInfo>();
     }
 
     /// <summary>

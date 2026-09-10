@@ -1,11 +1,18 @@
 import { useEffect, useState } from 'react'
-import type { Lead } from '../../api/leads'
-import { regenerateSalesApproach, enrichLeads } from '../../api/leads'
+import { Link } from 'react-router-dom'
+import type { Lead, UserDto } from '../../api/leads'
+import { regenerateSalesApproach, enrichLeads, assignLead, fetchUsers, setReminder, updateLeadStatus } from '../../api/leads'
+import { salesSettingsApi } from '../../api/salesSettings'
 import { useToast } from '../Toast'
+import OutreachEmailPanel from './OutreachEmailPanel'
+import LeadActivityTimeline from './LeadActivityTimeline'
+import ConvertToClientWizard from './ConvertToClientWizard'
+import LeadNotesPanel from './LeadNotesPanel'
 
 interface Props {
   lead: Lead | null
   onClose: () => void
+  onLeadUpdated?: (lead: Lead) => void
 }
 
 function Field({ label, value }: { label: string; value?: string | number | null }) {
@@ -45,11 +52,25 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
-export default function LeadDetailPanel({ lead, onClose }: Props) {
+export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props) {
   const { showToast } = useToast()
   const [isRegenerating, setIsRegenerating] = useState(false)
   const [isEnriching, setIsEnriching] = useState(false)
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
   const [activeTab, setActiveTab] = useState<'linkedin' | 'phone' | 'email'>('linkedin')
+  const [users, setUsers] = useState<UserDto[]>([])
+  const [isAssigning, setIsAssigning] = useState(false)
+  const [showConvertWizard, setShowConvertWizard] = useState(false)
+  const [reminderDate, setReminderDate] = useState<string>('')
+  const [isSavingReminder, setIsSavingReminder] = useState(false)
+  const [scriptText, setScriptText] = useState<string | null>(null)
+  const [isGeneratingScript, setIsGeneratingScript] = useState(false)
+  const [isGeneratingQuote, setIsGeneratingQuote] = useState(false)
+
+  // Sync reminderDate input with the lead whenever the panel opens on a different lead
+  useEffect(() => {
+    setReminderDate(lead?.reminderDate ? lead.reminderDate.slice(0, 10) : '')
+  }, [lead?.id, lead?.reminderDate])
 
   // Close on Escape
   useEffect(() => {
@@ -59,6 +80,25 @@ export default function LeadDetailPanel({ lead, onClose }: Props) {
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
+
+  // Load users for assignment dropdown
+  useEffect(() => {
+    fetchUsers().then(setUsers).catch(() => {/* non-critical */})
+  }, [])
+
+  const handleAssign = async (userId: string | null) => {
+    if (!lead) return
+    setIsAssigning(true)
+    try {
+      const updated = await assignLead(lead.id, userId)
+      showToast(userId ? 'Lead toegewezen!' : 'Toewijzing verwijderd', 'success')
+      if (onLeadUpdated) onLeadUpdated(updated)
+    } catch {
+      showToast('Toewijzen mislukt', 'error')
+    } finally {
+      setIsAssigning(false)
+    }
+  }
 
   const copyToClipboard = async (text: string, label: string) => {
     try {
@@ -74,7 +114,7 @@ export default function LeadDetailPanel({ lead, onClose }: Props) {
 
     setIsRegenerating(true)
     try {
-      const result = await regenerateSalesApproach(lead.id)
+      await regenerateSalesApproach(lead.id)
       showToast('Sales approach opnieuw gegenereerd!', 'success')
       // Update the lead in parent component would require callback - for now just show success
       window.location.reload() // Simple refresh - in production use proper state management
@@ -82,6 +122,55 @@ export default function LeadDetailPanel({ lead, onClose }: Props) {
       showToast(err.response?.data || 'Regenereren mislukt', 'error')
     } finally {
       setIsRegenerating(false)
+    }
+  }
+
+  const handleSetReminder = async (date: string) => {
+    if (!lead) return
+    setIsSavingReminder(true)
+    try {
+      await setReminder(lead.id, date || null)
+      showToast(date ? `Herinnering ingesteld op ${date}` : 'Herinnering verwijderd', 'success')
+    } catch {
+      showToast('Herinnering opslaan mislukt', 'error')
+    } finally {
+      setIsSavingReminder(false)
+    }
+  }
+
+  const handleGenerateScript = async () => {
+    if (!lead) return
+    setIsGeneratingScript(true)
+    try {
+      const res = await salesSettingsApi.generateScript({ leadId: lead.id })
+      setScriptText(res.script)
+    } catch {
+      showToast('Belscript genereren mislukt', 'error')
+    } finally {
+      setIsGeneratingScript(false)
+    }
+  }
+
+  const handleGenerateQuote = async () => {
+    if (!lead) return
+    setIsGeneratingQuote(true)
+    try {
+      const blob = await salesSettingsApi.generateQuote({
+        leadId: lead.id,
+        productType: 'Website',
+        bundleType: 'Starter',
+      })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `Offerte-${lead.name.replace(/ /g, '_')}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+      showToast('Offerte gedownload', 'success')
+    } catch {
+      showToast('Offerte genereren mislukt', 'error')
+    } finally {
+      setIsGeneratingQuote(false)
     }
   }
 
@@ -97,6 +186,23 @@ export default function LeadDetailPanel({ lead, onClose }: Props) {
       showToast(err.response?.data || 'Verrijking starten mislukt', 'error')
     } finally {
       setIsEnriching(false)
+    }
+  }
+
+  const handleStatusTransition = async () => {
+    if (!lead || lead.status !== 'Lead') return
+
+    if (!confirm('Weet je zeker dat je deze lead wilt promoveren tot prospect?')) return
+
+    setIsUpdatingStatus(true)
+    try {
+      await updateLeadStatus(lead.id, { status: 'Prospect' })
+      showToast('Lead gepromoveerd tot prospect!', 'success')
+      setTimeout(() => window.location.reload(), 1000) // Reload to show updated status
+    } catch (err: any) {
+      showToast(err.response?.data || 'Status update mislukt', 'error')
+    } finally {
+      setIsUpdatingStatus(false)
     }
   }
 
@@ -143,9 +249,21 @@ export default function LeadDetailPanel({ lead, onClose }: Props) {
               </button>
             </div>
 
-            {/* Enrichment status badge */}
+            {/* Status and enrichment badges */}
             <div className="px-5 py-2 border-b border-gray-100 flex items-center justify-between">
               <div className="flex items-center gap-2">
+                {/* Lead/Prospect Status Badge */}
+                <span className={`inline-flex items-center gap-1 text-xs font-medium rounded-full px-2.5 py-0.5 ${
+                  lead.status === 'Prospect'
+                    ? 'text-blue-700 bg-blue-50 border border-blue-200'
+                    : 'text-gray-700 bg-gray-50 border border-gray-200'
+                }`}>
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                  {lead.status}
+                </span>
+
                 {lead.isEnriched ? (
                   <>
                     <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-full px-2.5 py-0.5">
@@ -174,13 +292,58 @@ export default function LeadDetailPanel({ lead, onClose }: Props) {
                   </span>
                 )}
               </div>
-              <button
-                onClick={handleEnrichNow}
-                disabled={isEnriching}
-                className="text-xs px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-              >
-                {isEnriching ? 'Bezig...' : 'Verrijk nu'}
-              </button>
+              <div className="flex items-center gap-2">
+                {/* Promote to Prospect button (only show if status is Lead) */}
+                {lead.status === 'Lead' && (
+                  <button
+                    onClick={handleStatusTransition}
+                    disabled={isUpdatingStatus}
+                    className="text-xs px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-1"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                    </svg>
+                    {isUpdatingStatus ? 'Bezig...' : 'Promoveer tot Prospect'}
+                  </button>
+                )}
+                <button
+                  onClick={handleEnrichNow}
+                  disabled={isEnriching}
+                  className="text-xs px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                >
+                  {isEnriching ? 'Bezig...' : 'Verrijk nu'}
+                </button>
+              </div>
+            </div>
+
+            {/* Convert to client */}
+            <div className="px-5 py-2 border-b border-gray-100 flex items-center justify-between">
+              {lead.convertedToClientId ? (
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2.5 py-0.5">
+                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                    Klant aangemaakt
+                  </span>
+                  <Link
+                    to={`/clients/${lead.convertedToClientId}`}
+                    className="text-xs text-indigo-600 hover:underline font-medium"
+                  >
+                    Bekijk klant →
+                  </Link>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowConvertWizard(true)}
+                  className="text-xs px-3 py-1.5 bg-emerald-600 text-white rounded hover:bg-emerald-700 font-medium flex items-center gap-1.5 transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  Converteer naar klant
+                </button>
+              )}
             </div>
 
             {/* Scrollable body */}
@@ -345,6 +508,9 @@ export default function LeadDetailPanel({ lead, onClose }: Props) {
                 }
               })()}
 
+              {/* Outreach Email Generator */}
+              <OutreachEmailPanel lead={lead} />
+
               {/* Sales Pitch — most prominent, top of panel */}
               {lead.salesPitch && (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4">
@@ -370,6 +536,37 @@ export default function LeadDetailPanel({ lead, onClose }: Props) {
                   <p className="text-sm text-indigo-900 leading-relaxed">{lead.aiSummary}</p>
                 </div>
               )}
+
+              {/* Assignee (869ck3j4u) */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-3 pb-1.5 border-b border-gray-100">
+                  Toegewezen aan
+                </h3>
+                <select
+                  value={lead.assignedToUserId ?? ''}
+                  onChange={(e) => handleAssign(e.target.value || null)}
+                  disabled={isAssigning}
+                  className="w-full text-sm border border-gray-300 rounded-md px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-gray-100"
+                >
+                  <option value="">— Niet toegewezen —</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {[u.firstName, u.lastName].filter(Boolean).join(' ') || u.email}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Notes & Conversations Feed */}
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <div className="flex items-center gap-1.5 mb-4">
+                  <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                  </svg>
+                  <span className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Notities & Gesprekken</span>
+                </div>
+                <LeadNotesPanel leadId={lead.id} />
+              </div>
 
               <Section title="Bedrijfsinfo">
                 <Field label="Naam" value={lead.name} />
@@ -438,6 +635,80 @@ export default function LeadDetailPanel({ lead, onClose }: Props) {
                 </Section>
               )}
 
+              {/* Sales tools */}
+              <Section title="Sales tools">
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={handleGenerateScript}
+                    disabled={isGeneratingScript}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-60 transition-colors"
+                  >
+                    {isGeneratingScript ? 'Genereren...' : 'Belscript genereren'}
+                  </button>
+                  <button
+                    onClick={handleGenerateQuote}
+                    disabled={isGeneratingQuote}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-60 transition-colors"
+                  >
+                    {isGeneratingQuote ? 'Genereren...' : 'Offerte downloaden (PDF)'}
+                  </button>
+                </div>
+                {scriptText && (
+                  <div className="mt-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-medium text-gray-600 uppercase tracking-wide">Belscript</span>
+                      <button
+                        onClick={() => setScriptText(null)}
+                        className="text-xs text-gray-400 hover:text-gray-700"
+                      >
+                        Sluiten
+                      </button>
+                    </div>
+                    <pre className="text-xs text-gray-700 whitespace-pre-wrap bg-gray-50 border border-gray-200 rounded-lg p-3 max-h-96 overflow-y-auto font-sans">
+                      {scriptText}
+                    </pre>
+                    <button
+                      onClick={() => { navigator.clipboard.writeText(scriptText); showToast('Gekopieerd!', 'success') }}
+                      className="mt-2 text-xs text-indigo-600 hover:underline"
+                    >
+                      Kopieer naar klembord
+                    </button>
+                  </div>
+                )}
+              </Section>
+
+              {/* Reminder */}
+              <Section title="Herinnering instellen">
+                <div>
+                  <dt className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Herinnerdatum</dt>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="date"
+                      value={reminderDate}
+                      onChange={(e) => setReminderDate(e.target.value)}
+                      className="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                    <button
+                      onClick={() => handleSetReminder(reminderDate)}
+                      disabled={isSavingReminder}
+                      className="text-xs px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed whitespace-nowrap"
+                    >
+                      {isSavingReminder ? 'Opslaan...' : 'Sla op'}
+                    </button>
+                    {reminderDate && (
+                      <button
+                        onClick={() => { setReminderDate(''); handleSetReminder('') }}
+                        disabled={isSavingReminder}
+                        className="text-xs px-2 py-1.5 text-gray-500 hover:text-red-600 transition-colors"
+                        title="Verwijder herinnering"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </Section>
+
               {lead.enrichmentVersion === 2 && (
                 <Section title="Crawl metadata">
                   <Field label="Gecrawled op" value={lead.crawledAt ? new Date(lead.crawledAt).toLocaleString('nl-NL') : null} />
@@ -447,10 +718,21 @@ export default function LeadDetailPanel({ lead, onClose }: Props) {
                   <Field label="Website status" value={lead.websiteStatus} />
                 </Section>
               )}
+
+              {/* Activity Timeline (869ck3j4b) */}
+              <div className="pb-1 border-t border-gray-100 pt-5">
+                <LeadActivityTimeline leadId={lead.id} />
+              </div>
             </div>
           </>
         )}
       </div>
+      {showConvertWizard && lead && (
+        <ConvertToClientWizard
+          lead={lead}
+          onClose={() => setShowConvertWizard(false)}
+        />
+      )}
     </>
   )
 }

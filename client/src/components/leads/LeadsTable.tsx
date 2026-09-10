@@ -58,6 +58,18 @@ function SalesScoreBadge({ score }: { score?: number | null }) {
   )
 }
 
+function LeadStatusBadge({ status }: { status: Lead['status'] }) {
+  return (
+    <span
+      className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium flex-shrink-0 ${
+        status === 'Prospect' ? 'text-blue-700 bg-blue-50 border border-blue-200' : 'text-gray-700 bg-gray-50 border border-gray-200'
+      }`}
+    >
+      {status}
+    </span>
+  )
+}
+
 function EmptyState({ onImport }: { onImport?: () => void }) {
   return (
     <tr>
@@ -140,6 +152,13 @@ export default function LeadsTable({
     []
   )
 
+  const isStale = (lead: Lead): boolean => {
+    const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
+    const ref = lead.importedAt || lead.createdAt
+    if (!ref) return false
+    return new Date(ref).getTime() < sevenDaysAgo
+  }
+
   return (
     <div className="overflow-x-auto">
       <table className={`min-w-full divide-y divide-gray-200 ${isDragging ? 'select-none' : ''}`}>
@@ -200,7 +219,26 @@ export default function LeadsTable({
                   />
                 </td>
                 <td className="px-4 py-3 text-sm font-medium text-gray-900 max-w-48 truncate">
-                  {lead.name || '—'}
+                  <span className="flex items-center gap-1.5">
+                    <Link
+                      to={`/leads/${lead.id}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="hover:text-indigo-600 hover:underline transition-colors"
+                    >
+                      {lead.name || '—'}
+                    </Link>
+                    <LeadStatusBadge status={lead.status} />
+                    {isStale(lead) && (
+                      <span
+                        title="Lead niet bijgewerkt in 7+ dagen"
+                        className="flex-shrink-0 text-orange-400"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
+                      </span>
+                    )}
+                  </span>
                 </td>
                 <td className="hidden sm:table-cell px-4 py-3 text-sm text-gray-500 max-w-40 truncate">
                   {lead.website ? (

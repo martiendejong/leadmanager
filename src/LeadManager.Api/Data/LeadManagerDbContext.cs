@@ -16,6 +16,14 @@ public class LeadManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<LeadPageContent> LeadPageContents { get; set; }
     public DbSet<LeadDocumentChunk> LeadDocumentChunks { get; set; }
     public DbSet<CompanyProfile> CompanyProfiles { get; set; }
+    public DbSet<LeadActivity> Activities { get; set; }
+    public DbSet<Client> Clients { get; set; }
+    public DbSet<Project> Projects { get; set; }
+    public DbSet<Notification> Notifications { get; set; }
+    public DbSet<ClientIntake> ClientIntakes { get; set; }
+    public DbSet<ClientBundle> ClientBundles { get; set; }
+    public DbSet<SalesSettings> SalesSettings { get; set; }
+    public DbSet<LeadNote> LeadNotes { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -72,5 +80,23 @@ public class LeadManagerDbContext : IdentityDbContext<ApplicationUser>
         builder.Entity<CompanyProfile>()
             .HasIndex(p => p.UserId)
             .IsUnique();
+
+        builder.Entity<LeadActivity>()
+            .HasOne(a => a.Lead)
+            .WithMany(l => l.Activities)
+            .HasForeignKey(a => a.LeadId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<LeadNote>()
+            .HasOne(n => n.Lead)
+            .WithMany()
+            .HasForeignKey(n => n.LeadId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<LeadNote>()
+            .HasOne(n => n.CreatedBy)
+            .WithMany()
+            .HasForeignKey(n => n.CreatedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

@@ -15,6 +15,7 @@ public record LeadDto(
     string AnymailfinderResult,
     string LinkedInUrl,
     string Source,
+    string Status,
     bool IsEnriched,
     DateTime? EnrichedAt,
     DateTime ImportedAt,
@@ -75,7 +76,18 @@ public record LeadDto(
     string? SalesPriorityLabel,
     string? SalesPriorityReasoning,
     // Company signals (869ch4zb0)
-    string? Signals);
+    string? Signals,
+    // Lead assignment (869ck3j4u)
+    string? AssignedToUserId,
+    // Pipeline status (869ck3j46)
+    string PipelineStatus,
+    // Workflow automation (stap 1-10)
+    int WorkflowStep,
+    string? WorkflowDataJson,
+    // Stale-lead reminder (869ck3j52/869ck3j58)
+    DateTime? ReminderDate,
+    // Lead-to-client conversion (869ck3j56)
+    Guid? ConvertedToClientId);
 
 public record CreateLeadDto(
     string Name,
@@ -110,14 +122,49 @@ public record LeadFilterParams(
     int PageSize = 50,
     string SortBy = "salesPriorityScore",
     bool SortDesc = true,
+    string? AssignedToUserId = null,
     bool? HasOwner = null,
     bool? HasLinkedIn = null,
     string? PriorityLabel = null);
+
+public record CsvImportRowError(int Row, string Message);
+public record CsvImportResultDto(int Created, int Skipped, List<CsvImportRowError> Errors, Guid? EnrichmentJobId = null);
 
 public record LeadStatsDto(int Total, int Enriched, int NotEnriched);
 
 public record ImportResultDto(int Imported, int Skipped, int Errors, List<string> ErrorDetails);
 
+public record SetReminderDto(DateTime? ReminderDate);
+
 public record LeadSearchRequest(string Sector, string? Location, int Limit = 25);
 public record LeadSearchResult(string Name, string Website, string City, string Sector, string Phone, string Email, string Source, string Snippet = "", string? OwnerName = null, string? Description = null, string? Services = null, string? TargetAudience = null);
 public record LeadSearchImportRequest(List<LeadSearchResult> Leads);
+
+// Duplicate detection (869ck3j4y)
+public record DuplicateLeadDto(Guid Id, string Name, string Website, string City, string Sector, int? Score);
+public record DuplicateCheckResultDto(List<DuplicateLeadDto> Duplicates);
+
+// Merge (869ck3j4y)
+public record MergeLeadDto(Guid SourceLeadId);
+
+// Assignment (869ck3j4u)
+public record AssignLeadDto(string? UserId);
+public record AssigneeDto(string UserId, string DisplayName, int LeadCount);
+
+// Activity timeline (869ck3j4b)
+public record CreateActivityDto(string ActivityType, string? Note);
+public record LeadActivityDto(Guid Id, Guid LeadId, string? UserId, string ActivityType, string? Note, DateTime CreatedAt);
+
+// Pipeline (869ck3j46)
+public record UpdatePipelineStatusDto(string PipelineStatus);
+
+// Workflow automation
+public record UpdateWorkflowDto(int? Step, string? WorkflowDataJson);
+
+// Lead Notes DTOs
+public record LeadNoteDto(Guid Id, Guid LeadId, string Content, DateTime CreatedAt, string CreatedByUserId, string? CreatedByName);
+public record CreateLeadNoteDto(string Content);
+public record UpdateLeadNoteDto(string Content);
+
+// Lead Status DTO
+public record UpdateLeadStatusDto(string Status);

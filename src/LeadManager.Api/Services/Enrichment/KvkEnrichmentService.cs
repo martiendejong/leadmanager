@@ -8,9 +8,9 @@ public class KvkEnrichmentService
     private readonly HttpClient _http;
     private readonly ILogger<KvkEnrichmentService> _logger;
 
-    public KvkEnrichmentService(ILogger<KvkEnrichmentService> logger)
+    public KvkEnrichmentService(HttpClient http, ILogger<KvkEnrichmentService> logger)
     {
-        _http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+        _http = http;
         _logger = logger;
     }
 

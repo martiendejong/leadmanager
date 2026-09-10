@@ -8,10 +8,10 @@ public class TextInputEnrichmentService
     private readonly HttpClient _http;
     private readonly ILogger<TextInputEnrichmentService> _logger;
 
-    public TextInputEnrichmentService(IConfiguration configuration, ILogger<TextInputEnrichmentService> logger)
+    public TextInputEnrichmentService(HttpClient http, IConfiguration configuration, ILogger<TextInputEnrichmentService> logger)
     {
         var apiKey = configuration["OpenAI:ApiKey"] ?? throw new InvalidOperationException("OpenAI:ApiKey not configured");
-        _http = new HttpClient();
+        _http = http;
         _http.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
         _logger = logger;
     }

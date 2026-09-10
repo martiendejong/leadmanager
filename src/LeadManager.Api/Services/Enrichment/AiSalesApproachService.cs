@@ -8,10 +8,10 @@ public class AiSalesApproachService
     private readonly HttpClient _http;
     private readonly ILogger<AiSalesApproachService> _logger;
 
-    public AiSalesApproachService(IConfiguration configuration, ILogger<AiSalesApproachService> logger)
+    public AiSalesApproachService(HttpClient http, IConfiguration configuration, ILogger<AiSalesApproachService> logger)
     {
         var apiKey = configuration["OpenAI:ApiKey"] ?? throw new InvalidOperationException("OpenAI:ApiKey not configured");
-        _http = new HttpClient();
+        _http = http;
         _http.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
         _logger = logger;
     }

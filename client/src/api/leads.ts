@@ -13,9 +13,11 @@ export interface Lead {
   ownerLastName: string
   personalEmail: string
   linkedInUrl?: string
+  status: 'Lead' | 'Prospect'
   isEnriched: boolean
   enrichedAt: string | null
   importedAt: string
+  createdAt?: string
   source: string
   // RAG enrichment fields
   ownerTitle?: string
@@ -56,23 +58,33 @@ export interface Lead {
   manualInput?: string | null
   hasUploadedDocuments?: boolean
   enrichmentSources?: string | null
-  // AI Sales Approach
-  salesApproach?: string | null
-  // Owner identity (PR #23)
+  // Owner identity
   ownerLinkedInUrl?: string | null
   ownerMobile?: string | null
   internalContactName?: string | null
   internalContactRole?: string | null
-  // Operational fields (PR #23)
+  // Operational
   workingArea?: string | null
   certifications?: string | null
   pricingInfo?: string | null
   openingHours?: string | null
-  // Sales priority label + reasoning (PR #23)
+  // Sales priority
   salesPriorityLabel?: string | null
   salesPriorityReasoning?: string | null
-  // Signals (PR #23)
   signals?: string | null
+  // AI Sales Approach
+  salesApproach?: string | null
+  // Lead assignment (869ck3j4u)
+  assignedToUserId?: string | null
+  // Pipeline status (869ck3j46)
+  pipelineStatus?: string
+  // Client conversion
+  convertedToClientId?: string | null
+  // Stale-lead reminder (869ck3j52/869ck3j58)
+  reminderDate?: string | null
+  // Workflow automation (stap 1-10)
+  workflowStep?: number
+  workflowDataJson?: string | null
 }
 
 export interface LeadsResponse {
@@ -90,6 +102,7 @@ export interface LeadFilter {
   pageSize?: number
   sortBy?: string
   sortDesc?: boolean
+  assignedToUserId?: string
   hasOwner?: boolean
   hasLinkedIn?: boolean
   priorityLabel?: string
@@ -101,6 +114,20 @@ export interface LeadStats {
   notEnriched: number
 }
 
+export async function getLead(id: string): Promise<Lead> {
+  const res = await apiClient.get<Lead>(`/api/leads/${id}`)
+  return res.data
+}
+
+export async function updateLeadWorkflow(
+  id: string,
+  step?: number,
+  workflowDataJson?: string
+): Promise<{ workflowStep: number; workflowDataJson: string | null }> {
+  const res = await apiClient.patch(`/api/leads/${id}/workflow`, { step, workflowDataJson })
+  return res.data
+}
+
 export async function fetchLeads(filter: LeadFilter): Promise<LeadsResponse> {
   const params: Record<string, string | number | boolean> = {}
   if (filter.enriched !== undefined) params.enriched = filter.enriched
@@ -110,6 +137,7 @@ export async function fetchLeads(filter: LeadFilter): Promise<LeadsResponse> {
   if (filter.pageSize !== undefined) params.pageSize = filter.pageSize
   if (filter.sortBy) params.sortBy = filter.sortBy
   if (filter.sortDesc !== undefined) params.sortDesc = filter.sortDesc
+  if (filter.assignedToUserId) params.assignedToUserId = filter.assignedToUserId
   if (filter.hasOwner !== undefined) params.hasOwner = filter.hasOwner
   if (filter.hasLinkedIn !== undefined) params.hasLinkedIn = filter.hasLinkedIn
   if (filter.priorityLabel) params.priorityLabel = filter.priorityLabel
@@ -129,6 +157,59 @@ export async function importLeads(file: File): Promise<void> {
   await apiClient.post('/api/leads/import', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   })
+}
+
+export interface CsvImportRowError {
+  row: number
+  message: string
+}
+
+export interface CsvImportResult {
+  created: number
+  skipped: number
+  errors: CsvImportRowError[]
+  enrichmentJobId?: string | null
+}
+
+export async function importLeadsFromCsv(file: File): Promise<CsvImportResult> {
+  const formData = new FormData()
+  formData.append('file', file)
+  const res = await apiClient.post<CsvImportResult>('/api/leads/import', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return res.data
+}
+
+export async function exportLeads(format: 'csv' | 'xlsx', filters: LeadFilter): Promise<void> {
+  const params: Record<string, string | number | boolean> = { format }
+  if (filters.enriched !== undefined) params.enriched = filters.enriched
+  if (filters.enrichedAfter) params.enrichedAfter = filters.enrichedAfter
+  if (filters.enrichedBefore) params.enrichedBefore = filters.enrichedBefore
+  if (filters.sortBy) params.sortBy = filters.sortBy
+  if (filters.sortDesc !== undefined) params.sortDesc = filters.sortDesc
+
+  const token = localStorage.getItem('lm_token')
+  const baseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:5000'
+  const queryString = new URLSearchParams(
+    Object.entries(params).map(([k, v]) => [k, String(v)])
+  ).toString()
+  const url = `${baseUrl}/api/leads/export?${queryString}`
+
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!response.ok) throw new Error('Export failed')
+
+  const blob = await response.blob()
+  const objectUrl = URL.createObjectURL(blob)
+  const dateStr = new Date().toISOString().slice(0, 10)
+  const a = document.createElement('a')
+  a.href = objectUrl
+  a.download = `leads-${dateStr}.${format}`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 100)
 }
 
 export async function enrichLeads(ids: string[]): Promise<{ jobId: string }> {
@@ -224,5 +305,235 @@ export interface SalesApproachResult {
 
 export async function regenerateSalesApproach(leadId: string): Promise<SalesApproachResult> {
   const res = await apiClient.post<SalesApproachResult>(`/api/leads/${leadId}/regenerate-sales-approach`)
+  return res.data
+}
+
+// Duplicate detection (869ck3j4y)
+export interface DuplicateLead {
+  id: string
+  name: string
+  website: string
+  city: string
+  sector: string
+  score?: number | null
+}
+
+export interface DuplicateCheckResult {
+  duplicates: DuplicateLead[]
+}
+
+export async function createLeadWithDupCheck(
+  dto: CreateLeadDto,
+  force = false
+): Promise<{ lead: Lead } | { duplicates: DuplicateLead[] }> {
+  try {
+    const params = force ? '?force=true' : ''
+    const res = await apiClient.post<Lead>(`/api/leads${params}`, dto)
+    return { lead: res.data }
+  } catch (err: any) {
+    if (err.response?.status === 409) {
+      const data: DuplicateCheckResult = err.response.data
+      return { duplicates: data.duplicates }
+    }
+    throw err
+  }
+}
+
+export async function mergeLead(targetId: string, sourceId: string): Promise<Lead> {
+  const res = await apiClient.post<Lead>(`/api/leads/${targetId}/merge`, { sourceLeadId: sourceId })
+  return res.data
+}
+
+export async function assignLead(id: string, userId: string | null): Promise<Lead> {
+  const res = await apiClient.put<Lead>(`/api/leads/${id}/assign`, { userId })
+  return res.data
+}
+
+export interface Assignee {
+  userId: string
+  displayName: string
+  leadCount: number
+}
+
+export async function getAssignees(): Promise<Assignee[]> {
+  const res = await apiClient.get<Assignee[]>('/api/leads/assignees')
+  return res.data
+}
+
+// Users list (for assignment dropdown — uses existing GET /api/admin/users)
+export interface UserDto {
+  id: string
+  email: string
+  firstName?: string
+  lastName?: string
+  role: string
+  isActive: boolean
+}
+
+export async function fetchUsers(): Promise<UserDto[]> {
+  const res = await apiClient.get<UserDto[]>('/api/admin/users')
+  return res.data
+}
+
+export interface OutreachEmailVariant {
+  style: string
+  subject: string
+  body: string
+}
+
+export interface OutreachEmailResult {
+  variants: OutreachEmailVariant[]
+}
+
+export async function generateOutreachEmail(leadId: string): Promise<OutreachEmailResult> {
+  const res = await apiClient.post<OutreachEmailResult>(`/api/leads/${leadId}/generate-outreach`)
+  return res.data
+}
+
+export interface LeadsAnalyticsStatusItem {
+  status: string
+  count: number
+}
+
+export interface LeadsAnalyticsIndustryItem {
+  industry: string
+  count: number
+}
+
+export interface LeadsAnalyticsTimeItem {
+  date: string
+  count: number
+}
+
+export interface LeadsAnalyticsSourceItem {
+  source: string
+  count: number
+}
+
+export interface LeadsAnalyticsScoreItem {
+  industry: string
+  avgScore: number
+}
+
+export interface LeadsAnalyticsTeamItem {
+  userName: string
+  totalLeads: number
+  enrichedLeads: number
+  avgScore: number
+  wonLeads: number
+}
+
+export interface LeadsAnalytics {
+  totalLeads: number
+  enrichedLeads: number
+  avgSalesScore: number
+  leadsThisMonth: number
+  conversionRate: number
+  leadsByStatus: LeadsAnalyticsStatusItem[]
+  leadsByIndustry: LeadsAnalyticsIndustryItem[]
+  leadsOverTime: LeadsAnalyticsTimeItem[]
+  topSources: LeadsAnalyticsSourceItem[]
+  avgScoreByIndustry: LeadsAnalyticsScoreItem[]
+  teamPerformance: LeadsAnalyticsTeamItem[]
+}
+
+export async function getLeadsAnalytics(from?: string, to?: string): Promise<LeadsAnalytics> {
+  const params: Record<string, string> = {}
+  if (from) params.from = from
+  if (to) params.to = to
+  const res = await apiClient.get<LeadsAnalytics>('/api/leads/analytics', { params })
+  return res.data
+}
+
+// Activity timeline (869ck3j4b)
+export interface LeadActivity {
+  id: string
+  leadId: string
+  userId: string | null
+  activityType: string
+  note: string | null
+  createdAt: string
+}
+
+export async function getLeadActivities(leadId: string): Promise<LeadActivity[]> {
+  const res = await apiClient.get<LeadActivity[]>(`/api/leads/${leadId}/activities`)
+  return res.data
+}
+
+export async function addLeadActivity(
+  leadId: string,
+  data: { activityType: string; note?: string }
+): Promise<LeadActivity> {
+  const res = await apiClient.post<LeadActivity>(`/api/leads/${leadId}/activities`, data)
+  return res.data
+}
+
+// Pipeline (869ck3j46)
+export const PIPELINE_STATUSES = ['New', 'Contacted', 'Qualified', 'ProposalSent', 'Won', 'Lost'] as const
+export type PipelineStatus = typeof PIPELINE_STATUSES[number]
+
+export const PIPELINE_STATUS_LABELS: Record<PipelineStatus, string> = {
+  New: 'Nieuw',
+  Contacted: 'Gecontacteerd',
+  Qualified: 'Gekwalificeerd',
+  ProposalSent: 'Offerte verstuurd',
+  Won: 'Gewonnen',
+  Lost: 'Verloren',
+}
+
+export async function updateLeadPipelineStatus(leadId: string, status: string): Promise<Lead> {
+  const res = await apiClient.put<Lead>(`/api/leads/${leadId}/pipeline`, { pipelineStatus: status })
+  return res.data
+}
+
+export async function fetchLeadsByPipeline(): Promise<Lead[]> {
+  // Fetch all leads without pagination for the kanban board
+  const res = await apiClient.get<{ items: Lead[]; total: number }>('/api/leads', {
+    params: { page: 1, pageSize: 500 },
+  })
+  return res.data.items
+}
+
+// Reminder (869ck3j52/869ck3j58)
+export async function setReminder(leadId: string, reminderDate: string | null): Promise<Lead> {
+  const res = await apiClient.put<Lead>(`/api/leads/${leadId}/reminder`, { reminderDate })
+  return res.data
+}
+
+// Lead Notes
+export interface LeadNote {
+  id: string
+  leadId: string
+  content: string
+  createdAt: string
+  createdByUserId: string
+  createdByName?: string | null
+}
+
+export interface CreateLeadNoteDto {
+  content: string
+}
+
+export async function fetchLeadNotes(leadId: string): Promise<LeadNote[]> {
+  const res = await apiClient.get<LeadNote[]>(`/api/leads/${leadId}/notes`)
+  return res.data
+}
+
+export async function createLeadNote(leadId: string, dto: CreateLeadNoteDto): Promise<LeadNote> {
+  const res = await apiClient.post<LeadNote>(`/api/leads/${leadId}/notes`, dto)
+  return res.data
+}
+
+export async function deleteLeadNote(leadId: string, noteId: string): Promise<void> {
+  await apiClient.delete(`/api/leads/${leadId}/notes/${noteId}`)
+}
+
+// Lead Status
+export interface UpdateLeadStatusDto {
+  status: 'Lead' | 'Prospect'
+}
+
+export async function updateLeadStatus(leadId: string, dto: UpdateLeadStatusDto): Promise<Lead> {
+  const res = await apiClient.post<Lead>(`/api/leads/${leadId}/status`, dto)
   return res.data
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import NotificationBell from './NotificationBell'
 
 export default function Layout() {
   const { user, logout } = useAuth()
@@ -20,12 +21,15 @@ export default function Layout() {
   // Close menu on navigation
   const closeMenu = () => setMenuOpen(false)
 
-  // Nav items in correct order: Leads | Profiel | Leads zoeken | Gebruikers
+  // Nav items in correct order: Leads | Klanten | Profiel | Leads zoeken | Gebruikers
   const navItems = (
     <>
       <NavLink to="/leads" className={linkClass} end onClick={closeMenu}>Leads</NavLink>
+      <NavLink to="/clients" className={linkClass} onClick={closeMenu}>Klanten</NavLink>
       <NavLink to="/profile" className={linkClass} onClick={closeMenu}>Profiel</NavLink>
       <NavLink to="/leads/zoeken" className={linkClass} onClick={closeMenu}>Leads zoeken</NavLink>
+      <NavLink to="/leads/analytics" className={linkClass} onClick={closeMenu}>Analyse</NavLink>
+      <NavLink to="/settings" className={linkClass} onClick={closeMenu}>Instellingen</NavLink>
       {user?.role === 'Admin' && (
         <NavLink to="/admin/users" className={linkClass} onClick={closeMenu}>Gebruikers</NavLink>
       )}
@@ -35,8 +39,11 @@ export default function Layout() {
   const mobileNavItems = (
     <>
       <NavLink to="/leads" className={mobileLinkClass} end onClick={closeMenu}>Leads</NavLink>
+      <NavLink to="/clients" className={mobileLinkClass} onClick={closeMenu}>Klanten</NavLink>
       <NavLink to="/profile" className={mobileLinkClass} onClick={closeMenu}>Profiel</NavLink>
       <NavLink to="/leads/zoeken" className={mobileLinkClass} onClick={closeMenu}>Leads zoeken</NavLink>
+      <NavLink to="/leads/analytics" className={mobileLinkClass} onClick={closeMenu}>Analyse</NavLink>
+      <NavLink to="/settings" className={mobileLinkClass} onClick={closeMenu}>Instellingen</NavLink>
       {user?.role === 'Admin' && (
         <NavLink to="/admin/users" className={mobileLinkClass} onClick={closeMenu}>Gebruikers</NavLink>
       )}
@@ -63,8 +70,9 @@ export default function Layout() {
             {navItems}
           </nav>
 
-          {/* Right: user + logout + hamburger */}
+          {/* Right: notifications + user + logout + hamburger */}
           <div className="flex items-center gap-3 flex-shrink-0">
+            <NotificationBell />
             <span className="hidden sm:block text-sm text-gray-700 font-medium">{user?.firstName}</span>
             <button
               onClick={logout}

@@ -18,20 +18,10 @@ public class SearchService
         "bing.", "yahoo.", "startpage.", "yellowpages.", "trustpilot.", "glassdoor."
     ];
 
-    public SearchService(ILogger<SearchService> logger)
+    public SearchService(HttpClient http, ILogger<SearchService> logger)
     {
         _logger = logger;
-        _http = new HttpClient(new HttpClientHandler
-        {
-            AllowAutoRedirect = true,
-            ServerCertificateCustomValidationCallback = (_, _, _, _) => true
-        });
-        _http.Timeout = TimeSpan.FromSeconds(15);
-        _http.DefaultRequestHeaders.Add("User-Agent",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
-        _http.DefaultRequestHeaders.Add("Accept-Language", "nl-NL,nl;q=0.9,en;q=0.8");
-        _http.DefaultRequestHeaders.Add("Accept",
-            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8");
+        _http = http;
     }
 
     /// <summary>

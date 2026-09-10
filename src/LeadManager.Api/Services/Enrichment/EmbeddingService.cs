@@ -10,12 +10,16 @@ public class EmbeddingService
     private const int ChunkSize = 500;   // chars (approx 125 tokens)
     private const int ChunkOverlap = 80; // chars overlap
 
-    public EmbeddingService(IConfiguration configuration)
+    public EmbeddingService(HttpClient http, IConfiguration configuration)
     {
         var apiKey = configuration["OpenAI:ApiKey"] ?? throw new InvalidOperationException("OpenAI:ApiKey not configured");
-        _http = new HttpClient();
+        _http = http;
         _http.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
     }
+
+    // Hard cap on chunks per text: 10k chars of page text can never legitimately
+    // need more than this; anything beyond it means the loop is misbehaving.
+    private const int MaxChunksPerText = 200;
 
     public List<string> ChunkText(string text)
     {
@@ -23,7 +27,7 @@ public class EmbeddingService
 
         var chunks = new List<string>();
         int start = 0;
-        while (start < text.Length)
+        while (start < text.Length && chunks.Count < MaxChunksPerText)
         {
             int end = Math.Min(start + ChunkSize, text.Length);
 
@@ -39,8 +43,15 @@ public class EmbeddingService
             if (!string.IsNullOrWhiteSpace(chunk))
                 chunks.Add(chunk);
 
-            start = end - ChunkOverlap;
-            if (start >= text.Length) break;
+            // The final chunk ends the loop. The old `start = end - ChunkOverlap`
+            // stepped BACKWARD here (end == text.Length keeps start below the
+            // length forever), re-adding the same tail chunk until the process
+            // hit the memory watchdog — the actual cause of the 42.5 GB (27-08)
+            // and 09-09 restart-storm incidents.
+            if (end >= text.Length) break;
+
+            // Overlap for context, but always move forward.
+            start = Math.Max(end - ChunkOverlap, start + 1);
         }
         return chunks;
     }
