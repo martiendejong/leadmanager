@@ -28,6 +28,7 @@ export interface SalesSettings {
   callScriptSectionsJson?: string;
   emailSubjectTemplate?: string;
   emailBodyTemplate?: string;
+  clientEngagementRules?: string;
   fedhaBaseUrl?: string;
   fedhaApiKey?: string;
   fedhaDefaultProjectId?: string;

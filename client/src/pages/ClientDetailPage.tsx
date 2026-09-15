@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
-import { getClient, type Client } from '../api/clients'
+import { getClient, updateClient, type Client } from '../api/clients'
 import { useToast } from '../components/Toast'
+import {
+  ENGAGEMENT_CATEGORIES,
+  CATEGORY_DESCRIPTIONS,
+  EngagementCategoryBadge,
+  ReactiefBanner,
+} from '../components/EngagementCategory'
 import { intakeApi, type ClientIntake, type ClientBundle, STATUS_LABELS, STATUS_COLORS, PRODUCT_LABELS, BUNDLE_LABELS } from '../api/intake'
 
 function StatusBadge({ status }: { status: string }) {
@@ -57,6 +63,19 @@ export default function ClientDetailPage() {
 
   if (!client) return null
 
+  const changeCategory = async (category: string) => {
+    // PUT vervangt het hele record, dus altijd de volledige klant meesturen
+    const prev = client
+    setClient({ ...client, engagementCategory: category || null })
+    try {
+      const updated = await updateClient(client.id, { ...client, engagementCategory: category || null })
+      setClient(updated)
+    } catch {
+      setClient(prev)
+      showToast('Categorie opslaan mislukt', 'error')
+    }
+  }
+
   return (
     <div className="max-w-3xl">
       {/* Back navigation */}
@@ -77,12 +96,15 @@ export default function ClientDetailPage() {
         )}
       </div>
 
+      {client.engagementCategory === 'Reactief' && <ReactiefBanner />}
+
       {/* Client header */}
       <div className="bg-white rounded-xl border border-gray-200 p-6 mb-4">
         <div className="flex items-start justify-between mb-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">{client.name}</h1>
             <div className="flex items-center gap-2 mt-1.5">
+              <EngagementCategoryBadge category={client.engagementCategory} />
               {client.plan && (
                 <span className="text-sm text-gray-600 bg-gray-100 rounded-full px-2.5 py-0.5 font-medium">
                   {client.plan}
@@ -126,6 +148,22 @@ export default function ClientDetailPage() {
           <div>
             <span className="text-xs text-gray-500 uppercase tracking-wide font-medium">Klant sinds</span>
             <p className="text-gray-900 mt-0.5">{new Date(client.createdAt).toLocaleDateString('nl-NL')}</p>
+          </div>
+          <div>
+            <span className="text-xs text-gray-500 uppercase tracking-wide font-medium">Omgangscategorie</span>
+            <select
+              value={client.engagementCategory ?? ''}
+              onChange={e => changeCategory(e.target.value)}
+              className="block mt-0.5 border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="">Geen</option>
+              {ENGAGEMENT_CATEGORIES.map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+            {client.engagementCategory && CATEGORY_DESCRIPTIONS[client.engagementCategory] && (
+              <p className="text-xs text-gray-400 mt-1">{CATEGORY_DESCRIPTIONS[client.engagementCategory]}</p>
+            )}
           </div>
         </div>
 

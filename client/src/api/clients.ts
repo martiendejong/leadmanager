@@ -19,6 +19,7 @@ export interface Client {
   sector?: string | null
   website?: string | null
   notes?: string | null
+  engagementCategory?: string | null
   sourceLeadId?: string | null
   createdByUserId?: string | null
   createdAt: string

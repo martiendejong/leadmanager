@@ -65,6 +65,7 @@ public class SalesSettingsController : ControllerBase
         settings.CallScriptSectionsJson = dto.CallScriptSectionsJson;
         settings.EmailSubjectTemplate = dto.EmailSubjectTemplate;
         settings.EmailBodyTemplate = dto.EmailBodyTemplate;
+        settings.ClientEngagementRules = dto.ClientEngagementRules;
 
         settings.FedhaBaseUrl = dto.FedhaBaseUrl;
         settings.FedhaApiKey = dto.FedhaApiKey;
@@ -97,7 +98,8 @@ public class SalesSettingsController : ControllerBase
             settings = new SalesSettings
             {
                 UserId = userId,
-                CompanyName = "Prospergenics"
+                CompanyName = "Prospergenics",
+                ClientEngagementRules = SalesSettings.DefaultClientEngagementRules
             };
             _db.SalesSettings.Add(settings);
             await _db.SaveChangesAsync();
@@ -113,6 +115,7 @@ public class SalesSettingsController : ControllerBase
         s.QuoteNumberPrefix, s.QuoteNumberCurrent, s.QuoteValidityDays,
         s.QuoteIntroText, s.QuoteTerms, s.QuoteFooterText,
         s.CallScriptSectionsJson, s.EmailSubjectTemplate, s.EmailBodyTemplate,
+        s.ClientEngagementRules ?? SalesSettings.DefaultClientEngagementRules,
         s.FedhaBaseUrl, s.FedhaApiKey, s.FedhaDefaultProjectId
     );
 

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getClients, type Client } from '../api/clients'
 import { useToast } from '../components/Toast'
+import { EngagementCategoryBadge } from '../components/EngagementCategory'
 
 function PlanBadge({ plan }: { plan?: string | null }) {
   if (!plan) return null
@@ -70,7 +71,10 @@ export default function ClientsPage() {
                 <h3 className="font-semibold text-gray-900 group-hover:text-indigo-700 transition-colors line-clamp-1">
                   {client.name}
                 </h3>
-                <PlanBadge plan={client.plan} />
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <EngagementCategoryBadge category={client.engagementCategory} />
+                  <PlanBadge plan={client.plan} />
+                </div>
               </div>
 
               <div className="space-y-1.5 text-sm text-gray-600">

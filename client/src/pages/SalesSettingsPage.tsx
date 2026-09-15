@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { SalesSettings } from '../api/salesSettings';
 import { salesSettingsApi } from '../api/salesSettings';
 
-type Tab = 'company' | 'pricing' | 'quote' | 'script' | 'email' | 'fedha';
+type Tab = 'company' | 'pricing' | 'quote' | 'script' | 'email' | 'rules' | 'fedha';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'company', label: 'Bedrijfsgegevens' },
@@ -10,6 +10,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'quote', label: 'Offerte' },
   { id: 'script', label: 'Belscript template' },
   { id: 'email', label: 'E-mail template' },
+  { id: 'rules', label: 'Klantregels' },
   { id: 'fedha', label: 'Fedha koppeling' },
 ];
 
@@ -188,6 +189,22 @@ export default function SalesSettingsPage() {
             <Field label="Onderwerp template" value={settings.emailSubjectTemplate ?? ''} onChange={v => update({ emailSubjectTemplate: v })} />
             <p className="text-xs text-gray-400">Gebruik {'{{naam}}'}, {'{{bedrijf}}'}, {'{{offerte}}'} als variabelen.</p>
             <Field label="Berichttekst template" value={settings.emailBodyTemplate ?? ''} onChange={v => update({ emailBodyTemplate: v })} rows={10} />
+          </>
+        )}
+
+        {activeTab === 'rules' && (
+          <>
+            <p className="text-sm text-gray-500">
+              Omgangsregels voor klanten en prospects: wanneer doen we (g)een gratis werk, hoe vaak volgen we op,
+              en wat is de volgorde contract → werk. Zet een klant op categorie <strong>Reactief</strong> op de
+              klantpagina om de bijbehorende waarschuwing te tonen.
+            </p>
+            <Field
+              label="Klantregels"
+              value={settings.clientEngagementRules ?? ''}
+              onChange={v => update({ clientEngagementRules: v })}
+              rows={10}
+            />
           </>
         )}
 

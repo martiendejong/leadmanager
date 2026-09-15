@@ -19,6 +19,7 @@ public record ClientDto(
     string? Sector,
     string? Website,
     string? Notes,
+    string? EngagementCategory,
     Guid? SourceLeadId,
     string? CreatedByUserId,
     DateTime CreatedAt,
@@ -41,4 +42,5 @@ public record UpdateClientDto(
     string? City,
     string? Sector,
     string? Website,
-    string? Notes);
+    string? Notes,
+    string? EngagementCategory);
