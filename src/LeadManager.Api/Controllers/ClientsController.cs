@@ -70,6 +70,7 @@ public class ClientsController : ControllerBase
         client.Sector = dto.Sector;
         client.Website = dto.Website;
         client.Notes = dto.Notes;
+        client.EngagementCategory = dto.EngagementCategory;
 
         await _db.SaveChangesAsync();
         return Ok(MapClientDto(client));
@@ -101,6 +102,7 @@ public class ClientsController : ControllerBase
         c.Sector,
         c.Website,
         c.Notes,
+        c.EngagementCategory,
         c.SourceLeadId,
         c.CreatedByUserId,
         c.CreatedAt,

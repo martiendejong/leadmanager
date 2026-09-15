@@ -42,6 +42,15 @@ public class SalesSettings
     public string? EmailSubjectTemplate { get; set; }
     public string? EmailBodyTemplate { get; set; }
 
+    // ── Klantregels (omgangsregels rond gratis werk en opvolging) ─────
+    public string? ClientEngagementRules { get; set; }
+
+    public const string DefaultClientEngagementRules =
+        "1. Geen werk zonder afspraak · geen onderzoek, scan of herstel zonder beheercontract of betaalde opdracht vooraf. Gratis is alleen het gesprek.\n" +
+        "2. Eén bericht, geen achtervolging · bij geen reactie sturen we geen reminders. De klant gaat naar categorie Reactief (alleen op betaalde aanvraag).\n" +
+        "3. Contract eerst · bij interesse begint het gesprek bij het beheercontract of de opdracht, niet bij het werk.\n" +
+        "4. Verwachtingen expliciet · geen beheer = geen stilzwijgende verantwoordelijkheid; leg dit eenmalig schriftelijk vast richting de klant.";
+
     // ── Fedha koppeling ───────────────────────────────────────────────
     public string? FedhaBaseUrl { get; set; }
     public string? FedhaApiKey { get; set; }

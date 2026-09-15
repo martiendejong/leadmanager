@@ -28,6 +28,7 @@ public record SalesSettingsDto(
     string? CallScriptSectionsJson,
     string? EmailSubjectTemplate,
     string? EmailBodyTemplate,
+    string? ClientEngagementRules,
     string? FedhaBaseUrl,
     string? FedhaApiKey,
     string? FedhaDefaultProjectId
@@ -60,6 +61,7 @@ public record UpdateSalesSettingsDto(
     string? CallScriptSectionsJson,
     string? EmailSubjectTemplate,
     string? EmailBodyTemplate,
+    string? ClientEngagementRules,
     string? FedhaBaseUrl,
     string? FedhaApiKey,
     string? FedhaDefaultProjectId

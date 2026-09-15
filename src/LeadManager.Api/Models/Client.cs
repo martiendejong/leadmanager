@@ -12,6 +12,8 @@ public class Client
     public string? City { get; set; }
     public string? Sector { get; set; }
     public string? Notes { get; set; }
+    // Omgangscategorie: Actief / Beheercontract / Reactief (alleen op betaalde aanvraag)
+    public string? EngagementCategory { get; set; }
     public Guid? SourceLeadId { get; set; }
     public string? CreatedByUserId { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
