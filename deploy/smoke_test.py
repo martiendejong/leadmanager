@@ -111,10 +111,11 @@ def main() -> int:
             "name": f"Smoke test {stamp}", "website": f"https://smoke-{stamp}.example", "sector": "test",
             "city": "test", "phone": "0000", "companyEmail": f"smoke@smoke-{stamp}.example", "source": "smoke-test"})
         check(r.status_code == 201, "create a lead")
-        leads = s.get(base + "/api/leads", headers=jwt, timeout=30).json()
-        leads = leads if isinstance(leads, list) else leads.get("items") or leads.get("leads") or []
-        lead_id = next((l["id"] for l in leads if l["name"] == f"Smoke test {stamp}"), None)
-        check(lead_id is not None, "the lead is listed")
+        # The id comes from the create response: the list is paged (50), so on a real database the new lead
+        # is not necessarily on the first page.
+        lead_id = r.json().get("id") if r.status_code == 201 else None
+        check(lead_id is not None and s.get(f"{base}/api/leads/{lead_id}", headers=jwt, timeout=30).status_code == 200,
+              "the new lead can be read back")
 
         r = s.post(base + "/api/api-keys", headers=jwt, json={"name": f"smoke {stamp}"}, timeout=30)
         check(r.status_code == 200 and r.json().get("key", "").startswith("lm_"), "mint an API key")
