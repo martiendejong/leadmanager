@@ -24,6 +24,7 @@ export default function Layout() {
   // Nav items in correct order: Leads | Klanten | Profiel | Leads zoeken | Gebruikers
   const navItems = (
     <>
+      <NavLink to="/vandaag" className={linkClass} onClick={closeMenu}>Vandaag</NavLink>
       <NavLink to="/leads" className={linkClass} end onClick={closeMenu}>Leads</NavLink>
       <NavLink to="/clients" className={linkClass} onClick={closeMenu}>Klanten</NavLink>
       <NavLink to="/profile" className={linkClass} onClick={closeMenu}>Profiel</NavLink>
@@ -38,6 +39,7 @@ export default function Layout() {
 
   const mobileNavItems = (
     <>
+      <NavLink to="/vandaag" className={mobileLinkClass} onClick={closeMenu}>Vandaag</NavLink>
       <NavLink to="/leads" className={mobileLinkClass} end onClick={closeMenu}>Leads</NavLink>
       <NavLink to="/clients" className={mobileLinkClass} onClick={closeMenu}>Klanten</NavLink>
       <NavLink to="/profile" className={mobileLinkClass} onClick={closeMenu}>Profiel</NavLink>

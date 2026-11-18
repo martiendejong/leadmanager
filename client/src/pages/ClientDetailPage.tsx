@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { getClient, updateClient, type Client } from '../api/clients'
 import { useToast } from '../components/Toast'
+import CrmPanel from '../components/crm/CrmPanel'
 import {
   ENGAGEMENT_CATEGORIES,
   CATEGORY_DESCRIPTIONS,
@@ -319,6 +320,11 @@ export default function ClientDetailPage() {
             ))}
           </div>
         )}
+      </div>
+
+      {/* Relationship screen: next actions, conversations, contacts, links (Jengo Clients) */}
+      <div className="mt-6 max-w-5xl">
+        <CrmPanel parentType="clients" parentId={client.id} />
       </div>
     </div>
   )
