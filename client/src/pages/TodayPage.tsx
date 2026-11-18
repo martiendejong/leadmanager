@@ -58,7 +58,7 @@ export default function TodayPage() {
               <Link to={`/${r.parentType}/${r.parentId}`} className="text-sm font-semibold text-gray-900 hover:text-indigo-600">
                 {r.parentName}
               </Link>
-              <p className="text-sm text-gray-600">{r.title}</p>
+              <p className={`text-sm ${r.title.startsWith('Bel nu:') ? 'text-amber-700 font-medium' : 'text-gray-600'}`}>{r.title}</p>
               <p className={`text-xs mt-0.5 ${r.overdue ? 'text-red-600 font-medium' : 'text-gray-400'}`}>
                 {r.overdue ? 'Achterstallig · ' : ''}{fmt(r.dueAt)}
               </p>
