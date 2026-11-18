@@ -8,10 +8,10 @@ De gedeelde Caddy-gateway van de server bereikt de container via een Docker-netw
 |---|---|---|---|---|---|
 | test | https://clients-test.martiendejong.nl | 46.224.114.149 | `/opt/clients-test` | `/opt/jengo-gateway` (`proxy_net`) | `test-clients` |
 | acc | https://clients-acc.martiendejong.nl | 46.224.114.149 | `/opt/clients-acc` | idem | `acc-clients` |
-| prod | https://clients.prospergenics.com | 46.62.219.14 | `/opt/clients-prod` | `/opt/maaride-gateway` (`maaride_net`) | `prod-clients` |
+| prod | https://leads.prospergenics.com (ook `api.leads...` en `clients.prospergenics.com`) | 46.62.219.14 | `/opt/clients-prod` | `/opt/maaride-gateway` (`maaride_net`) | `prod-clients` |
 
-Test en acc starten leeg, zonder AI-sleutels en zonder koppelingen. Prod is een nieuwe, aparte installatie;
-`leads.prospergenics.com` (Windows/IIS) blijft ongemoeid tot er bewust wordt overgeschakeld (zie onderaan).
+Test en acc starten leeg, zonder AI-sleutels en zonder koppelingen. Prod draait sinds 19-11-2026 op de data van de
+oude Windows-installatie (zie "Overstap" onderaan).
 
 ## Eerste keer per omgeving
 
@@ -133,11 +133,22 @@ cp backups/<tijdstempel>/db/leadmanager.db data/leadmanager.db
 docker compose up -d
 ```
 
-## Overschakelen van de Windows-installatie (nog te doen, bewust niet automatisch)
+## Overstap van de Windows-installatie (gedaan 19-11-2026)
 
-De bestaande installatie (`leads.prospergenics.com`, 85.215.217.154, SQLite in
-`C:\stores\leadmanager\data\leadmanager.db`) is een aparte omgeving met echte data. Overschakelen betekent:
-database kopiëren naar `/opt/clients-prod/deploy/data/`, `leads.prospergenics.com` omzetten of laten
-doorverwijzen, en de IAM-client `leadmanager` bijwerken. Dat gebeurt alleen op uitdrukkelijke opdracht.
-Na de overstap zijn de oude admin-wachtwoorden uit de git-historie niet meer relevant, maar rotatie op de
-oude installatie blijft nodig zolang die draait.
+`leads.prospergenics.com` was LeadManager als Windows-service achter IIS op 85.215.217.154. Sinds 19-11-2026 is dat
+dezelfde app als Docker-stack op de prodserver.
+
+- **Data:** de database (101 leads, 1 klant, 2 gebruikers, geïndexeerde pagina's en meldingen) is na een schone
+  stop van de oude service gekopieerd (integriteit gecontroleerd, checksum identiek) en bij de start door de nieuwe
+  migraties heen gehaald. Alles was van `info@martiendejong.nl`; die ziet dus zijn eigen leads, ook via IAM-login.
+- **Wachtwoorden:** de oude admin-wachtwoorden stonden in git. Beide admin-accounts zijn bij de overstap met de
+  eenmalige reset op nieuwe, willekeurige wachtwoorden gezet (vault project 12). Andere gebruikers bestonden niet.
+- **DNS:** `leads.prospergenics.com` en `api.leads.prospergenics.com` wijzen naar 46.62.219.14 (alleen DNS);
+  `clients.prospergenics.com` blijft werken. De hoofdnaam (`PUBLIC_URL`, SSO-callback) is `leads.prospergenics.com`.
+- **Oude installatie:** gearchiveerd, niet verwijderd, in `C:\archive\leadmanager-20261119` op 85.215.217.154 (878 MB):
+  de hele map, de database zoals ze was, de watchdog, en de geëxporteerde IIS-sites, app pools, geplande taak en
+  service (`config\`), met een README met herstelstappen. IIS-sites `leads` en `LeadManagerAPI`, hun app pools, de
+  service `LeadManagerApi` en de taak `LeadManagerMemWatch` zijn verwijderd. De overige IIS-sites zijn ongemoeid.
+- **Terugdraaien** kan alleen samen met DNS terug naar 85.215.217.154; zie de README in het archief.
+- Sessies: de JWT-sleutel is nieuw, dus iedereen logt één keer opnieuw in (met IAM of met zijn wachtwoord).
+- Let op: de certificaatverlenging van win-acme op de oude server voor `leads` en `api.leads` heeft geen doel meer.

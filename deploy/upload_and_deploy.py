@@ -49,13 +49,16 @@ TEST_ACC_IP = "46.224.114.149"
 PROD_IP = "46.62.219.14"
 
 ENVS = {
-    "test": dict(ip=TEST_ACC_IP, url="https://clients-test.martiendejong.nl", host="clients-test.martiendejong.nl",
+    "test": dict(ip=TEST_ACC_IP, url="https://clients-test.martiendejong.nl", host="clients-test.martiendejong.nl", aliases=[],
                  zone="martiendejong.nl", network="proxy_net", gateway_dir="/opt/jengo-gateway",
                  caddy="jengo-gateway-caddy-1"),
-    "acc": dict(ip=TEST_ACC_IP, url="https://clients-acc.martiendejong.nl", host="clients-acc.martiendejong.nl",
+    "acc": dict(ip=TEST_ACC_IP, url="https://clients-acc.martiendejong.nl", host="clients-acc.martiendejong.nl", aliases=[],
                 zone="martiendejong.nl", network="proxy_net", gateway_dir="/opt/jengo-gateway",
                 caddy="jengo-gateway-caddy-1"),
-    "prod": dict(ip=PROD_IP, url="https://clients.prospergenics.com", host="clients.prospergenics.com",
+    # Since 2026-11-19 prod IS leads.prospergenics.com (the old Windows installation was archived). The other
+    # names reach the same container; the canonical address is the primary host (PUBLIC_URL, SSO callback).
+    "prod": dict(ip=PROD_IP, url="https://leads.prospergenics.com", host="leads.prospergenics.com",
+                 aliases=["api.leads.prospergenics.com", "clients.prospergenics.com"],
                  zone="prospergenics.com", network="maaride_net", gateway_dir="/opt/maaride-gateway",
                  caddy="maaride-gateway-caddy-1"),
 }
@@ -239,23 +242,24 @@ def cmd_dns(args) -> None:
     if not zones.get("success") or not zones["result"]:
         raise SystemExit(f"zone {cfg['zone']} not found / no access: {zones.get('errors')}")
     zone_id = zones["result"][0]["id"]
-    record = {"type": "A", "name": cfg["host"], "content": cfg["ip"], "ttl": 300, "proxied": False}
-    existing = requests.get(f"{api}/zones/{zone_id}/dns_records", params={"type": "A", "name": cfg["host"]},
-                            headers=headers, timeout=30).json()["result"]
-    if existing:
-        r = requests.put(f"{api}/zones/{zone_id}/dns_records/{existing[0]['id']}", json=record, headers=headers, timeout=30)
-        action = "updated"
-    else:
-        r = requests.post(f"{api}/zones/{zone_id}/dns_records", json=record, headers=headers, timeout=30)
-        action = "created"
-    if not r.json().get("success"):
-        raise SystemExit(f"Cloudflare refused: {r.json().get('errors')}")
-    print(f"[dns] {action}: {cfg['host']} A {cfg['ip']} (DNS only)")
+    for host in [cfg["host"], *cfg["aliases"]]:
+        record = {"type": "A", "name": host, "content": cfg["ip"], "ttl": 300, "proxied": False}
+        existing = requests.get(f"{api}/zones/{zone_id}/dns_records", params={"type": "A", "name": host},
+                                headers=headers, timeout=30).json()["result"]
+        if existing:
+            r = requests.put(f"{api}/zones/{zone_id}/dns_records/{existing[0]['id']}", json=record, headers=headers, timeout=30)
+            action = "updated"
+        else:
+            r = requests.post(f"{api}/zones/{zone_id}/dns_records", json=record, headers=headers, timeout=30)
+            action = "created"
+        if not r.json().get("success"):
+            raise SystemExit(f"Cloudflare refused: {r.json().get('errors')}")
+        print(f"[dns] {action}: {host} A {cfg['ip']} (DNS only)")
 
 
 def caddy_block(env: str) -> str:
     cfg = ENVS[env]
-    return (f"\n{cfg['host']} {{\n"
+    return (f"\n{', '.join([cfg['host'], *cfg['aliases']])} {{\n"
             f"    encode zstd gzip\n"
             f"    reverse_proxy {env}-clients:8080 {{\n"
             f"        header_up X-Forwarded-For {{remote_host}}\n"
@@ -265,13 +269,25 @@ def caddy_block(env: str) -> str:
             f"}}\n")
 
 
+def has_site(caddyfile: str, host: str) -> bool:
+    """True when `host` is one of the addresses of a real site block (also in `a.com, b.com {`), not when it is
+    only mentioned in a comment or is a longer host name."""
+    for line in caddyfile.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("#") or not stripped.endswith("{"):
+            continue
+        if host in [part.strip() for part in stripped[:-1].split(",")]:
+            return True
+    return False
+
+
 def cmd_gateway(args) -> None:
     cfg = ENVS[args.env]
     ssh = connect(cfg["ip"])
     path = f"{cfg['gateway_dir']}/Caddyfile"
     current = read_text(ssh, path)
     # A real site block, not a substring: a comment or a longer host name must not count as "already there".
-    if re.search(rf"(?m)^{re.escape(cfg['host'])}\s*\{{", current):
+    if has_site(current, cfg["host"]):
         print(f"[gateway] {cfg['host']} is already in {path}; nothing to do.")
         ssh.close()
         return
