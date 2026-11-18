@@ -19,8 +19,15 @@ namespace LeadManager.Api.Mcp;
 /// one set of rules: ownership, validation, limits, idempotency (SourceRef), UTC timestamps. A tool can never
 /// do more than the REST endpoint it wraps.
 /// </summary>
+[RequestSizeLimit(McpRequestGuard.MaxBodyBytes)]
 public class LeadManagerMcpController : McpControllerBase
 {
+    private static readonly HashSet<string> KnownTools = new()
+    {
+        "search_leads", "find_by_email_or_domain", "get_lead", "create_lead", "log_interaction",
+        "add_next_action", "complete_next_action", "next_actions_today", "add_contact", "link_item",
+    };
+
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { WriteIndented = false };
 
     private readonly LeadManagerDbContext _db;
@@ -125,7 +132,9 @@ public class LeadManagerMcpController : McpControllerBase
     protected override async Task<(string text, bool isError)> CallToolAsync(
         string name, JsonElement args, McpPrincipal principal, CancellationToken ct)
     {
-        _logger.LogInformation("MCP tool {Tool} for user {UserId}", name, principal.Subject);
+        // The name comes from the caller: log it only when it is a tool we know, so a hostile client cannot
+        // forge log lines or bloat the log with it.
+        _logger.LogInformation("MCP tool {Tool} for user {UserId}", KnownTools.Contains(name) ? name : "(unknown)", principal.Subject);
         var userId = principal.Subject;
 
         try
