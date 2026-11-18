@@ -1,0 +1,20 @@
+# Bouwcontext klein en vrij van geheimen houden.
+.git
+.gitignore
+.vs
+**/bin
+**/obj
+**/node_modules
+client/dist
+client/dist-ssr
+
+# Lokale en server-specifieke bestanden
+**/*.db
+**/*.db-shm
+**/*.db-wal
+deploy/.env
+deploy/data
+deploy/backups
+deploy/appsettings.Production.json
+deploy-secrets.json
+*.log

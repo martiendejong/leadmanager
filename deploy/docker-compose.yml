@@ -1,0 +1,44 @@
+# Jengo Clients · één stack per omgeving (test / acc / prod), elk in een eigen map met een eigen .env.
+# De stack publiceert geen poorten: de gedeelde Caddy-gateway op de server bereikt de container via het
+# externe Docker-netwerk onder de alias ${ENV_PREFIX}-clients (zie deploy/README.md).
+name: clients-${ENV_PREFIX}
+
+services:
+  api:
+    build:
+      context: ..
+    image: jengo-clients:${ENV_PREFIX}
+    restart: unless-stopped
+    # LeadManager heeft eerder 42 GB geheugen opgeslokt door een oneindige lus (incident 27-08, gefixt
+    # in PR #45). Een harde grens zorgt dat een volgende bug alleen deze container raakt, niet de
+    # buren op een gedeelde server.
+    mem_limit: ${MEM_LIMIT:-768m}
+    environment:
+      Jwt__Key: ${JWT_KEY}
+      Jwt__Issuer: ${JWT_ISSUER:-LeadManager}
+      Jwt__Audience: ${JWT_AUDIENCE:-LeadManagerClient}
+      # Eerste beheerder. Zonder deze twee waarden wordt er geen account aangemaakt (geen standaardwachtwoord).
+      Seed__Admins__0__Email: ${ADMIN_EMAIL}
+      Seed__Admins__0__Password: ${ADMIN_PASSWORD}
+      Seed__Admins__0__FirstName: ${ADMIN_FIRST_NAME:-Admin}
+      Cors__Origins__0: ${PUBLIC_URL}
+      Sso__CallbackBaseUrl: ${PUBLIC_URL}
+      Sso__Issuer: ${SSO_ISSUER:-https://maendeleo.martiendejong.nl}
+      Sso__ClientId: ${SSO_CLIENT_ID:-leadmanager}
+      # Optioneel. Leeg = die functie staat uit. Op test bewust leeg laten.
+      OpenAI__ApiKey: ${OPENAI_API_KEY:-}
+      GooglePlaces__ApiKey: ${GOOGLE_PLACES_API_KEY:-}
+      JengoWork__BaseUrl: ${JENGOWORK_BASE_URL:-}
+      JengoWork__ApiKey: ${JENGOWORK_API_KEY:-}
+      MinoxPoc__BaseUrl: ${MINOX_POC_BASE_URL:-}
+    volumes:
+      - ./data:/data
+    networks:
+      gateway:
+        aliases:
+          - ${ENV_PREFIX}-clients
+
+networks:
+  gateway:
+    external: true
+    name: ${GATEWAY_NETWORK}

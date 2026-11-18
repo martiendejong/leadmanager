@@ -1,0 +1,34 @@
+# Jengo Clients-blokken voor de gedeelde Caddy-gateway. upload_and_deploy.py zet ze met `gateway <env>`
+# zelf in de Caddyfile (met backup en validatie). Handmatig kan ook: plak het blok van de omgeving in de
+# Caddyfile van de gateway op die server en herlaad Caddy
+# (docker exec <caddy> caddy reload --config /etc/caddy/Caddyfile).
+# Caddy regelt de certificaten zelf zodra het DNS-record naar de server wijst.
+#
+# Let op: de Caddyfile is als los bestand in de container gemount: bewerk hem op de host IN-PLACE
+# (geen `sed -i`, dat maakt een nieuw bestand dat de container niet ziet) of herstart de gateway daarna.
+
+# --- test/acc-server (46.224.114.149, gateway /opt/jengo-gateway) ---
+clients-test.martiendejong.nl {
+    encode zstd gzip
+    reverse_proxy test-clients:8080 {
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+}
+
+clients-acc.martiendejong.nl {
+    encode zstd gzip
+    reverse_proxy acc-clients:8080 {
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+}
+
+# --- productieserver (46.62.219.14, gateway /opt/maaride-gateway) ---
+clients.prospergenics.com {
+    encode zstd gzip
+    reverse_proxy prod-clients:8080 {
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+}

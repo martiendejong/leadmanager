@@ -8,6 +8,7 @@ using LeadManager.Api.Services.Enrichment;
 using LeadManager.Api.Services.Profile;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -16,21 +17,55 @@ using System.Text;
 var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseWindowsService();
 
-// CORS
+// CORS. The built-in origins stay; deployments add their own through Cors:Origins (Docker sets its
+// public URL). In the Docker setup the frontend is served by this same host, so CORS is rarely needed.
+var corsOrigins = new[]
+    {
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "https://leads.prospergenics.com",
+        "http://leads.prospergenics.com",
+    }
+    .Concat(builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? Array.Empty<string>())
+    .Where(o => !string.IsNullOrWhiteSpace(o))
+    .Select(o => o.Trim().TrimEnd('/'))
+    .Distinct(StringComparer.OrdinalIgnoreCase)
+    .ToArray();
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.WithOrigins(
-                  "http://localhost:5173",
-                  "http://localhost:5174",
-                  "https://leads.prospergenics.com",
-                  "http://leads.prospergenics.com")
+        policy.WithOrigins(corsOrigins)
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();
     });
 });
+
+// Behind the Caddy gateway the app sees plain http from the proxy. With Proxy:TrustForwardedHeaders=true
+// (set in the Docker image) it believes X-Forwarded-Proto/For, so generated URLs and client IPs are right.
+// Off by default: on a directly exposed host those headers could be spoofed.
+var trustForwardedHeaders = builder.Configuration.GetValue<bool>("Proxy:TrustForwardedHeaders");
+if (trustForwardedHeaders)
+{
+    builder.Services.Configure<Microsoft.AspNetCore.Builder.ForwardedHeadersOptions>(o =>
+    {
+        o.ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor
+                             | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto;
+        o.KnownNetworks.Clear();
+        o.KnownProxies.Clear();
+    });
+}
+
+// Data Protection keys (password-reset tokens, etc.) must survive a container recreate: Docker points
+// this at the data volume. Unset = framework default, as before on Windows.
+var dataProtectionPath = builder.Configuration["DataProtection:KeysPath"];
+if (!string.IsNullOrWhiteSpace(dataProtectionPath))
+{
+    builder.Services.AddDataProtection()
+        .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionPath))
+        .SetApplicationName("LeadManager");
+}
 
 // EF Core + SQLite
 builder.Services.AddDbContext<LeadManagerDbContext>(options =>
@@ -270,8 +305,34 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "LeadManager API v1"));
 }
 
+if (trustForwardedHeaders)
+    app.UseForwardedHeaders();
+
 if (app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
+
+// Single-page app: when the frontend build is present in wwwroot (the Docker image), this host serves
+// it. index.html is never cached, so a deploy is visible at once; the hashed assets cache normally.
+var spaEnabled = app.Environment.WebRootPath != null
+                 && File.Exists(Path.Combine(app.Environment.WebRootPath, "index.html"));
+var staticFiles = new StaticFileOptions
+{
+    OnPrepareResponse = ctx =>
+    {
+        if (ctx.File.Name.Equals("index.html", StringComparison.OrdinalIgnoreCase))
+            ctx.Context.Response.Headers.CacheControl = "no-cache, no-store, must-revalidate";
+    },
+};
+if (spaEnabled)
+{
+    app.UseDefaultFiles();
+    app.UseStaticFiles(staticFiles);
+}
+
+// Routing is added explicitly, AFTER the static files. The implicit one runs first, and then the SPA
+// fallback below already matches every path (also /assets/app.js), so static files would be skipped and
+// the browser would get index.html instead of the script.
+app.UseRouting();
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
@@ -316,6 +377,11 @@ RecurringJob.AddOrUpdate<StaleLeadJobService>(
 
 app.MapControllers();
 app.MapHub<EnrichmentHub>("/hubs/enrichment");
+
+// Client-side routes (/leads/123, /vandaag, ...) fall back to the SPA. API, hub and tooling paths do not:
+// an unknown /api/... must stay a 404 for API clients, not an HTML page with status 200.
+if (spaEnabled)
+    app.MapFallbackToFile("{*path:regex(^(?!api/|hubs/|hangfire|swagger).*$)}", "index.html", staticFiles);
 
 // Health endpoint
 var appVersion = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "unknown";
