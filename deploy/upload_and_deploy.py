@@ -114,7 +114,7 @@ def put_bytes(ssh: paramiko.SSHClient, data: bytes, path: str, mode: int | None 
     with sftp.open(path, "wb") as fh:
         # Permissions first, content second: a secret file is never readable by others, not even briefly.
         if mode is not None:
-            sftp.chmod(path, mode)
+            fh.chmod(mode)
         fh.write(data)
     sftp.close()
 
@@ -266,19 +266,30 @@ def cmd_gateway(args) -> None:
     backup = f"{path}.bak-{stamp}-clients"
     run(ssh, f"cp -p {path} {backup}", show=False)
     validate = f"docker exec {cfg['caddy']} caddy validate --config /etc/caddy/Caddyfile"
+    staged = f"{path}.new-{stamp}-clients"
     try:
-        # Written in place through SFTP (same inode): the Caddyfile is a single-file bind mount.
-        put_bytes(ssh, (current.rstrip("\n") + "\n" + caddy_block(args.env)).encode(), path)
+        # The new content goes to a separate file first: a transfer that breaks halfway leaves a harmless
+        # temp file, never a half-written Caddyfile. The swap itself is one `cat` on the server, in place
+        # (same inode, the Caddyfile is a single-file bind mount).
+        put_bytes(ssh, (current.rstrip("\n") + "\n" + caddy_block(args.env)).encode(), staged)
+        run(ssh, f"cat {staged} > {path}", show=False)
         rc, _ = run(ssh, validate, show=False, check=False)
         if rc != 0:
             raise RuntimeError("Caddy rejected the new config")
         run(ssh, f"docker exec {cfg['caddy']} caddy reload --config /etc/caddy/Caddyfile", show=False)
+        run(ssh, f"rm -f {staged}", show=False, check=False)
     except BaseException as err:
-        # ANY failure (a dropped connection mid-write included) puts the old file back. On prod this file is
-        # shared with MaaRide: a half-written Caddyfile would break every site at the next reload.
-        put_bytes(ssh, current.encode(), path)
-        rc, _ = run(ssh, validate, show=False, check=False)
-        ssh.close()
+        # ANY failure puts the old file back, over a FRESH connection: the one that just failed may be the
+        # broken part. On prod this file is shared with MaaRide, so a bad Caddyfile breaks every site.
+        try:
+            ssh.close()
+        except Exception:
+            pass
+        fresh = connect(cfg["ip"])
+        run(fresh, f"cat {backup} > {path}", show=False)
+        rc, _ = run(fresh, validate, show=False, check=False)
+        run(fresh, f"rm -f {staged}", show=False, check=False)
+        fresh.close()
         raise SystemExit(f"[gateway] {err}; the old Caddyfile is restored "
                          f"({'valid' if rc == 0 else 'STILL INVALID: restore ' + backup + ' by hand'}).")
     print(f"[gateway] {cfg['host']} added to {path} and Caddy reloaded (backup: {backup})")
@@ -329,7 +340,10 @@ def cmd_promote(args) -> None:
     if not match:
         raise SystemExit(f"cannot read the revision of acc: {acc_rev!r}")
     acc_lm, acc_ws = match.groups()
-    _, acc_image = run(acc, "docker image inspect --format '{{.Id}}' jengo-clients:acc", show=False)
+    # Layers, not the image id: with the containerd image store the id is a manifest digest that may differ
+    # after save/load while the content is identical.
+    inspect = "docker image inspect --format '{{json .RootFS.Layers}}' jengo-clients:acc"
+    _, acc_image = run(acc, inspect, show=False)
 
     # Stream the image: docker save | gzip on acc  ->  gunzip | docker load on prod.
     src = acc.get_transport().open_session()
@@ -354,12 +368,11 @@ def cmd_promote(args) -> None:
         raise SystemExit(f"image transfer failed: {out.decode(errors='replace')}")
     print(f"[promote] transferred {total / 1e6:.0f} MB: {out.decode(errors='replace').strip()}")
     # The image that passed the tests on acc must be the image that arrives: compare content ids.
-    _, prod_image = run(prod, "docker image inspect --format '{{.Id}}' jengo-clients:acc", show=False)
-    if acc_image.strip() != prod_image.strip():
-        raise SystemExit(f"image id differs after transfer (acc {acc_image.strip()[:19]}, prod {prod_image.strip()[:19]}); "
-                         f"nothing was started.")
+    _, prod_image = run(prod, inspect, show=False)
+    if not acc_image.strip() or acc_image.strip() != prod_image.strip():
+        raise SystemExit("image layers differ after transfer; nothing was started.")
     run(prod, "docker tag jengo-clients:acc jengo-clients:prod", show=False)
-    print(f"[promote] verified: image {prod_image.strip()[:19]} is identical on both servers")
+    print(f"[promote] verified: all {acc_image.count(',') + 1} layers are identical on both servers")
 
     # Same source revision as acc (compose file, scripts), then start without building.
     upload_source(prod, "prod", args.ref or acc_lm, acc_ws)

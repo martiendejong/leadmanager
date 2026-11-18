@@ -24,6 +24,8 @@ echo "[deploy] omgeving: $ENV_PREFIX  url: $PUBLIC_URL"
 # De container draait als gebruiker 'app' (uid 1654) en moet in het datavolume kunnen schrijven.
 mkdir -p data backups
 chown -R 1654:1654 data
+# De database en de sleutels zijn alleen voor de app (uid 1654) en root leesbaar.
+chmod 700 data
 
 ./backup.sh
 
@@ -33,25 +35,33 @@ else
     docker compose up -d --build
 fi
 
-echo "[deploy] wachten tot de container gezond is"
-i=0
-until [ "$(docker inspect -f '{{.State.Health.Status}}' "clients-$ENV_PREFIX-api-1" 2>/dev/null)" = "healthy" ]; do
-    i=$((i + 1))
-    if [ "$i" -gt 40 ]; then
-        echo "[deploy] MISLUKT: container wordt niet gezond"
-        docker compose logs --tail 60 api
-        exit 1
-    fi
-    sleep 3
-done
+wacht_gezond() {
+    echo "[deploy] wachten tot de container gezond is"
+    i=0
+    until [ "$(docker inspect -f '{{.State.Health.Status}}' "clients-$ENV_PREFIX-api-1" 2>/dev/null)" = "healthy" ]; do
+        i=$((i + 1))
+        if [ "$i" -gt 40 ]; then
+            echo "[deploy] MISLUKT: container wordt niet gezond"
+            docker compose logs --tail 60 api
+            exit 1
+        fi
+        sleep 3
+    done
+}
+wacht_gezond
 
 docker compose exec -T api curl -fsS http://localhost:8080/api/health
 
 # Herstelschakelaar (init-env --force) geldt voor precies één start: haal hem weg zodat een volgende
 # herstart het beheerderswachtwoord niet opnieuw overschrijft.
+# Compose bakt de variabele in de container: alleen uit .env halen is niet genoeg, want elke herstart van
+# DEZE container (reboot, OOM, restart-beleid) zou het wachtwoord opnieuw overschrijven. Daarom de container
+# opnieuw aanmaken, nu zonder de schakelaar.
 if grep -q "^SEED_RESET_PASSWORDS=true" .env; then
     sed -i "/^SEED_RESET_PASSWORDS=/d" .env
-    echo "[deploy] SEED_RESET_PASSWORDS uit .env gehaald (eenmalig)"
+    docker compose up -d --no-build --force-recreate
+    wacht_gezond
+    echo "[deploy] SEED_RESET_PASSWORDS was eenmalig: .env opgeschoond en container opnieuw aangemaakt zonder"
 fi
 echo
 echo "[deploy] klaar: $ENV_PREFIX draait $(cat ../REVISION 2>/dev/null || echo onbekend)"

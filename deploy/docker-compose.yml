@@ -13,7 +13,7 @@ services:
     # in PR #45). Een harde grens zorgt dat een volgende bug alleen deze container raakt, niet de
     # buren op een gedeelde server.
     mem_limit: ${MEM_LIMIT:-768m}
-    pids_limit: 256
+    pids_limit: 512
     # De app hoeft niets bijzonders: geen extra rechten en geen privilege-escalatie.
     cap_drop:
       - ALL
