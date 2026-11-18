@@ -59,6 +59,13 @@ public class CrmImportController : CrmControllerBase
         if (request?.Leads == null || request.Leads.Count == 0) return BadRequest("No leads supplied");
         if (request.Leads.Count > MaxLeads) return BadRequest($"At most {MaxLeads} leads per import");
 
+        // JSON allows null inside arrays ({"leads":[null]}); that is a malformed payload, not a row to report.
+        if (request.Leads.Any(l => l == null
+                                   || (l.Contacts?.Any(c => c == null) ?? false)
+                                   || (l.Interactions?.Any(i => i == null) ?? false)
+                                   || (l.NextActions?.Any(a => a == null) ?? false)))
+            return BadRequest("The import contains null entries in leads, contacts, interactions or next actions");
+
         var children = request.Leads.Sum(l => (l.Contacts?.Count ?? 0) + (l.Interactions?.Count ?? 0) + (l.NextActions?.Count ?? 0));
         if (children > MaxChildrenInTotal) return BadRequest($"At most {MaxChildrenInTotal} contacts, interactions and actions per import");
 
@@ -76,6 +83,12 @@ public class CrmImportController : CrmControllerBase
             }
             var rowProblems = new List<string>();
             if (TooLong(name, MaxName)) rowProblems.Add($"Name is too long (max {MaxName})");
+            foreach (var (field, value) in new[]
+                     {
+                         ("Sector", item.Sector), ("City", item.City), ("Phone", item.Phone),
+                         ("Email", item.Email), ("Source", item.Source),
+                     })
+                if (TooLong(Clean(value), MaxName)) rowProblems.Add($"{field} is too long (max {MaxName})");
             if (!TryNormalizeWebsite(item.Website, out var website))
                 rowProblems.Add("Website must be an http or https URL");
             if ((item.Contacts?.Count ?? 0) > MaxContactsPerLead) rowProblems.Add($"At most {MaxContactsPerLead} contacts per lead");
@@ -251,6 +264,7 @@ public class CrmImportController : CrmControllerBase
             var title = Clean(a.Title);
             if (title == null) { state.Problems.Add("Next action without title skipped"); continue; }
             if (TooLong(title, MaxTitle)) { state.Problems.Add("Next action skipped: title is too long"); continue; }
+            if (a.DueAt == default) { state.Problems.Add($"Next action '{title}' skipped: DueAt is required"); continue; }
 
             var due = UtcDateTimeConverter.Normalize(a.DueAt);
             // Compared with ALL actions including completed ones: ticking an action off must not make

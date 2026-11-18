@@ -45,6 +45,9 @@ public class NextActionsController : CrmControllerBase
         var title = Clean(dto.Title);
         if (title == null) return BadRequest("Title is required");
         if (TooLong(title, MaxTitle)) return BadRequest($"Title is too long (max {MaxTitle})");
+        // A body without dueAt binds to DateTime.MinValue: the action would be overdue forever and sit at
+        // the top of the Vandaag list.
+        if (dto.DueAt == default) return BadRequest("DueAt is required");
 
         if (dto.ContactId.HasValue)
         {
@@ -77,6 +80,7 @@ public class NextActionsController : CrmControllerBase
 
         var title = Clean(dto.Title);
         if (TooLong(title, MaxTitle)) return BadRequest($"Title is too long (max {MaxTitle})");
+        if (dto.DueAt.HasValue && dto.DueAt.Value == default) return BadRequest("DueAt is not a valid date");
         if (title != null) action.Title = title;
         if (dto.DueAt.HasValue) action.DueAt = UtcDateTimeConverter.Normalize(dto.DueAt.Value);
 

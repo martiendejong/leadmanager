@@ -67,7 +67,20 @@ public static class AdminSeeder
                 var token = await users.GeneratePasswordResetTokenAsync(user);
                 var result = await users.ResetPasswordAsync(user, token, password);
                 if (result.Succeeded)
-                    logger.LogWarning("Admin {Email}: password reset because Seed:ResetExistingPasswords is true.", email);
+                {
+                    // Recovery must also work for an admin who is locked out or was deactivated.
+                    user.IsActive = true;
+                    var updated = await users.UpdateAsync(user);
+                    var unlocked = await users.SetLockoutEndDateAsync(user, null);
+                    var cleared = await users.ResetAccessFailedCountAsync(user);
+                    if (updated.Succeeded && unlocked.Succeeded && cleared.Succeeded)
+                        logger.LogWarning("Admin {Email}: password reset, account reactivated and unlocked because " +
+                                          "Seed:ResetExistingPasswords is true. Remove the switch after this start.", email);
+                    else
+                        logger.LogError("Admin {Email}: password was reset but the account could not be reactivated or " +
+                                        "unlocked: {Errors}", email,
+                            string.Join("; ", updated.Errors.Concat(unlocked.Errors).Concat(cleared.Errors).Select(e => e.Description)));
+                }
                 else
                     logger.LogError("Admin {Email}: password reset failed: {Errors}", email,
                         string.Join("; ", result.Errors.Select(e => e.Description)));

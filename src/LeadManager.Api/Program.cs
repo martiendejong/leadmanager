@@ -141,6 +141,15 @@ builder.Services.AddAuthentication()
 builder.Services.AddAuthorization();
 builder.Services.AddScoped<CrmParentAccess>();
 
+// MCP server (/mcp): agents and other Jengo tools. The access token is one of the user's API keys.
+builder.Services.AddSingleton(new JengoComponents.McpConnector.McpConnectorOptions
+{
+    ServerName = "jengo-clients",
+    ServerVersion = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0",
+    Realm = "JengoClients",
+});
+builder.Services.AddScoped<JengoComponents.McpConnector.IMcpTokenValidator, LeadManager.Api.Mcp.ApiKeyTokenValidator>();
+
 // JWT service
 builder.Services.AddScoped<JwtService>();
 
@@ -336,6 +345,9 @@ app.UseRouting();
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Size and shape limits for /mcp (body cap, batch cap, malformed JSON-RPC) before the connector sees it.
+app.UseMiddleware<LeadManager.Api.Mcp.McpRequestGuard>();
 
 // An API key only reaches endpoints marked [AllowApiKey] (the CRM). Anywhere else it gets 403,
 // whatever the user behind the key is allowed to do. Anonymous endpoints (health) stay open.
