@@ -6,6 +6,7 @@ using LeadManager.Api.Models;
 using LeadManager.Api.Services;
 using LeadManager.Api.Services.Enrichment;
 using LeadManager.Api.Services.Profile;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -52,8 +53,23 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 var jwtKey = builder.Configuration["Jwt:Key"]!;
 builder.Services.AddAuthentication(options =>
 {
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    // "Smart" forwards to API key when the X-Api-Key header is present, otherwise to JWT.
+    // [Authorize] therefore accepts both, while an explicit [Authorize(AuthenticationSchemes=
+    // Bearer)] (ApiKeysController) stays JWT only. Do NOT widen DefaultPolicy instead: ASP.NET
+    // merges the default policy into attribute policies, which would let API keys through there.
+    options.DefaultAuthenticateScheme = ApiKeyDefaults.SmartScheme;
+    options.DefaultChallengeScheme = ApiKeyDefaults.SmartScheme;
+})
+.AddPolicyScheme(ApiKeyDefaults.SmartScheme, "JWT or API key", options =>
+{
+    // A Bearer token always wins, so a valid login is never broken by a stale X-Api-Key header.
+    options.ForwardDefaultSelector = context =>
+    {
+        var authorization = context.Request.Headers.Authorization.ToString();
+        var hasBearer = authorization.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase);
+        var hasKey = !string.IsNullOrWhiteSpace(context.Request.Headers[ApiKeyDefaults.HeaderName].ToString());
+        return !hasBearer && hasKey ? ApiKeyDefaults.Scheme : JwtBearerDefaults.AuthenticationScheme;
+    };
 })
 .AddJwtBearer(options =>
 {
@@ -83,7 +99,12 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
+// API keys for agents and other Jengo tools (X-Api-Key). The key acts as the user that
+// created it, so per-user ownership rules apply unchanged. See the "Smart" scheme above.
+builder.Services.AddAuthentication()
+    .AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(ApiKeyDefaults.Scheme, null);
 builder.Services.AddAuthorization();
+builder.Services.AddScoped<CrmParentAccess>();
 
 // JWT service
 builder.Services.AddScoped<JwtService>();
@@ -285,6 +306,27 @@ if (app.Environment.IsDevelopment())
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
+
+// An API key only reaches endpoints marked [AllowApiKey] (the CRM). Anywhere else it gets 403,
+// whatever the user behind the key is allowed to do. Anonymous endpoints (health) stay open.
+app.Use(async (context, next) =>
+{
+    if (context.User.HasClaim("auth_method", "api_key"))
+    {
+        var metadata = context.GetEndpoint()?.Metadata;
+        var requiresAuth = metadata?.GetMetadata<Microsoft.AspNetCore.Authorization.IAuthorizeData>() != null;
+        var allowed = metadata?.GetMetadata<AllowApiKeyAttribute>() != null
+                      || metadata?.GetMetadata<Microsoft.AspNetCore.Authorization.IAllowAnonymous>() != null
+                      || !requiresAuth; // open endpoints (health, static files) stay open
+        if (!allowed)
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            await context.Response.WriteAsync("API keys can only be used on the CRM endpoints.");
+            return;
+        }
+    }
+    await next();
+});
 
 // IIS only proxies /api/* to this process, but the dashboard is still reachable
 // on the server itself; restrict it to local requests explicitly.

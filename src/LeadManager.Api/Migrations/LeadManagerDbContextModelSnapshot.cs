@@ -15,7 +15,48 @@ namespace LeadManager.Api.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "8.0.31");
+            modelBuilder.HasAnnotation("ProductVersion", "8.0.34");
+
+            modelBuilder.Entity("LeadManager.Api.Models.ApiKey", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("KeyHash")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastUsedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Prefix")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("KeyHash")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("ApiKeys");
+                });
 
             modelBuilder.Entity("LeadManager.Api.Models.ApplicationUser", b =>
                 {
@@ -327,6 +368,63 @@ namespace LeadManager.Api.Migrations
                     b.ToTable("CompanyProfiles");
                 });
 
+            modelBuilder.Entity("LeadManager.Api.Models.Contact", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("ClientId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedByUserId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Email")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("LeadId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LinkedInUrl")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Mobile")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Phone")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PreferredChannel")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Role")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClientId");
+
+                    b.HasIndex("Email");
+
+                    b.HasIndex("LeadId");
+
+                    b.ToTable("Contacts", t =>
+                        {
+                            t.HasCheckConstraint("CK_Contacts_OneParent", "(\"LeadId\" IS NULL) <> (\"ClientId\" IS NULL)");
+                        });
+                });
+
             modelBuilder.Entity("LeadManager.Api.Models.EnrichmentJob", b =>
                 {
                     b.Property<Guid>("Id")
@@ -365,6 +463,114 @@ namespace LeadManager.Api.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("EnrichmentJobs");
+                });
+
+            modelBuilder.Entity("LeadManager.Api.Models.EntityLink", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("ClientId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedByUserId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ExternalId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("LeadId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Url")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClientId");
+
+                    b.HasIndex("LeadId");
+
+                    b.ToTable("EntityLinks", t =>
+                        {
+                            t.HasCheckConstraint("CK_EntityLinks_OneParent", "(\"LeadId\" IS NULL) <> (\"ClientId\" IS NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("LeadManager.Api.Models.Interaction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("ClientId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("ContactId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedByUserId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Direction")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("LeadId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Outcome")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SourceRef")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Summary")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ContactId");
+
+                    b.HasIndex("ClientId", "OccurredAt");
+
+                    b.HasIndex("ClientId", "SourceRef")
+                        .IsUnique()
+                        .HasFilter("\"ClientId\" IS NOT NULL AND \"SourceRef\" IS NOT NULL");
+
+                    b.HasIndex("LeadId", "OccurredAt");
+
+                    b.HasIndex("LeadId", "SourceRef")
+                        .IsUnique()
+                        .HasFilter("\"LeadId\" IS NOT NULL AND \"SourceRef\" IS NOT NULL");
+
+                    b.ToTable("Interactions", t =>
+                        {
+                            t.HasCheckConstraint("CK_Interactions_OneParent", "(\"LeadId\" IS NULL) <> (\"ClientId\" IS NULL)");
+                        });
                 });
 
             modelBuilder.Entity("LeadManager.Api.Models.Lead", b =>
@@ -732,6 +938,56 @@ namespace LeadManager.Api.Migrations
                     b.ToTable("LeadPageContents");
                 });
 
+            modelBuilder.Entity("LeadManager.Api.Models.NextAction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AssignedToUserId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("ClientId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("ContactId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedByUserId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("DoneAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("DueAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("LeadId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClientId");
+
+                    b.HasIndex("ContactId");
+
+                    b.HasIndex("LeadId");
+
+                    b.HasIndex("AssignedToUserId", "DoneAt", "DueAt");
+
+                    b.ToTable("NextActions", t =>
+                        {
+                            t.HasCheckConstraint("CK_NextActions_OneParent", "(\"LeadId\" IS NULL) <> (\"ClientId\" IS NULL)");
+                        });
+                });
+
             modelBuilder.Entity("LeadManager.Api.Models.Notification", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1072,6 +1328,50 @@ namespace LeadManager.Api.Migrations
                     b.Navigation("Client");
                 });
 
+            modelBuilder.Entity("LeadManager.Api.Models.Contact", b =>
+                {
+                    b.HasOne("LeadManager.Api.Models.Client", null)
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("LeadManager.Api.Models.Lead", null)
+                        .WithMany()
+                        .HasForeignKey("LeadId")
+                        .OnDelete(DeleteBehavior.Cascade);
+                });
+
+            modelBuilder.Entity("LeadManager.Api.Models.EntityLink", b =>
+                {
+                    b.HasOne("LeadManager.Api.Models.Client", null)
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("LeadManager.Api.Models.Lead", null)
+                        .WithMany()
+                        .HasForeignKey("LeadId")
+                        .OnDelete(DeleteBehavior.Cascade);
+                });
+
+            modelBuilder.Entity("LeadManager.Api.Models.Interaction", b =>
+                {
+                    b.HasOne("LeadManager.Api.Models.Client", null)
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("LeadManager.Api.Models.Contact", null)
+                        .WithMany()
+                        .HasForeignKey("ContactId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("LeadManager.Api.Models.Lead", null)
+                        .WithMany()
+                        .HasForeignKey("LeadId")
+                        .OnDelete(DeleteBehavior.Cascade);
+                });
+
             modelBuilder.Entity("LeadManager.Api.Models.LeadActivity", b =>
                 {
                     b.HasOne("LeadManager.Api.Models.Lead", "Lead")
@@ -1130,6 +1430,24 @@ namespace LeadManager.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("Lead");
+                });
+
+            modelBuilder.Entity("LeadManager.Api.Models.NextAction", b =>
+                {
+                    b.HasOne("LeadManager.Api.Models.Client", null)
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("LeadManager.Api.Models.Contact", null)
+                        .WithMany()
+                        .HasForeignKey("ContactId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("LeadManager.Api.Models.Lead", null)
+                        .WithMany()
+                        .HasForeignKey("LeadId")
+                        .OnDelete(DeleteBehavior.Cascade);
                 });
 
             modelBuilder.Entity("LeadManager.Api.Models.Project", b =>
