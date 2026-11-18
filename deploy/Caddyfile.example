@@ -13,6 +13,7 @@ clients-test.martiendejong.nl {
     reverse_proxy test-clients:8080 {
         header_up X-Forwarded-For {remote_host}
         header_up X-Forwarded-Proto {scheme}
+        header_up X-Forwarded-Host {host}
     }
 }
 
@@ -21,6 +22,7 @@ clients-acc.martiendejong.nl {
     reverse_proxy acc-clients:8080 {
         header_up X-Forwarded-For {remote_host}
         header_up X-Forwarded-Proto {scheme}
+        header_up X-Forwarded-Host {host}
     }
 }
 
@@ -30,5 +32,6 @@ clients.prospergenics.com {
     reverse_proxy prod-clients:8080 {
         header_up X-Forwarded-For {remote_host}
         header_up X-Forwarded-Proto {scheme}
+        header_up X-Forwarded-Host {host}
     }
 }

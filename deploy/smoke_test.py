@@ -65,6 +65,14 @@ def main() -> int:
     check(get("/api/does-not-exist").status_code == 404, "unknown API path is a 404, not the app")
     check(get("/api/leads").status_code == 401, "API needs authentication")
 
+    # The SPA fallback must never answer for the MCP endpoint or OAuth discovery with the app's HTML page.
+    r = get("/mcp")
+    check(r.status_code == 401 and "text/html" not in r.headers.get("content-type", ""), "GET /mcp without a token is a 401, not the app")
+    r = get("/.well-known/oauth-protected-resource")
+    check(r.status_code == 404 and "text/html" not in r.headers.get("content-type", ""), "OAuth discovery path is a 404, not the app")
+    r = s.post(base + "/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "initialize"}, timeout=30)
+    check(r.status_code == 401, "POST /mcp without a token is a 401")
+
     # --- login ------------------------------------------------------------------------------
     r = s.post(base + "/api/auth/login", json={"email": args.admin_email, "password": password}, timeout=30)
     check(r.status_code == 200, "admin can log in")
@@ -110,6 +118,30 @@ def main() -> int:
             check("2020-01-01T09:00:00Z" in r.text, "timestamps carry a zone (Z)")
             r = s.get(base + "/api/crm/find", headers=k, params={"domain": f"smoke-{stamp}.example"}, timeout=30)
             check(r.status_code == 200 and len(r.json()) == 1, "find the lead by domain")
+
+        # MCP: the same key as Bearer token. Initialize, list the tools, make (and later remove) a lead.
+        mcp = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+        rpc = lambda method, params=None, rid=1: s.post(base + "/mcp", headers=mcp, timeout=30,
+                                                         json={"jsonrpc": "2.0", "id": rid, "method": method, "params": params})
+        r = rpc("initialize", {"protocolVersion": "2025-03-26"})
+        check(r.status_code == 200 and r.json().get("result", {}).get("serverInfo", {}).get("name") == "jengo-clients", "MCP initialize")
+        r = rpc("tools/list")
+        names = [t["name"] for t in r.json().get("result", {}).get("tools", [])] if r.status_code == 200 else []
+        check({"search_leads", "get_lead", "create_lead", "log_interaction", "add_next_action", "next_actions_today",
+               "link_item", "find_by_email_or_domain"} <= set(names), f"MCP lists the planned tools ({len(names)})")
+        r = rpc("tools/call", {"name": "create_lead", "arguments": {"name": f"Smoke MCP {stamp}", "website": f"https://smoke-mcp-{stamp}.example"}}, 2)
+        mcp_text = r.json()["result"]["content"][0]["text"] if r.status_code == 200 else ""
+        mcp_lead = None
+        try:
+            import json as _json
+            mcp_lead = _json.loads(mcp_text).get("id")
+        except Exception:
+            pass
+        check(bool(mcp_lead), "MCP create_lead")
+        check(s.post(base + "/mcp", headers=mcp, timeout=30,
+                     json=[{"jsonrpc": "2.0", "id": i, "method": "ping"} for i in range(21)]).status_code == 400, "MCP refuses a batch of 21")
+        if mcp_lead:
+            s.delete(f"{base}/api/leads/{mcp_lead}", headers=jwt, timeout=30)
 
         # The key reaches the CRM and nothing else.
         check(s.get(base + "/api/leads", headers=k, timeout=30).status_code == 403, "API key is refused outside the CRM")

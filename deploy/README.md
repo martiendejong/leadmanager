@@ -22,8 +22,14 @@ python deploy/upload_and_deploy.py init-env test    # .env met nieuwe geheimen; 
 python deploy/upload_and_deploy.py dns test         # A-record in Cloudflare (alleen DNS)
 python deploy/upload_and_deploy.py gateway test     # Caddy-blok toevoegen (met backup en validatie)
 python deploy/upload_and_deploy.py deploy test      # broncode uploaden, image bouwen, starten
-python deploy/upload_and_deploy.py smoke test       # 24 controles tegen de publieke URL
+python deploy/upload_and_deploy.py smoke test       # 31 controles tegen de publieke URL
 ```
+
+Het tool verbindt alleen met servers die al in `~/.ssh/known_hosts` staan (strikte hostsleutelcontrole): een
+onbekende of gewijzigde sleutel is een harde stop. Controleer de vingerafdruk eenmalig met `ssh root@<ip>`.
+`init-env --force` maakt nieuwe geheimen aan (iedereen wordt uitgelogd) en zet voor de eerstvolgende start
+`SEED_RESET_PASSWORDS=true`, zodat het beheerderswachtwoord in de database meeverandert; `deploy.sh` haalt die
+schakelaar daarna zelf weer uit `.env`.
 
 Dezelfde stappen voor `acc`. De eerste beheerder is `info@martiendejong.nl` met een gegenereerd wachtwoord
 (vault 12, "Jengo Clients <env> admin login"). Zonder `ADMIN_EMAIL` en `ADMIN_PASSWORD` wordt er geen account
@@ -55,8 +61,10 @@ python deploy/upload_and_deploy.py promote --confirm-prod
 python deploy/upload_and_deploy.py smoke prod
 ```
 
-`promote` streamt `jengo-clients:acc` naar prod (`docker save | gunzip | docker load`), tagt het als
-`jengo-clients:prod`, zet dezelfde broncode-revisie als acc neer en start met `--no-build`.
+`promote` streamt `jengo-clients:acc` naar prod (`docker save | gunzip | docker load`), controleert dat het
+image-id aan beide kanten identiek is (anders start er niets), tagt het als `jengo-clients:prod`, zet exact
+dezelfde broncode-revisies als acc neer (leadmanager én websearch, uit `REVISION` op acc) en start met
+`--no-build`.
 
 ## Configuratie
 
@@ -67,7 +75,16 @@ Alles staat in `.env` (zie `.env.example`); `docker-compose.yml` vertaalt het na
 | `JWT_KEY` | Ondertekent logins. Minimaal 32 tekens, per omgeving uniek. Wijzigen = iedereen opnieuw inloggen. |
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Eerste beheerder (`Seed:Admins`). Bestaande accounts behouden hun wachtwoord. |
 | `PUBLIC_URL` | CORS en SSO-callback (`<PUBLIC_URL>/api/auth/sso/callback`). |
-| `SSO_ISSUER`, `SSO_CLIENT_ID` | Jengo IAM. Standaard de productie-IAM; op test/acc is lokaal inloggen genoeg. Wie SSO wil: de callback registreren bij de IAM-client. |
+| `SSO_ISSUER`, `SSO_CLIENT_ID` | Jengo IAM. Standaard de productie-IAM. **Let op:** op test/acc kan dan elke gebruiker van de productie-IAM een account krijgen zodra de callback is geregistreerd. Zolang die niet geregistreerd is werkt SSO niet en is lokaal inloggen de enige weg. Wie SSO op test/acc wil, wijst `SSO_ISSUER` naar `iam-test`/`iam-acc` en registreert daar de callback. |
+| `SEED_RESET_PASSWORDS` | Herstelschakelaar, alleen via `init-env --force`; geldt voor één start. |
+
+De container start niet als `Jwt:Key` leeg, korter dan 32 tekens of de openbare sleutel uit `appsettings.json` is.
+Het Hangfire-dashboard staat in de container uit.
+
+## MCP
+
+`POST https://<omgeving>/mcp` is de MCP-server (zie `docs/MCP.md`). Een API-key van de gebruiker is het
+Bearer-token. De smoke-test controleert initialize, de toollijst, een `create_lead` en de batchgrens.
 | `OPENAI_API_KEY` e.a. | Optioneel; leeg = die functie staat uit. Op test bewust leeg. |
 | `MEM_LIMIT` | Harde geheugengrens van de container (standaard 768 MB). |
 

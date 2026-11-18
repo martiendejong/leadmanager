@@ -6,6 +6,8 @@
 #   ./backup.sh            -> backups/<tijdstempel>/
 set -eu
 cd "$(dirname "$0")"
+# Backups bevatten de database en de Data Protection-sleutels: alleen voor de eigenaar leesbaar.
+umask 077
 
 DATA=./data
 [ -d "$DATA" ] || { echo "[backup] geen datamap, niets te doen"; exit 0; }
@@ -14,6 +16,7 @@ command -v sqlite3 >/dev/null || { echo "[backup] sqlite3 ontbreekt op de host (
 STAMP=$(date -u +%Y%m%d-%H%M%S)
 DOEL=./backups/$STAMP
 mkdir -p "$DOEL/db"
+chmod 700 ./backups
 
 find "$DATA" -name '*.db' -not -path '*/backups/*' | while read -r db; do
     rel=${db#"$DATA"/}

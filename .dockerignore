@@ -1,4 +1,5 @@
-# Bouwcontext klein en vrij van geheimen houden.
+# Bouwcontext klein en vrij van geheimen houden. (De server bouwt uit een git-archive en bevat deze
+# bestanden dus niet; dit beschermt een lokale `docker build`.)
 .git
 .gitignore
 .vs
@@ -12,9 +13,12 @@ client/dist-ssr
 **/*.db
 **/*.db-shm
 **/*.db-wal
-deploy/.env
+**/.env
+**/.env.*
+!**/.env.example
+**/appsettings.*.json
 deploy/data
 deploy/backups
-deploy/appsettings.Production.json
 deploy-secrets.json
+**/deploy-secrets.json
 *.log

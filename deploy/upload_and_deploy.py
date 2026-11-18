@@ -19,6 +19,7 @@ They are never printed and never committed.
 """
 import argparse
 import os
+import re
 import secrets
 import string
 import subprocess
@@ -65,10 +66,24 @@ def stack_dir(env: str) -> str:
 
 # --- ssh helpers ---------------------------------------------------------------------------------
 
+KNOWN_HOSTS = os.path.expanduser("~/.ssh/known_hosts")
+
+
 def connect(ip: str) -> paramiko.SSHClient:
+    """Connects only to a server whose host key is already in known_hosts. Everything that follows (the
+    .env secrets over SFTP, shell commands, the image stream to prod) would be exposed to or injectable by a
+    machine that impersonates the server, so an unknown or changed key is a hard stop."""
     c = paramiko.SSHClient()
-    c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    c.connect(ip, username="root", key_filename=KEY_FILE, timeout=20)
+    try:
+        c.load_host_keys(KNOWN_HOSTS)
+    except OSError:
+        raise SystemExit(f"{KNOWN_HOSTS} not found: connect once with `ssh root@{ip}` and verify the fingerprint first.")
+    c.set_missing_host_key_policy(paramiko.RejectPolicy())
+    try:
+        c.connect(ip, username="root", key_filename=KEY_FILE, timeout=20)
+    except paramiko.SSHException as err:
+        raise SystemExit(f"SSH to {ip} refused: {err}. If the host key is new or changed, verify it with `ssh root@{ip}` "
+                         f"before trusting it.")
     return c
 
 
@@ -97,9 +112,10 @@ def run(ssh: paramiko.SSHClient, cmd: str, show: bool = True, check: bool = True
 def put_bytes(ssh: paramiko.SSHClient, data: bytes, path: str, mode: int | None = None) -> None:
     sftp = ssh.open_sftp()
     with sftp.open(path, "wb") as fh:
+        # Permissions first, content second: a secret file is never readable by others, not even briefly.
+        if mode is not None:
+            sftp.chmod(path, mode)
         fh.write(data)
-    if mode is not None:
-        sftp.chmod(path, mode)
     sftp.close()
 
 
@@ -162,6 +178,11 @@ def cmd_init_env(args) -> None:
     if rc == 0 and not args.force:
         raise SystemExit(f"{env_path} exists already; use --force to replace it (this changes the secrets).")
 
+    if rc == 0 and args.force:
+        print("[init-env] WARNING: --force makes new secrets. The JWT key changes (everybody is logged out) and the "
+              "admin password in the database is NOT changed by a normal start, so SEED_RESET_PASSWORDS=true is set "
+              "for the next start only (deploy.sh removes it again).")
+
     jwt_key = secrets.token_urlsafe(48)
     admin_password = random_password()
     lines = [
@@ -173,6 +194,7 @@ def cmd_init_env(args) -> None:
         f"ADMIN_EMAIL={args.admin_email}",
         f"ADMIN_PASSWORD={admin_password}",
         "ADMIN_FIRST_NAME=Admin",
+        *(["SEED_RESET_PASSWORDS=true"] if (rc == 0 and args.force) else []),
         "SSO_ISSUER=https://maendeleo.martiendejong.nl",
         "SSO_CLIENT_ID=leadmanager",
         "OPENAI_API_KEY=", "GOOGLE_PLACES_API_KEY=", "JENGOWORK_BASE_URL=", "JENGOWORK_API_KEY=", "MINOX_POC_BASE_URL=",
@@ -225,6 +247,7 @@ def caddy_block(env: str) -> str:
             f"    reverse_proxy {env}-clients:8080 {{\n"
             f"        header_up X-Forwarded-For {{remote_host}}\n"
             f"        header_up X-Forwarded-Proto {{scheme}}\n"
+            f"        header_up X-Forwarded-Host {{host}}\n"
             f"    }}\n"
             f"}}\n")
 
@@ -234,19 +257,31 @@ def cmd_gateway(args) -> None:
     ssh = connect(cfg["ip"])
     path = f"{cfg['gateway_dir']}/Caddyfile"
     current = read_text(ssh, path)
-    if cfg["host"] in current:
+    # A real site block, not a substring: a comment or a longer host name must not count as "already there".
+    if re.search(rf"(?m)^{re.escape(cfg['host'])}\s*\{{", current):
         print(f"[gateway] {cfg['host']} is already in {path}; nothing to do.")
+        ssh.close()
         return
     stamp = time.strftime("%Y%m%d-%H%M%S")
-    run(ssh, f"cp -p {path} {path}.bak-{stamp}-clients", show=False)
-    # Written in place through SFTP (same inode): the Caddyfile is a single-file bind mount.
-    put_bytes(ssh, (current.rstrip("\n") + "\n" + caddy_block(args.env)).encode(), path)
-    rc, out = run(ssh, f"docker exec {cfg['caddy']} caddy validate --config /etc/caddy/Caddyfile", check=False)
-    if rc != 0:
+    backup = f"{path}.bak-{stamp}-clients"
+    run(ssh, f"cp -p {path} {backup}", show=False)
+    validate = f"docker exec {cfg['caddy']} caddy validate --config /etc/caddy/Caddyfile"
+    try:
+        # Written in place through SFTP (same inode): the Caddyfile is a single-file bind mount.
+        put_bytes(ssh, (current.rstrip("\n") + "\n" + caddy_block(args.env)).encode(), path)
+        rc, _ = run(ssh, validate, show=False, check=False)
+        if rc != 0:
+            raise RuntimeError("Caddy rejected the new config")
+        run(ssh, f"docker exec {cfg['caddy']} caddy reload --config /etc/caddy/Caddyfile", show=False)
+    except BaseException as err:
+        # ANY failure (a dropped connection mid-write included) puts the old file back. On prod this file is
+        # shared with MaaRide: a half-written Caddyfile would break every site at the next reload.
         put_bytes(ssh, current.encode(), path)
-        raise SystemExit("[gateway] Caddy rejected the new config; the old Caddyfile is restored.")
-    run(ssh, f"docker exec {cfg['caddy']} caddy reload --config /etc/caddy/Caddyfile")
-    print(f"[gateway] {cfg['host']} added to {path} and Caddy reloaded (backup: {path}.bak-{stamp}-clients)")
+        rc, _ = run(ssh, validate, show=False, check=False)
+        ssh.close()
+        raise SystemExit(f"[gateway] {err}; the old Caddyfile is restored "
+                         f"({'valid' if rc == 0 else 'STILL INVALID: restore ' + backup + ' by hand'}).")
+    print(f"[gateway] {cfg['host']} added to {path} and Caddy reloaded (backup: {backup})")
     ssh.close()
 
 
@@ -288,6 +323,13 @@ def cmd_promote(args) -> None:
         raise SystemExit(f"no {stack}/deploy/.env yet; run: init-env prod")
     _, acc_rev = run(acc, f"cat {stack_dir('acc')}/REVISION", show=False)
     print(f"[promote] image jengo-clients:acc (source {acc_rev.strip()}) -> prod")
+    # REVISION reads "<leadmanager commit> (websearch <commit>)": prod gets exactly those two, not whatever
+    # origin/main is by now.
+    match = re.match(r"\s*(\w+) \(websearch (\w+)\)", acc_rev)
+    if not match:
+        raise SystemExit(f"cannot read the revision of acc: {acc_rev!r}")
+    acc_lm, acc_ws = match.groups()
+    _, acc_image = run(acc, "docker image inspect --format '{{.Id}}' jengo-clients:acc", show=False)
 
     # Stream the image: docker save | gzip on acc  ->  gunzip | docker load on prod.
     src = acc.get_transport().open_session()
@@ -311,10 +353,16 @@ def cmd_promote(args) -> None:
     if dst.recv_exit_status() != 0 or src.recv_exit_status() != 0:
         raise SystemExit(f"image transfer failed: {out.decode(errors='replace')}")
     print(f"[promote] transferred {total / 1e6:.0f} MB: {out.decode(errors='replace').strip()}")
+    # The image that passed the tests on acc must be the image that arrives: compare content ids.
+    _, prod_image = run(prod, "docker image inspect --format '{{.Id}}' jengo-clients:acc", show=False)
+    if acc_image.strip() != prod_image.strip():
+        raise SystemExit(f"image id differs after transfer (acc {acc_image.strip()[:19]}, prod {prod_image.strip()[:19]}); "
+                         f"nothing was started.")
     run(prod, "docker tag jengo-clients:acc jengo-clients:prod", show=False)
+    print(f"[promote] verified: image {prod_image.strip()[:19]} is identical on both servers")
 
     # Same source revision as acc (compose file, scripts), then start without building.
-    upload_source(prod, "prod", args.ref or acc_rev.split()[0], args.websearch_ref)
+    upload_source(prod, "prod", args.ref or acc_lm, acc_ws)
     run(prod, f"cd {stack}/deploy && NO_BUILD=1 ./deploy.sh")
 
 
@@ -357,7 +405,6 @@ def main() -> None:
     p = sub.add_parser("promote")
     p.add_argument("--confirm-prod", action="store_true")
     p.add_argument("--ref", default=None, help="default: the revision that runs on acc")
-    p.add_argument("--websearch-ref", default="origin/main")
     p.set_defaults(fn=cmd_promote)
 
     args = ap.parse_args()

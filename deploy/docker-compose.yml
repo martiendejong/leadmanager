@@ -13,6 +13,12 @@ services:
     # in PR #45). Een harde grens zorgt dat een volgende bug alleen deze container raakt, niet de
     # buren op een gedeelde server.
     mem_limit: ${MEM_LIMIT:-768m}
+    pids_limit: 256
+    # De app hoeft niets bijzonders: geen extra rechten en geen privilege-escalatie.
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     environment:
       Jwt__Key: ${JWT_KEY}
       Jwt__Issuer: ${JWT_ISSUER:-LeadManager}
@@ -21,6 +27,8 @@ services:
       Seed__Admins__0__Email: ${ADMIN_EMAIL}
       Seed__Admins__0__Password: ${ADMIN_PASSWORD}
       Seed__Admins__0__FirstName: ${ADMIN_FIRST_NAME:-Admin}
+      # Alleen voor herstel (init-env --force zet dit aan, deploy.sh haalt het na de start weer weg).
+      Seed__ResetExistingPasswords: ${SEED_RESET_PASSWORDS:-false}
       Cors__Origins__0: ${PUBLIC_URL}
       Sso__CallbackBaseUrl: ${PUBLIC_URL}
       Sso__Issuer: ${SSO_ISSUER:-https://maendeleo.martiendejong.nl}

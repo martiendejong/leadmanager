@@ -86,6 +86,19 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 
 // JWT Authentication
 var jwtKey = builder.Configuration["Jwt:Key"]!;
+
+// In a container the signing key must come from the environment. The key shipped in appsettings.json is in
+// git, so anyone could mint tokens for an instance that was started without one.
+if (Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true")
+{
+    var shippedKey = new ConfigurationBuilder()
+        .SetBasePath(builder.Environment.ContentRootPath)
+        .AddJsonFile("appsettings.json", optional: true)
+        .Build()["Jwt:Key"];
+    if (string.IsNullOrWhiteSpace(jwtKey) || jwtKey.Length < 32 || jwtKey == shippedKey)
+        throw new InvalidOperationException(
+            "Jwt:Key must be set to a unique value of at least 32 characters (JWT_KEY in deploy/.env); the key from appsettings.json is public.");
+}
 builder.Services.AddAuthentication(options =>
 {
     // "Smart" forwards to API key when the X-Api-Key header is present, otherwise to JWT.
@@ -372,10 +385,20 @@ app.Use(async (context, next) =>
 
 // IIS only proxies /api/* to this process, but the dashboard is still reachable
 // on the server itself; restrict it to local requests explicitly.
-app.UseHangfireDashboard("/hangfire", new DashboardOptions
+// Not mapped at all when the app trusts forwarded headers (the Docker setup): "local request" is then decided
+// by a header any container on the shared gateway network could set, and nobody needs the dashboard there.
+if (!trustForwardedHeaders)
 {
-    Authorization = new[] { new Hangfire.Dashboard.LocalRequestsOnlyAuthorizationFilter() }
-});
+    app.UseHangfireDashboard("/hangfire", new DashboardOptions
+    {
+        Authorization = new[] { new Hangfire.Dashboard.LocalRequestsOnlyAuthorizationFilter() }
+    });
+}
+
+// The dashboard middleware used to be the first thing to initialise Hangfire's storage. Without it (Docker) the
+// static RecurringJob API throws "JobStorage.Current has not been initialized" and the app crashes at start.
+// Resolving the storage here makes the start independent of whether the dashboard is mapped.
+_ = app.Services.GetRequiredService<JobStorage>();
 
 RecurringJob.AddOrUpdate<HangfireEnrichmentJob>(
     "enrichment-sweep",
@@ -392,8 +415,11 @@ app.MapHub<EnrichmentHub>("/hubs/enrichment");
 
 // Client-side routes (/leads/123, /vandaag, ...) fall back to the SPA. API, hub and tooling paths do not:
 // an unknown /api/... must stay a 404 for API clients, not an HTML page with status 200.
+// GET and HEAD only, and /mcp and /.well-known (OAuth discovery) stay out: they must answer as themselves
+// (or with a 404), never with the app's index.html.
 if (spaEnabled)
-    app.MapFallbackToFile("{*path:regex(^(?!api/|hubs/|hangfire|swagger).*$)}", "index.html", staticFiles);
+    app.MapFallbackToFile(@"{*path:regex(^(?!api(/|$)|hubs(/|$)|mcp(/|$)|\.well-known(/|$)|hangfire|swagger).*$)}", "index.html", staticFiles)
+       .WithMetadata(new Microsoft.AspNetCore.Routing.HttpMethodMetadata(new[] { "GET", "HEAD" }));
 
 // Health endpoint
 var appVersion = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "unknown";

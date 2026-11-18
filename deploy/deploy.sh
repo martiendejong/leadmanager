@@ -46,5 +46,12 @@ until [ "$(docker inspect -f '{{.State.Health.Status}}' "clients-$ENV_PREFIX-api
 done
 
 docker compose exec -T api curl -fsS http://localhost:8080/api/health
+
+# Herstelschakelaar (init-env --force) geldt voor precies één start: haal hem weg zodat een volgende
+# herstart het beheerderswachtwoord niet opnieuw overschrijft.
+if grep -q "^SEED_RESET_PASSWORDS=true" .env; then
+    sed -i "/^SEED_RESET_PASSWORDS=/d" .env
+    echo "[deploy] SEED_RESET_PASSWORDS uit .env gehaald (eenmalig)"
+fi
 echo
 echo "[deploy] klaar: $ENV_PREFIX draait $(cat ../REVISION 2>/dev/null || echo onbekend)"
