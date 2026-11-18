@@ -32,7 +32,9 @@ public static class CrmRules
     public static bool TryParseName<T>(string? value, out T result) where T : struct, Enum
     {
         result = default;
-        if (string.IsNullOrWhiteSpace(value) || char.IsDigit(value.Trim()[0]) || value.Trim()[0] == '-')
+        // Enum.TryParse also accepts numbers ("99") and comma lists ("Call,Email", parsed as flags 0|1).
+        if (string.IsNullOrWhiteSpace(value) || char.IsDigit(value.Trim()[0]) || value.Trim()[0] == '-'
+            || value.Contains(','))
             return false;
         return Enum.TryParse(value.Trim(), true, out result) && Enum.IsDefined(typeof(T), result);
     }
