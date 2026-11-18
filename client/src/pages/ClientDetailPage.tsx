@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { safeHref } from '../api/crm'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { getClient, updateClient, type Client } from '../api/clients'
 import { useToast } from '../components/Toast'
@@ -120,7 +121,7 @@ export default function ClientDetailPage() {
           </div>
           {client.website && (
             <a
-              href={client.website}
+              href={safeHref(client.website)}
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm text-indigo-600 hover:underline flex items-center gap-1"

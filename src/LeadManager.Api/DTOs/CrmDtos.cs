@@ -79,10 +79,13 @@ public record CrmMatchDto(
 
 public record ImportContactDto(string Name, string? Role, string? Email, string? Phone, string? Mobile);
 
+/// <summary>OccurredAt is required when there is no SourceRef: it is what makes a re-run recognise the row.</summary>
 public record ImportInteractionDto(
-    string Kind, string? Direction, DateTime? OccurredAt, string Summary, string? Outcome, string? SourceRef);
+    string Kind, string? Direction,
+    [property: JsonConverter(typeof(UtcNullableDateTimeConverter))] DateTime? OccurredAt,
+    string Summary, string? Outcome, string? SourceRef);
 
-public record ImportNextActionDto(string Title, DateTime DueAt);
+public record ImportNextActionDto(string Title, [property: JsonConverter(typeof(UtcDateTimeConverter))] DateTime DueAt);
 
 public record ImportLeadDto(
     string Name, string? Website, string? Sector, string? City, string? Phone, string? Email,

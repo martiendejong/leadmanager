@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useToast } from '../Toast'
 import {
   CALL_OUTCOMES,
@@ -67,7 +67,12 @@ export default function CrmPanel({ parentType, parentId }: Props) {
   const [links, setLinks] = useState<EntityLink[]>([])
   const [loading, setLoading] = useState(true)
 
+  // Only the newest request may write state: switching lead or client quickly (or reloading after a
+  // change) must not let a slow, older response overwrite the screen with the previous parent's data.
+  const latest = useRef(0)
+
   const load = useCallback(async () => {
+    const request = ++latest.current
     try {
       const [t, a, c, l] = await Promise.all([
         getTimeline(parentType, parentId),
@@ -75,14 +80,16 @@ export default function CrmPanel({ parentType, parentId }: Props) {
         getContacts(parentType, parentId),
         getLinks(parentType, parentId),
       ])
+      if (request !== latest.current) return
       setTimeline(t)
       setActions(a)
       setContacts(c)
       setLinks(l)
     } catch (err) {
+      if (request !== latest.current) return
       showToast(errorMessage(err, 'Gespreksgegevens laden mislukt'), 'error')
     } finally {
-      setLoading(false)
+      if (request === latest.current) setLoading(false)
     }
   }, [parentType, parentId, showToast])
 

@@ -177,6 +177,146 @@ public class CrmImportTests : IDisposable
         Assert.Single(_db.Leads);
     }
 
+    // ---- Review findings (independent review of PR 49) ------------------------------------
+
+    private static ImportLeadDto Minimal(string name, string? website, List<ImportContactDto>? contacts = null,
+        List<ImportInteractionDto>? interactions = null, List<ImportNextActionDto>? actions = null) =>
+        new(name, website, null, null, null, null, null, contacts, interactions, actions);
+
+    [Theory]
+    [InlineData("javascript:alert(1)")]
+    [InlineData("data:text/html,x")]
+    [InlineData("ftp://example.com")]
+    [InlineData("vbscript:x")]
+    public async Task UnsafeWebsite_IsRefused_AndNoLeadIsCreated(string website)
+    {
+        var report = Report(await Controller().Import(new ImportRequestDto(new List<ImportLeadDto> { Minimal("Evil", website) }), dryRun: false));
+
+        var row = Assert.Single(report.Leads);
+        Assert.Equal("invalid", row.Action);
+        Assert.Contains(row.Problems, p => p.Contains("http"));
+        Assert.Empty(_db.Leads);
+    }
+
+    [Theory]
+    [InlineData("hogenkamp.nl", "https://hogenkamp.nl")]
+    [InlineData(" www.hogenkamp.nl ", "https://www.hogenkamp.nl")]
+    [InlineData("http://hogenkamp.nl", "http://hogenkamp.nl")]
+    public async Task WebsiteWithoutScheme_GetsHttps(string input, string expected)
+    {
+        await Controller().Import(new ImportRequestDto(new List<ImportLeadDto> { Minimal("H", input) }), dryRun: false);
+
+        Assert.Equal(expected, _db.Leads.Single().Website);
+    }
+
+    [Fact]
+    public async Task SameLeadTwiceInOnePayload_IsMerged_NotDuplicated_AndTheRealRunSucceeds()
+    {
+        // Before: the second row found no history in the database (the first was only staged), repeated
+        // the contact, and the shared SourceRef broke the unique index so SaveChanges threw a 500.
+        var shared = new List<ImportInteractionDto> { new("Email", "Inbound", new DateTime(2026, 9, 9, 12, 0, 0, DateTimeKind.Utc), "Reactie", null, "mail:3:Sales:10") };
+        var contact = new List<ImportContactDto> { new("Werner", null, "werner@hogenkamp.nl", null, null) };
+        var rows = new List<ImportLeadDto>
+        {
+            Minimal("Hogenkamp", "https://hogenkamp.nl", contact, shared),
+            Minimal("Hogenkamp Advocaten", "https://www.hogenkamp.nl", contact, shared),
+        };
+
+        var dry = Report(await Controller().Import(new ImportRequestDto(rows), dryRun: true));
+        var real = Report(await Controller().Import(new ImportRequestDto(rows), dryRun: false));
+
+        // The dry run now predicts the real run exactly.
+        Assert.Equal(dry.LeadsCreated, real.LeadsCreated);
+        Assert.Equal(1, real.LeadsCreated);
+        Assert.Single(_db.Leads);
+        Assert.Single(_db.Contacts);
+        Assert.Single(_db.Interactions);
+        Assert.Equal(1, real.Leads[0].InteractionsCreated);
+        Assert.Equal(0, real.Leads[1].InteractionsCreated);
+        Assert.Equal(1, real.Leads[1].InteractionsSkipped);
+        Assert.Contains(real.Leads[1].Problems, p => p.Contains("earlier in this import"));
+    }
+
+    [Fact]
+    public async Task InteractionWithoutSourceRefAndWithoutTime_IsSkipped_SoRerunsCannotDoubleIt()
+    {
+        var rows = new List<ImportLeadDto>
+        {
+            Minimal("Beens", "https://beens.nl", interactions: new List<ImportInteractionDto> { new("Call", null, null, "Gebeld", null, null) }),
+        };
+
+        var first = Report(await Controller().Import(new ImportRequestDto(rows), dryRun: false));
+        var second = Report(await Controller().Import(new ImportRequestDto(rows), dryRun: false));
+
+        Assert.Empty(_db.Interactions);
+        Assert.Contains(first.Leads[0].Problems, p => p.Contains("OccurredAt is required"));
+        Assert.Contains(second.Leads[0].Problems, p => p.Contains("OccurredAt is required"));
+    }
+
+    [Fact]
+    public async Task CompletedAction_IsNotResurrected_ByTheNextImport()
+    {
+        var request = new ImportRequestDto(new List<ImportLeadDto>
+        {
+            Minimal("Rein", "https://rein.nl", actions: new List<ImportNextActionDto> { new("Bellen", new DateTime(2026, 11, 19, 8, 0, 0, DateTimeKind.Utc)) }),
+        });
+        await Controller().Import(request, dryRun: false);
+
+        _db.NextActions.Single().DoneAt = DateTime.UtcNow; // the user ticked it off
+        _db.SaveChanges();
+        var again = Report(await Controller().Import(request, dryRun: false));
+
+        Assert.Equal(0, again.Leads[0].NextActionsCreated);
+        var action = Assert.Single(_db.NextActions);
+        Assert.NotNull(action.DoneAt);
+    }
+
+    [Fact]
+    public async Task PerLeadLimits_AreEnforced()
+    {
+        var tooManyContacts = Enumerable.Range(0, 51).Select(i => new ImportContactDto($"C{i}", null, $"c{i}@x.nl", null, null)).ToList();
+        var tooManyActions = Enumerable.Range(0, 51).Select(i => new ImportNextActionDto($"A{i}", DateTime.UtcNow)).ToList();
+
+        var report = Report(await Controller().Import(new ImportRequestDto(new List<ImportLeadDto>
+        {
+            Minimal("Contacts", "https://c.nl", tooManyContacts),
+            Minimal("Actions", "https://a.nl", actions: tooManyActions),
+            Minimal(new string('n', CrmRules.MaxName + 1), "https://n.nl"),
+        }), dryRun: false));
+
+        Assert.All(report.Leads, r => Assert.Equal("invalid", r.Action));
+        Assert.Empty(_db.Leads);
+    }
+
+    [Fact]
+    public async Task NumericKinds_AreRefused_InImportToo()
+    {
+        var rows = new List<ImportLeadDto>
+        {
+            Minimal("Num", "https://num.nl", interactions: new List<ImportInteractionDto>
+            {
+                new("99", null, DateTime.UtcNow, "x", null, null),
+                new("1", null, DateTime.UtcNow, "x", null, null),
+                new("Call", "7", DateTime.UtcNow, "x", null, null),
+            }),
+        };
+
+        var report = Report(await Controller().Import(new ImportRequestDto(rows), dryRun: false));
+
+        Assert.Equal(3, report.Leads[0].Problems.Count);
+        Assert.Empty(_db.Interactions);
+    }
+
+    [Fact]
+    public void OccurredAtWithoutZone_IsReadAsUtc()
+    {
+        var dto = System.Text.Json.JsonSerializer.Deserialize<ImportInteractionDto>(
+            "{\"Kind\":\"Call\",\"Summary\":\"x\",\"OccurredAt\":\"2026-09-10T15:26:14\"}")!;
+
+        Assert.Equal(DateTimeKind.Utc, dto.OccurredAt!.Value.Kind);
+        Assert.Equal(15, dto.OccurredAt.Value.Hour);
+    }
+
     [Fact]
     public async Task Empty_And_Oversized_Requests_AreRejected()
     {
