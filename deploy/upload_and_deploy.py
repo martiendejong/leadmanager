@@ -30,6 +30,13 @@ import importlib.util
 import paramiko
 import requests
 
+# Docker prints UTF-8 (check marks, progress bars); the Windows console is cp1252 and would crash on them.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 KEY_FILE = os.path.expanduser("~/.ssh/id_ed25519")
 LEADMANAGER_REPO = os.environ.get("LM_REPO", r"F:\projects\leadmanager")
 WEBSEARCH_REPO = os.environ.get("WS_REPO", r"F:\projects\websearch")
@@ -170,18 +177,22 @@ def cmd_init_env(args) -> None:
         "SSO_CLIENT_ID=leadmanager",
         "OPENAI_API_KEY=", "GOOGLE_PLACES_API_KEY=", "JENGOWORK_BASE_URL=", "JENGOWORK_API_KEY=", "MINOX_POC_BASE_URL=",
     ]
-    run(ssh, f"mkdir -p {stack}/deploy", show=False)
-    put_bytes(ssh, ("\n".join(lines) + "\n").encode(), env_path, mode=0o600)
-
-    # Secrets go to the vault first-class: the server .env is a copy, the vault is where people look.
+    # The vault comes first: the server .env is a copy, the vault is where people look. If the vault
+    # refuses, nothing is written to the server, so no secret exists only on the server.
     v = vault()
     a = v.create_credential(VAULT_PROJECT, f"Jengo Clients {args.env} admin login", username=args.admin_email,
                             password=admin_password, url=cfg["url"],
                             notes=f"Local admin of Jengo Clients {args.env}. Server: {cfg['ip']} {stack}/deploy/.env")
-    j = v.create_credential(VAULT_PROJECT, f"Jengo Clients {args.env} JWT key", password=jwt_key, url=cfg["url"],
+    j = v.create_credential(VAULT_PROJECT, f"Jengo Clients {args.env} JWT key", username="jwt-signing-key",
+                            password=jwt_key, url=cfg["url"],
                             notes=f"Signing key of Jengo Clients {args.env}. Changing it logs everybody out.")
+    if not a or not j:
+        raise SystemExit("[init-env] the vault did not accept the credentials; nothing was written to the server.")
+
+    run(ssh, f"mkdir -p {stack}/deploy", show=False)
+    put_bytes(ssh, ("\n".join(lines) + "\n").encode(), env_path, mode=0o600)
     print(f"\n[init-env] {env_path} written (chmod 600). Vault project {VAULT_PROJECT}: "
-          f"admin login id {a and a.get('id')}, JWT key id {j and j.get('id')}.")
+          f"admin login id {a.get('id')}, JWT key id {j.get('id')}.")
     ssh.close()
 
 
