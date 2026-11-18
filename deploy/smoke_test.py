@@ -10,8 +10,10 @@ The password is read from LM_ADMIN_PASSWORD and never printed. Exit code 0 = eve
 """
 import argparse
 import os
+import re
 import sys
 import time
+from urllib.parse import quote
 
 import requests
 
@@ -64,6 +66,23 @@ def main() -> int:
     check(r.status_code == 200 and r.json().get("status") == "ok", f"/api/health ok (version {r.json().get('version') if r.ok else '?'})")
     check(get("/api/does-not-exist").status_code == 404, "unknown API path is a 404, not the app")
     check(get("/api/leads").status_code == 401, "API needs authentication")
+
+    # Log in with Jengo IAM: the app builds the authorize URL for ITS callback, the IAM accepts that callback
+    # (302 to its login page) and refuses one that is not registered (400). Only meaningful for a public
+    # environment: a local run has a localhost callback that no IAM knows.
+    r = get("/api/auth/sso/start")
+    start = r.json().get("authorizeUrl") if r.status_code == 200 else None
+    mine = quote(base + "/api/auth/sso/callback", safe="")
+    check(bool(start) and f"redirect_uri={mine}" in start, "SSO start builds the authorize URL with this host's callback")
+    if start and not re.match(r"https?://(localhost|127\.0\.0\.1)", base):
+        r = s.get(start, allow_redirects=False, timeout=30)
+        check(r.status_code == 302 and "login" in r.headers.get("location", "").lower(),
+              f"the IAM ({start.split('/connect')[0]}) accepts the callback and sends to its login page")
+        r = s.get(re.sub(r"redirect_uri=[^&]+", "redirect_uri=" + quote("https://evil.example/cb", safe=""), start),
+                  allow_redirects=False, timeout=30)
+        check(r.status_code == 400, "the IAM refuses a callback that is not registered")
+    elif start:
+        print("SKIP the IAM checks for a local run")
 
     # The SPA fallback must never answer for the MCP endpoint or OAuth discovery with the app's HTML page.
     r = get("/mcp")
