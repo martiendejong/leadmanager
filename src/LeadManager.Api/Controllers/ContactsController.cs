@@ -4,6 +4,7 @@ using LeadManager.Api.Models;
 using LeadManager.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using static LeadManager.Api.Services.CrmRules;
 
 namespace LeadManager.Api.Controllers;
 
@@ -18,7 +19,24 @@ public class ContactsController : CrmControllerBase
         c.Id, c.LeadId, c.ClientId, c.Name, c.Role, c.Email, c.Phone, c.Mobile,
         c.LinkedInUrl, c.PreferredChannel, c.Notes, c.CreatedAt);
 
-    private static string? Clean(string? v) => string.IsNullOrWhiteSpace(v) ? null : v.Trim();
+    /// <summary>Validates a contact body; returns an error message or null.</summary>
+    private static string? Validate(UpsertContactDto dto)
+    {
+        if (Clean(dto.Name) == null) return "Name is required";
+        if (TooLong(dto.Name?.Trim(), MaxName)) return $"Name is too long (max {MaxName})";
+        foreach (var (field, value) in new[]
+                 {
+                     ("Role", dto.Role), ("Email", dto.Email), ("Phone", dto.Phone),
+                     ("Mobile", dto.Mobile), ("PreferredChannel", dto.PreferredChannel),
+                 })
+            if (TooLong(Clean(value), MaxName)) return $"{field} is too long (max {MaxName})";
+        if (TooLong(Clean(dto.Notes), MaxNotes)) return $"Notes is too long (max {MaxNotes})";
+
+        // LinkedIn is rendered as a link by clients: same http(s)-only rule as EntityLink.
+        var linkedIn = Clean(dto.LinkedInUrl);
+        if (linkedIn != null && !IsSafeHttpUrl(linkedIn)) return "LinkedInUrl must be an absolute http or https URL";
+        return null;
+    }
 
     // GET /api/leads/{id}/contacts  |  /api/clients/{id}/contacts
     [HttpGet($"api/{{parentType:{CrmParentAccess.RouteConstraint}}}/{{parentId:guid}}/contacts")]
@@ -40,7 +58,8 @@ public class ContactsController : CrmControllerBase
     {
         var parent = await ResolveParentAsync(parentType, parentId);
         if (parent == null) return NotFound();
-        if (string.IsNullOrWhiteSpace(dto.Name)) return BadRequest("Name is required");
+        var error = Validate(dto);
+        if (error != null) return BadRequest(error);
 
         var contact = new Contact
         {
@@ -67,7 +86,8 @@ public class ContactsController : CrmControllerBase
     {
         var contact = await _db.Contacts.FirstOrDefaultAsync(c => c.Id == id);
         if (contact == null || await ResolveOwnerAsync(contact.LeadId, contact.ClientId) == null) return NotFound();
-        if (string.IsNullOrWhiteSpace(dto.Name)) return BadRequest("Name is required");
+        var error = Validate(dto);
+        if (error != null) return BadRequest(error);
 
         contact.Name = dto.Name.Trim();
         contact.Role = Clean(dto.Role);

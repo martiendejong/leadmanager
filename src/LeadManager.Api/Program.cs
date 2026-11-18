@@ -62,10 +62,14 @@ builder.Services.AddAuthentication(options =>
 })
 .AddPolicyScheme(ApiKeyDefaults.SmartScheme, "JWT or API key", options =>
 {
+    // A Bearer token always wins, so a valid login is never broken by a stale X-Api-Key header.
     options.ForwardDefaultSelector = context =>
-        context.Request.Headers.ContainsKey(ApiKeyDefaults.HeaderName)
-            ? ApiKeyDefaults.Scheme
-            : JwtBearerDefaults.AuthenticationScheme;
+    {
+        var authorization = context.Request.Headers.Authorization.ToString();
+        var hasBearer = authorization.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase);
+        var hasKey = !string.IsNullOrWhiteSpace(context.Request.Headers[ApiKeyDefaults.HeaderName].ToString());
+        return !hasBearer && hasKey ? ApiKeyDefaults.Scheme : JwtBearerDefaults.AuthenticationScheme;
+    };
 })
 .AddJwtBearer(options =>
 {
@@ -302,6 +306,27 @@ if (app.Environment.IsDevelopment())
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
+
+// An API key only reaches endpoints marked [AllowApiKey] (the CRM). Anywhere else it gets 403,
+// whatever the user behind the key is allowed to do. Anonymous endpoints (health) stay open.
+app.Use(async (context, next) =>
+{
+    if (context.User.HasClaim("auth_method", "api_key"))
+    {
+        var metadata = context.GetEndpoint()?.Metadata;
+        var requiresAuth = metadata?.GetMetadata<Microsoft.AspNetCore.Authorization.IAuthorizeData>() != null;
+        var allowed = metadata?.GetMetadata<AllowApiKeyAttribute>() != null
+                      || metadata?.GetMetadata<Microsoft.AspNetCore.Authorization.IAllowAnonymous>() != null
+                      || !requiresAuth; // open endpoints (health, static files) stay open
+        if (!allowed)
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            await context.Response.WriteAsync("API keys can only be used on the CRM endpoints.");
+            return;
+        }
+    }
+    await next();
+});
 
 // IIS only proxies /api/* to this process, but the dashboard is still reachable
 // on the server itself; restrict it to local requests explicitly.

@@ -4,6 +4,7 @@ using LeadManager.Api.Models;
 using LeadManager.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using static LeadManager.Api.Services.CrmRules;
 
 namespace LeadManager.Api.Controllers;
 
@@ -32,12 +33,18 @@ public class NextActionsController : CrmControllerBase
     }
 
     // POST /api/leads/{id}/next-actions
+    // Data model: every lead and client belongs to one user, so an action is always assigned to the
+    // caller. AssignedToUserId in the body is ignored; assigning to someone else would only make the
+    // action vanish from every list.
     [HttpPost($"api/{{parentType:{CrmParentAccess.RouteConstraint}}}/{{parentId:guid}}/next-actions")]
     public async Task<IActionResult> Create(string parentType, Guid parentId, [FromBody] CreateNextActionDto dto)
     {
         var parent = await ResolveParentAsync(parentType, parentId);
         if (parent == null) return NotFound();
-        if (string.IsNullOrWhiteSpace(dto.Title)) return BadRequest("Title is required");
+
+        var title = Clean(dto.Title);
+        if (title == null) return BadRequest("Title is required");
+        if (TooLong(title, MaxTitle)) return BadRequest($"Title is too long (max {MaxTitle})");
 
         if (dto.ContactId.HasValue)
         {
@@ -51,9 +58,9 @@ public class NextActionsController : CrmControllerBase
             LeadId = parent.Value.LeadId,
             ClientId = parent.Value.ClientId,
             ContactId = dto.ContactId,
-            Title = dto.Title.Trim(),
-            DueAt = dto.DueAt.ToUniversalTime(),
-            AssignedToUserId = string.IsNullOrWhiteSpace(dto.AssignedToUserId) ? GetCurrentUserId() : dto.AssignedToUserId,
+            Title = title,
+            DueAt = UtcDateTimeConverter.Normalize(dto.DueAt),
+            AssignedToUserId = GetCurrentUserId(),
             CreatedByUserId = GetCurrentUserId(),
         };
         _db.NextActions.Add(action);
@@ -68,9 +75,10 @@ public class NextActionsController : CrmControllerBase
         var action = await _db.NextActions.FirstOrDefaultAsync(a => a.Id == id);
         if (action == null || await ResolveOwnerAsync(action.LeadId, action.ClientId) == null) return NotFound();
 
-        if (!string.IsNullOrWhiteSpace(dto.Title)) action.Title = dto.Title.Trim();
-        if (dto.DueAt.HasValue) action.DueAt = dto.DueAt.Value.ToUniversalTime();
-        if (!string.IsNullOrWhiteSpace(dto.AssignedToUserId)) action.AssignedToUserId = dto.AssignedToUserId;
+        var title = Clean(dto.Title);
+        if (TooLong(title, MaxTitle)) return BadRequest($"Title is too long (max {MaxTitle})");
+        if (title != null) action.Title = title;
+        if (dto.DueAt.HasValue) action.DueAt = UtcDateTimeConverter.Normalize(dto.DueAt.Value);
 
         await _db.SaveChangesAsync();
         return Ok(ToDto(action));
@@ -104,12 +112,16 @@ public class NextActionsController : CrmControllerBase
     // Open actions assigned to me that are due by the end of today (Dutch time), including overdue.
     // Each row carries name and phone so the call can start without opening the lead.
     [HttpGet("api/next-actions/today")]
-    public async Task<IActionResult> Today([FromQuery] DateTime? now = null)
+    public Task<IActionResult> Today() => TodayAsync(DateTime.UtcNow);
+
+    /// <summary>The reference time is not a request parameter: a caller must not be able to move "today".</summary>
+    [NonAction]
+    public async Task<IActionResult> TodayAsync(DateTime utcNow)
     {
         var userId = GetCurrentUserId();
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-        var utcNow = (now ?? DateTime.UtcNow).ToUniversalTime();
+        utcNow = UtcDateTimeConverter.Normalize(utcNow);
         var endOfToday = EndOfDayNl(utcNow);
 
         var actions = await _db.NextActions

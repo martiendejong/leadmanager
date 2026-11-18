@@ -4,6 +4,7 @@ using LeadManager.Api.Models;
 using LeadManager.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using static LeadManager.Api.Services.CrmRules;
 
 namespace LeadManager.Api.Controllers;
 
@@ -40,13 +41,19 @@ public class InteractionsController : CrmControllerBase
         var parent = await ResolveParentAsync(parentType, parentId);
         if (parent == null) return NotFound();
 
-        if (string.IsNullOrWhiteSpace(dto.Summary)) return BadRequest("Summary is required");
-        if (!Enum.TryParse<InteractionKind>(dto.Kind, true, out var kind))
+        var summary = Clean(dto.Summary);
+        var outcome = Clean(dto.Outcome);
+        var sourceRef = Clean(dto.SourceRef);
+
+        if (summary == null) return BadRequest("Summary is required");
+        if (TooLong(summary, MaxSummary)) return BadRequest($"Summary is too long (max {MaxSummary})");
+        if (TooLong(outcome, MaxOutcome)) return BadRequest($"Outcome is too long (max {MaxOutcome})");
+        if (TooLong(sourceRef, MaxSourceRef)) return BadRequest($"SourceRef is too long (max {MaxSourceRef})");
+        if (!TryParseName<InteractionKind>(dto.Kind, out var kind))
             return BadRequest($"Invalid kind: {dto.Kind}");
 
         var direction = kind == InteractionKind.Note ? InteractionDirection.Internal : InteractionDirection.Outbound;
-        if (!string.IsNullOrWhiteSpace(dto.Direction) &&
-            !Enum.TryParse(dto.Direction, true, out direction))
+        if (!string.IsNullOrWhiteSpace(dto.Direction) && !TryParseName(dto.Direction, out direction))
             return BadRequest($"Invalid direction: {dto.Direction}");
 
         if (dto.ContactId.HasValue)
@@ -56,11 +63,11 @@ public class InteractionsController : CrmControllerBase
             if (!contactOk) return BadRequest("Contact does not belong to this lead or client");
         }
 
-        // Idempotent import: the same source item is returned, not logged twice.
-        if (!string.IsNullOrWhiteSpace(dto.SourceRef))
+        // Idempotent import: the same source item is returned, not logged twice. The reference is
+        // trimmed first, so " abc" and "abc" are the same item.
+        if (sourceRef != null)
         {
-            var existing = await _db.Interactions.FirstOrDefaultAsync(i =>
-                i.LeadId == parent.Value.LeadId && i.ClientId == parent.Value.ClientId && i.SourceRef == dto.SourceRef);
+            var existing = await FindBySourceRef(parent.Value, sourceRef);
             if (existing != null) return Ok(ToDto(existing));
         }
 
@@ -71,10 +78,10 @@ public class InteractionsController : CrmControllerBase
             ContactId = dto.ContactId,
             Kind = kind,
             Direction = direction,
-            OccurredAt = (dto.OccurredAt ?? DateTime.UtcNow).ToUniversalTime(),
-            Summary = dto.Summary.Trim(),
-            Outcome = string.IsNullOrWhiteSpace(dto.Outcome) ? null : dto.Outcome.Trim(),
-            SourceRef = string.IsNullOrWhiteSpace(dto.SourceRef) ? null : dto.SourceRef.Trim(),
+            OccurredAt = UtcDateTimeConverter.Normalize(dto.OccurredAt ?? DateTime.UtcNow),
+            Summary = summary,
+            Outcome = outcome,
+            SourceRef = sourceRef,
             CreatedByUserId = GetCurrentUserId(),
         };
         _db.Interactions.Add(interaction);
@@ -88,9 +95,26 @@ public class InteractionsController : CrmControllerBase
             if (lead.PipelineStatus == PipelineStatus.New) lead.PipelineStatus = PipelineStatus.Contacted;
         }
 
-        await _db.SaveChangesAsync();
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateException) when (sourceRef != null)
+        {
+            // Two retries raced past the lookup above; the unique index let one of them through.
+            // Return the row that won instead of a 500.
+            _db.ChangeTracker.Clear();
+            var winner = await FindBySourceRef(parent.Value, sourceRef);
+            if (winner != null) return Ok(ToDto(winner));
+            throw;
+        }
+
         return CreatedAtAction(nameof(List), new { parentType, parentId }, ToDto(interaction));
     }
+
+    private Task<Interaction?> FindBySourceRef(CrmParent parent, string sourceRef) =>
+        _db.Interactions.FirstOrDefaultAsync(i =>
+            i.LeadId == parent.LeadId && i.ClientId == parent.ClientId && i.SourceRef == sourceRef);
 
     // DELETE /api/interactions/{id}
     [HttpDelete("api/interactions/{id:guid}")]

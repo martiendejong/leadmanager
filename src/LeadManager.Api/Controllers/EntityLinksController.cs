@@ -4,6 +4,7 @@ using LeadManager.Api.Models;
 using LeadManager.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using static LeadManager.Api.Services.CrmRules;
 
 namespace LeadManager.Api.Controllers;
 
@@ -41,22 +42,27 @@ public class EntityLinksController : CrmControllerBase
         var parent = await ResolveParentAsync(parentType, parentId);
         if (parent == null) return NotFound();
 
-        if (!Enum.TryParse<EntityLinkKind>(dto.Kind, true, out var kind))
+        if (!TryParseName<EntityLinkKind>(dto.Kind, out var kind))
             return BadRequest($"Invalid kind: {dto.Kind}. Allowed: {string.Join(", ", Enum.GetNames<EntityLinkKind>())}");
-        if (string.IsNullOrWhiteSpace(dto.Label)) return BadRequest("Label is required");
-        if (string.IsNullOrWhiteSpace(dto.Url) && string.IsNullOrWhiteSpace(dto.ExternalId))
-            return BadRequest("Provide a url, an externalId or both");
+
+        // Normalise first, so the duplicate check below compares what will actually be stored.
+        var label = Clean(dto.Label);
+        var url = Clean(dto.Url);
+        var externalId = Clean(dto.ExternalId);
+
+        if (label == null) return BadRequest("Label is required");
+        if (TooLong(label, MaxLabel)) return BadRequest($"Label is too long (max {MaxLabel})");
+        if (url == null && externalId == null) return BadRequest("Provide a url, an externalId or both");
+        if (TooLong(externalId, MaxSourceRef)) return BadRequest($"ExternalId is too long (max {MaxSourceRef})");
 
         // Only http(s): the UI renders this as a clickable link, so no javascript: or data: URLs.
-        if (!string.IsNullOrWhiteSpace(dto.Url) &&
-            !(Uri.TryCreate(dto.Url, UriKind.Absolute, out var uri) &&
-              (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)))
-            return BadRequest("Url must be an absolute http or https URL");
+        if (url != null && !IsSafeHttpUrl(url))
+            return BadRequest($"Url must be an absolute http or https URL (max {MaxUrl} characters)");
 
         // The same target is linked once per parent (idempotent for agents that retry).
         var existing = await _db.EntityLinks.FirstOrDefaultAsync(l =>
             l.LeadId == parent.Value.LeadId && l.ClientId == parent.Value.ClientId &&
-            l.Kind == kind && l.Url == dto.Url && l.ExternalId == dto.ExternalId);
+            l.Kind == kind && l.Url == url && l.ExternalId == externalId);
         if (existing != null) return Ok(ToDto(existing));
 
         var link = new EntityLink
@@ -64,9 +70,9 @@ public class EntityLinksController : CrmControllerBase
             LeadId = parent.Value.LeadId,
             ClientId = parent.Value.ClientId,
             Kind = kind,
-            Label = dto.Label.Trim(),
-            Url = string.IsNullOrWhiteSpace(dto.Url) ? null : dto.Url.Trim(),
-            ExternalId = string.IsNullOrWhiteSpace(dto.ExternalId) ? null : dto.ExternalId.Trim(),
+            Label = label,
+            Url = url,
+            ExternalId = externalId,
             CreatedByUserId = GetCurrentUserId(),
         };
         _db.EntityLinks.Add(link);
