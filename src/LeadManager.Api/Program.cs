@@ -106,6 +106,15 @@ builder.Services.AddAuthentication()
 builder.Services.AddAuthorization();
 builder.Services.AddScoped<CrmParentAccess>();
 
+// MCP server (/mcp): agents and other Jengo tools. The access token is one of the user's API keys.
+builder.Services.AddSingleton(new JengoComponents.McpConnector.McpConnectorOptions
+{
+    ServerName = "jengo-clients",
+    ServerVersion = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0",
+    Realm = "JengoClients",
+});
+builder.Services.AddScoped<JengoComponents.McpConnector.IMcpTokenValidator, LeadManager.Api.Mcp.ApiKeyTokenValidator>();
+
 // JWT service
 builder.Services.AddScoped<JwtService>();
 
