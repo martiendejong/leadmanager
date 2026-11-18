@@ -6,6 +6,7 @@ using LeadManager.Api.Models;
 using LeadManager.Api.Services;
 using LeadManager.Api.Services.Enrichment;
 using LeadManager.Api.Services.Profile;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -52,8 +53,19 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 var jwtKey = builder.Configuration["Jwt:Key"]!;
 builder.Services.AddAuthentication(options =>
 {
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    // "Smart" forwards to API key when the X-Api-Key header is present, otherwise to JWT.
+    // [Authorize] therefore accepts both, while an explicit [Authorize(AuthenticationSchemes=
+    // Bearer)] (ApiKeysController) stays JWT only. Do NOT widen DefaultPolicy instead: ASP.NET
+    // merges the default policy into attribute policies, which would let API keys through there.
+    options.DefaultAuthenticateScheme = ApiKeyDefaults.SmartScheme;
+    options.DefaultChallengeScheme = ApiKeyDefaults.SmartScheme;
+})
+.AddPolicyScheme(ApiKeyDefaults.SmartScheme, "JWT or API key", options =>
+{
+    options.ForwardDefaultSelector = context =>
+        context.Request.Headers.ContainsKey(ApiKeyDefaults.HeaderName)
+            ? ApiKeyDefaults.Scheme
+            : JwtBearerDefaults.AuthenticationScheme;
 })
 .AddJwtBearer(options =>
 {
@@ -83,7 +95,12 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
+// API keys for agents and other Jengo tools (X-Api-Key). The key acts as the user that
+// created it, so per-user ownership rules apply unchanged. See the "Smart" scheme above.
+builder.Services.AddAuthentication()
+    .AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(ApiKeyDefaults.Scheme, null);
 builder.Services.AddAuthorization();
+builder.Services.AddScoped<CrmParentAccess>();
 
 // JWT service
 builder.Services.AddScoped<JwtService>();
