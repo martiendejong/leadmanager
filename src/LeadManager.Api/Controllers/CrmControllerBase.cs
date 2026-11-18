@@ -7,6 +7,7 @@ namespace LeadManager.Api.Controllers;
 /// <summary>Shared helpers for the Jengo Clients CRM controllers (task 8023).</summary>
 [ApiController]
 [Authorize]
+[AllowApiKey]
 public abstract class CrmControllerBase : ControllerBase
 {
     protected readonly CrmParentAccess Access;

@@ -29,6 +29,16 @@ public static class ApiKeyDefaults
 }
 
 /// <summary>
+/// Marks controllers (or actions) an API key may call. Everything else answers 403 to a key, so a key
+/// reaches the CRM only: it can never trigger paid enrichment, change profile or sales settings,
+/// approve intakes or reach admin functions, even if the user behind it is allowed to.
+/// </summary>
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, Inherited = true)]
+public sealed class AllowApiKeyAttribute : Attribute
+{
+}
+
+/// <summary>
 /// Authenticates agents and other Jengo tools by the X-Api-Key header. The key acts as the
 /// user that created it, so the existing per-user ownership rules keep applying unchanged.
 /// </summary>
@@ -58,6 +68,12 @@ public class ApiKeyAuthenticationHandler : AuthenticationHandler<AuthenticationS
         var record = await _db.ApiKeys.FirstOrDefaultAsync(k => k.KeyHash == hash && k.RevokedAt == null);
         if (record == null)
             return AuthenticateResult.Fail("Invalid or revoked API key");
+
+        // A key acts as its user, so it must stop working when that user is deactivated or removed
+        // (UsersController.Delete only sets IsActive=false; login and /me check it, so this must too).
+        var userActive = await _db.Users.AnyAsync(u => u.Id == record.UserId && u.IsActive);
+        if (!userActive)
+            return AuthenticateResult.Fail("User of this API key is inactive");
 
         var now = DateTime.UtcNow;
         if (record.LastUsedAt == null || now - record.LastUsedAt > TimeSpan.FromMinutes(5))

@@ -312,9 +312,13 @@ public class CrmCoreTests : IDisposable
         var done = Value<NextActionDto>(await NextActions().Create("leads", lead.Id,
             new CreateNextActionDto("Al gedaan", now.AddHours(-1), null, null)));
         await NextActions().Complete(done.Id);
-        await NextActions().Create("leads", lead.Id, new CreateNextActionDto("Voor ander", now, null, Other));
+        // An action assigned to someone else (legacy data) must not show up on my list. The API no
+        // longer lets you assign to another user, so set it directly.
+        var other = Value<NextActionDto>(await NextActions().Create("leads", lead.Id, new CreateNextActionDto("Voor ander", now, null, null)));
+        _db.NextActions.Single(a => a.Id == other.Id).AssignedToUserId = Other;
+        _db.SaveChanges();
 
-        var rows = Value<IEnumerable<TodayActionDto>>(await NextActions().Today(now)).ToList();
+        var rows = Value<IEnumerable<TodayActionDto>>(await NextActions().TodayAsync(now)).ToList();
 
         Assert.Equal(new[] { "Overdue", "Vanmiddag" }, rows.Select(r => r.Title));
         Assert.True(rows[0].Overdue);
@@ -330,7 +334,7 @@ public class CrmCoreTests : IDisposable
         var now = new DateTime(2026, 11, 18, 10, 0, 0, DateTimeKind.Utc);
         await NextActions().Create("leads", lead.Id, new CreateNextActionDto("Bellen", now, null, null));
 
-        var rows = Value<IEnumerable<TodayActionDto>>(await NextActions().Today(now)).ToList();
+        var rows = Value<IEnumerable<TodayActionDto>>(await NextActions().TodayAsync(now)).ToList();
 
         Assert.Equal("088 244 25 00", Assert.Single(rows).Phone);
     }
