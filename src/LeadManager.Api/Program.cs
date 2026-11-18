@@ -154,6 +154,11 @@ builder.Services.AddAuthentication()
 builder.Services.AddAuthorization();
 builder.Services.AddScoped<CrmParentAccess>();
 
+// Jengo Track (click tracking, task 8071). Off unless JengoTrack:Enabled is true.
+builder.Services.Configure<LeadManager.Api.Services.Track.TrackOptions>(
+    builder.Configuration.GetSection(LeadManager.Api.Services.Track.TrackOptions.Section));
+builder.Services.AddHttpClient<LeadManager.Api.Services.Track.TrackGateway>(c => c.Timeout = TimeSpan.FromSeconds(6));
+
 // MCP server (/mcp): agents and other Jengo tools. The access token is one of the user's API keys.
 builder.Services.AddSingleton(new JengoComponents.McpConnector.McpConnectorOptions
 {

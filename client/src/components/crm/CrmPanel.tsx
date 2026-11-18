@@ -8,12 +8,14 @@ import {
   addLink,
   addNextAction,
   completeNextAction,
+  createTrackedLink,
   deleteContact,
   deleteLink,
   errorMessage,
   getContacts,
   getLinks,
   getNextActions,
+  getTrack,
   getTimeline,
   logInteraction,
   safeHref,
@@ -25,6 +27,8 @@ import {
   type NextAction,
   type ParentType,
   type TimelineItem,
+  type TrackClick,
+  type TrackTimeline,
 } from '../../api/crm'
 
 interface Props {
@@ -65,6 +69,7 @@ export default function CrmPanel({ parentType, parentId }: Props) {
   const [actions, setActions] = useState<NextAction[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
   const [links, setLinks] = useState<EntityLink[]>([])
+  const [track, setTrack] = useState<TrackTimeline | null>(null)
   const [loading, setLoading] = useState(true)
 
   // Only the newest request may write state: switching lead or client quickly (or reloading after a
@@ -74,17 +79,21 @@ export default function CrmPanel({ parentType, parentId }: Props) {
   const load = useCallback(async () => {
     const request = ++latest.current
     try {
-      const [t, a, c, l] = await Promise.all([
+      // Track is optional: a failing call must never break the rest of the panel.
+      const trackCall = getTrack(parentType, parentId).catch(() => null)
+      const [t, a, c, l, tr] = await Promise.all([
         getTimeline(parentType, parentId),
         getNextActions(parentType, parentId),
         getContacts(parentType, parentId),
         getLinks(parentType, parentId),
+        trackCall,
       ])
       if (request !== latest.current) return
       setTimeline(t)
       setActions(a)
       setContacts(c)
       setLinks(l)
+      setTrack(tr)
     } catch (err) {
       if (request !== latest.current) return
       showToast(errorMessage(err, 'Gespreksgegevens laden mislukt'), 'error')
@@ -110,6 +119,7 @@ export default function CrmPanel({ parentType, parentId }: Props) {
       <div className="space-y-4">
         <ContactsCard parentType={parentType} parentId={parentId} contacts={contacts} onChanged={load} />
         <LinksCard parentType={parentType} parentId={parentId} links={links} onChanged={load} />
+        {track?.enabled && <ClicksCard parentType={parentType} parentId={parentId} track={track} />}
       </div>
     </div>
   )
@@ -438,6 +448,80 @@ function LinksCard({ parentType, parentId, links, onChanged }: Props & { links: 
             <button type="submit" disabled={busy || !label.trim() || !url.trim()} className={primaryBtn}>Opslaan</button>
           </div>
         </form>
+      )}
+    </div>
+  )
+}
+
+function fmtClickTime(ts: number) {
+  return fmtDateTime(new Date(ts).toISOString())
+}
+
+function clickWhat(c: TrackClick) {
+  return c.label || c.url || 'link'
+}
+
+/** Who clicked what, from Jengo Track. Machine clicks (mail scanners) are collapsed: they say nothing about interest. */
+function ClicksCard({ parentType, parentId, track }: Props & { track: TrackTimeline }) {
+  const { showToast } = useToast()
+  const [showMachine, setShowMachine] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  const copyLink = async () => {
+    const url = window.prompt('Naar welke pagina moet de link wijzen?', 'https://')
+    if (!url || !url.trim()) return
+    setBusy(true)
+    try {
+      const link = await createTrackedLink(parentType, parentId, { url: url.trim() })
+      try {
+        await navigator.clipboard.writeText(link.shortUrl)
+        showToast('Link met tracking gekopieerd', 'success')
+      } catch {
+        window.prompt('Kopieer deze link met tracking:', link.shortUrl)
+      }
+    } catch (err) {
+      showToast(errorMessage(err, 'Link met tracking maken mislukt'), 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className={card}>
+      <div className="flex items-center justify-between">
+        <h3 className={heading}>Klikken <span className="font-normal normal-case text-gray-400">({track.humanClickCount})</span></h3>
+        <button className={ghostBtn} disabled={busy} onClick={copyLink}>Link kopiëren met tracking</button>
+      </div>
+      {!track.available && <p className="text-sm text-gray-400">Klikgegevens zijn nu niet beschikbaar.</p>}
+      {track.available && track.human.length === 0 && (
+        <p className="text-sm text-gray-400">Nog niemand heeft op een link geklikt.</p>
+      )}
+      <ul className="space-y-2">
+        {track.human.map((c, i) => (
+          <li key={`h-${c.ts}-${i}`} className="flex items-baseline gap-2 text-sm">
+            <span className="text-gray-800 truncate">{clickWhat(c)}</span>
+            {c.campaign && <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 flex-shrink-0">{c.campaign}</span>}
+            <span className="text-xs text-gray-400 ml-auto flex-shrink-0">{fmtClickTime(c.ts)}</span>
+          </li>
+        ))}
+      </ul>
+      {track.machine.length > 0 && (
+        <div className="mt-3 border-t border-gray-100 pt-2">
+          <button className={ghostBtn} onClick={() => setShowMachine(!showMachine)}>
+            {showMachine ? 'Verberg' : 'Toon'} automatische klikken ({track.machine.length})
+          </button>
+          {showMachine && (
+            <ul className="space-y-1 mt-2">
+              {track.machine.map((c, i) => (
+                <li key={`m-${c.ts}-${i}`} className="flex items-baseline gap-2 text-xs text-gray-400">
+                  <span className="truncate">{clickWhat(c)}</span>
+                  {c.reason && <span className="flex-shrink-0">({c.reason})</span>}
+                  <span className="ml-auto flex-shrink-0">{fmtClickTime(c.ts)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
     </div>
   )

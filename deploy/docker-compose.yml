@@ -38,6 +38,12 @@ services:
       GooglePlaces__ApiKey: ${GOOGLE_PLACES_API_KEY:-}
       JengoWork__BaseUrl: ${JENGOWORK_BASE_URL:-}
       JengoWork__ApiKey: ${JENGOWORK_API_KEY:-}
+      # Jengo Track (klik-tracking). Uit tenzij TRACK_ENABLED=true.
+      JengoTrack__Enabled: ${TRACK_ENABLED:-false}
+      JengoTrack__BaseUrl: ${TRACK_BASE_URL:-}
+      JengoTrack__ApiKey: ${TRACK_API_KEY:-}
+      JengoTrack__WebhookSecret: ${TRACK_WEBHOOK_SECRET:-}
+      JengoTrack__HotThreshold: ${TRACK_HOT_THRESHOLD:-2}
       MinoxPoc__BaseUrl: ${MINOX_POC_BASE_URL:-}
     volumes:
       - ./data:/data

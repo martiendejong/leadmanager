@@ -175,6 +175,39 @@ export async function deleteLink(id: string): Promise<void> {
   await apiClient.delete(`/api/links/${id}`)
 }
 
+export interface TrackClick {
+  ts: number
+  url: string | null
+  label: string | null
+  campaign: string | null
+  channel: string | null
+  device: string | null
+  reason: string | null
+}
+
+export interface TrackTimeline {
+  enabled: boolean
+  available: boolean
+  humanClickCount: number
+  human: TrackClick[]
+  machine: TrackClick[]
+}
+
+/** Click history from Jengo Track. Comes back empty (enabled=false) when Track is off. */
+export async function getTrack(parentType: ParentType, parentId: string): Promise<TrackTimeline> {
+  const res = await apiClient.get<TrackTimeline>(`/api/${parentType}/${parentId}/track`)
+  return res.data
+}
+
+export async function createTrackedLink(
+  parentType: ParentType,
+  parentId: string,
+  data: { url: string; campaign?: string | null; label?: string | null },
+): Promise<{ shortUrl: string; token: string }> {
+  const res = await apiClient.post<{ shortUrl: string; token: string }>(`/api/${parentType}/${parentId}/track/link`, data)
+  return res.data
+}
+
 /** Only http(s) targets are rendered as clickable links. */
 export function safeHref(url: string | null | undefined): string | undefined {
   return url && /^https?:\/\//i.test(url) ? url : undefined
