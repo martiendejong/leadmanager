@@ -68,6 +68,9 @@ public class CrmSearchController : CrmControllerBase
             .Where(l => (email != null && (l.CompanyEmail.ToLower() == email || l.PersonalEmail.ToLower() == email))
                         || (dom != null && l.Website.ToLower().Contains(dom))
                         || (q != null && l.Name.ToLower().Contains(q)))
+            // Strongest match first, so a broad name query can never push an exact email out of the cap.
+            .OrderBy(l => (email != null && (l.CompanyEmail.ToLower() == email || l.PersonalEmail.ToLower() == email)) ? 0
+                          : (dom != null && l.Website.ToLower().Contains(dom)) ? 1 : 2)
             .Select(l => new { l.Id, l.Name, l.Website, l.CompanyEmail, l.PersonalEmail, l.Phone })
             .Take(Candidates).ToListAsync();
 
@@ -90,6 +93,8 @@ public class CrmSearchController : CrmControllerBase
             .Where(c => (email != null && c.PrimaryContactEmail != null && c.PrimaryContactEmail.ToLower() == email)
                         || (dom != null && c.Website != null && c.Website.ToLower().Contains(dom))
                         || (q != null && c.Name.ToLower().Contains(q)))
+            .OrderBy(c => (email != null && c.PrimaryContactEmail != null && c.PrimaryContactEmail.ToLower() == email) ? 0
+                          : (dom != null && c.Website != null && c.Website.ToLower().Contains(dom)) ? 1 : 2)
             .Select(c => new { c.Id, c.Name, c.Website, c.PrimaryContactEmail, c.PrimaryContactPhone })
             .Take(Candidates).ToListAsync();
 
