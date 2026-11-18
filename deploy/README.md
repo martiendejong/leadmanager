@@ -75,11 +75,35 @@ Alles staat in `.env` (zie `.env.example`); `docker-compose.yml` vertaalt het na
 | `JWT_KEY` | Ondertekent logins. Minimaal 32 tekens, per omgeving uniek. Wijzigen = iedereen opnieuw inloggen. |
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Eerste beheerder (`Seed:Admins`). Bestaande accounts behouden hun wachtwoord. |
 | `PUBLIC_URL` | CORS en SSO-callback (`<PUBLIC_URL>/api/auth/sso/callback`). |
-| `SSO_ISSUER`, `SSO_CLIENT_ID` | Jengo IAM. Standaard de productie-IAM. **Let op:** op test/acc kan dan elke gebruiker van de productie-IAM een account krijgen zodra de callback is geregistreerd. Zolang die niet geregistreerd is werkt SSO niet en is lokaal inloggen de enige weg. Wie SSO op test/acc wil, wijst `SSO_ISSUER` naar `iam-test`/`iam-acc` en registreert daar de callback. |
+| `SSO_ISSUER`, `SSO_CLIENT_ID` | Jengo IAM, zie "Inloggen met Jengo-IAM". |
 | `SEED_RESET_PASSWORDS` | Herstelschakelaar, alleen via `init-env --force`; geldt voor één start. |
 
 De container start niet als `Jwt:Key` leeg, korter dan 32 tekens of de openbare sleutel uit `appsettings.json` is.
 Het Hangfire-dashboard staat in de container uit.
+
+## Inloggen met Jengo-IAM
+
+Op de inlogpagina staat "Inloggen met IAM". De app stuurt naar de IAM (autorisatiecode met PKCE), krijgt de
+gebruiker terug op `<PUBLIC_URL>/api/auth/sso/callback`, haalt het e-mailadres op en logt in als de lokale
+gebruiker met dat adres. Bestaat die nog niet, dan wordt hij aangemaakt met de rol `User`; een bestaande
+beheerder (zoals de eerste beheerder uit `ADMIN_EMAIL`) logt dus als beheerder in.
+
+| Omgeving | IAM (`SSO_ISSUER`) |
+|---|---|
+| prod | https://maendeleo.martiendejong.nl |
+| acc | https://iam-acc.martiendejong.nl |
+| test | https://iam-acc.martiendejong.nl (de aparte test-IAM heeft maar 3 gebruikers, niet de eigenaar) |
+
+De IAM-client `leadmanager` moet het callback-adres van de omgeving kennen. Dat regelt, herhaalbaar en
+alleen toevoegend (de oude rij wordt eerst op de IAM-server bewaard):
+
+```
+python deploy/upload_and_deploy.py sso <env>
+```
+
+`init-env` zet `SSO_ISSUER` per omgeving goed. De oude installatie (`leads.prospergenics.com`) blijft in de client
+staan. **Let op:** iedereen met een account in de gekozen IAM kan inloggen en krijgt dan een eigen, lege
+omgeving (elke gebruiker ziet alleen zijn eigen leads). Wie dat niet wil, haalt de knop weg of beperkt de IAM-client.
 
 ## MCP
 

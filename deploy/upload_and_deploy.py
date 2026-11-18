@@ -8,6 +8,7 @@ Jengo vault tools. The servers have no GitHub access, so the source is uploaded 
     python deploy/upload_and_deploy.py dns test           # A record in Cloudflare (DNS only)
     python deploy/upload_and_deploy.py gateway test       # Caddy block on the gateway (backup + validate)
     python deploy/upload_and_deploy.py deploy test        # upload source, build image on the server, start
+    python deploy/upload_and_deploy.py sso test           # register the SSO callback at the Jengo IAM (additive, with backup)
     python deploy/upload_and_deploy.py smoke test         # end-to-end check against the public URL
     python deploy/upload_and_deploy.py status test
 
@@ -58,6 +59,18 @@ ENVS = {
                  zone="prospergenics.com", network="maaride_net", gateway_dir="/opt/maaride-gateway",
                  caddy="maaride-gateway-caddy-1"),
 }
+
+
+# Which Jengo IAM an environment signs in with, and how to reach its database. Test uses the acc IAM: the
+# separate test IAM has only a handful of users (not the owner), so nobody could log in there.
+IAMS = {
+    "prod": dict(ip=PROD_IP, db="iam-prod-db-1", issuer="https://maendeleo.martiendejong.nl"),
+    "acc": dict(ip=TEST_ACC_IP, db="iam-db-1", issuer="https://iam-acc.martiendejong.nl"),
+}
+SSO_IAM = {"test": "acc", "acc": "acc", "prod": "prod"}
+SSO_CLIENT_ID = "leadmanager"
+SSO_PERMISSIONS = ('["ept:authorization","ept:token","ept:userinfo","gt:authorization_code","gt:refresh_token",'
+                   '"rst:code","scp:openid","scp:profile","scp:email","scp:roles"]')
 
 
 def stack_dir(env: str) -> str:
@@ -195,8 +208,8 @@ def cmd_init_env(args) -> None:
         f"ADMIN_PASSWORD={admin_password}",
         "ADMIN_FIRST_NAME=Admin",
         *(["SEED_RESET_PASSWORDS=true"] if (rc == 0 and args.force) else []),
-        "SSO_ISSUER=https://maendeleo.martiendejong.nl",
-        "SSO_CLIENT_ID=leadmanager",
+        f"SSO_ISSUER={IAMS[SSO_IAM[args.env]]['issuer']}",
+        f"SSO_CLIENT_ID={SSO_CLIENT_ID}",
         "OPENAI_API_KEY=", "GOOGLE_PLACES_API_KEY=", "JENGOWORK_BASE_URL=", "JENGOWORK_API_KEY=", "MINOX_POC_BASE_URL=",
     ]
     # The vault comes first: the server .env is a copy, the vault is where people look. If the vault
@@ -379,6 +392,69 @@ def cmd_promote(args) -> None:
     run(prod, f"cd {stack}/deploy && NO_BUILD=1 ./deploy.sh")
 
 
+def cmd_sso(args) -> None:
+    """Registers this environment's callback at the Jengo IAM so people can log in with their IAM account.
+    Additive and idempotent: existing redirect URIs stay, the client row is saved to /root first, and an IAM
+    that has no `leadmanager` client yet gets one (public client, PKCE, same permissions as production)."""
+    cfg = ENVS[args.env]
+    iam = IAMS[SSO_IAM[args.env]]
+    callback, home = f"{cfg['url']}/api/auth/sso/callback", f"{cfg['url']}/"
+    # These land in SQL: only plain https URLs of our own environments are acceptable.
+    for value in (callback, home):
+        if not re.fullmatch(r"https://[a-z0-9.-]+(/[a-z0-9/_.-]*)?", value):
+            raise SystemExit(f"refusing to put {value!r} in SQL")
+
+    ssh = connect(iam["ip"])
+    psql = (f"docker exec -i {iam['db']} psql -U iam -d iam_db")
+
+    def sql(text: str, extra: str = "") -> str:
+        _, out = run(ssh, f"cat <<'SQLEOF' | {psql} {extra} 2>&1\n{text}\nSQLEOF", show=False)
+        return out
+
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    backup = f"/root/iam-leadmanager-client-before-{stamp}.txt"
+    exists = sql(f"select count(*) from \"OpenIddictApplications\" where \"ClientId\"='{SSO_CLIENT_ID}';", "-t -A").strip() == "1"
+    sql(f"select * from \"OpenIddictApplications\" where \"ClientId\"='{SSO_CLIENT_ID}';", f"-x > {backup}")
+    if exists:
+        sql(f"""
+update "OpenIddictApplications"
+   set "RedirectUris" = ("RedirectUris"::jsonb || to_jsonb('{callback}'::text))::text
+ where "ClientId"='{SSO_CLIENT_ID}' and not ("RedirectUris"::jsonb ? '{callback}');
+update "OpenIddictApplications"
+   set "PostLogoutRedirectUris" = ("PostLogoutRedirectUris"::jsonb || to_jsonb('{home}'::text))::text
+ where "ClientId"='{SSO_CLIENT_ID}' and not ("PostLogoutRedirectUris"::jsonb ? '{home}');
+""")
+    else:
+        print(f"[sso] no '{SSO_CLIENT_ID}' client at {iam['issuer']} yet: creating it")
+        sql(f"""
+insert into "OpenIddictApplications"
+  ("Id","ClientId","ClientType","ConsentType","DisplayName","Permissions","PostLogoutRedirectUris","RedirectUris","Requirements","ConcurrencyToken")
+select gen_random_uuid()::text, '{SSO_CLIENT_ID}', 'public', 'implicit', 'LeadManager (Jengo Clients)',
+       '{SSO_PERMISSIONS}', '["{home}"]', '["{callback}"]', '["ft:pkce"]', gen_random_uuid()::text
+ where not exists (select 1 from "OpenIddictApplications" where "ClientId"='{SSO_CLIENT_ID}');
+""")
+    uris = sql(f"select \"RedirectUris\" from \"OpenIddictApplications\" where \"ClientId\"='{SSO_CLIENT_ID}';", "-t -A")
+    ssh.close()
+    if callback not in uris:
+        raise SystemExit(f"[sso] {callback} is not registered after the update: {uris.strip()[:200]}")
+    print(f"[sso] {callback} is registered at {iam['issuer']} (previous row saved on the IAM server: {backup})")
+
+    # The environment must point at that IAM (init-env does this for new environments).
+    app = connect(cfg["ip"])
+    env_path = f"{stack_dir(args.env)}/deploy/.env"
+    current = [l for l in read_text(app, env_path).splitlines() if l.startswith("SSO_ISSUER=")]
+    if current != [f"SSO_ISSUER={iam['issuer']}"]:
+        print(f"[sso] {args.env} pointed at {current}; switching to {iam['issuer']} and restarting")
+        run(app, f"cd {stack_dir(args.env)}/deploy && sed -i 's#^SSO_ISSUER=.*#SSO_ISSUER={iam['issuer']}#' .env "
+                 f"&& docker compose up -d --no-build", show=False)
+        for _ in range(40):
+            _, status = run(app, f"docker inspect -f '{{{{.State.Health.Status}}}}' clients-{args.env}-api-1", show=False, check=False)
+            if status.strip() == "healthy":
+                break
+            time.sleep(3)
+    app.close()
+
+
 def cmd_smoke(args) -> None:
     cfg = ENVS[args.env]
     ssh = connect(cfg["ip"])
@@ -405,7 +481,7 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="command", required=True)
     for name, fn in [("init-env", cmd_init_env), ("dns", cmd_dns), ("gateway", cmd_gateway),
-                     ("deploy", cmd_deploy), ("smoke", cmd_smoke), ("status", cmd_status)]:
+                     ("deploy", cmd_deploy), ("smoke", cmd_smoke), ("status", cmd_status), ("sso", cmd_sso)]:
         p = sub.add_parser(name)
         p.add_argument("env", choices=sorted(ENVS))
         p.set_defaults(fn=fn)
