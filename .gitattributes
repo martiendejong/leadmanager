@@ -1,0 +1,5 @@
+# Shell scripts and the Dockerfile run on Linux: always LF, also when checked out on Windows.
+*.sh text eol=lf
+Dockerfile text eol=lf
+deploy/Caddyfile.example text eol=lf
+deploy/docker-compose.yml text eol=lf

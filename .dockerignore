@@ -1,0 +1,24 @@
+# Bouwcontext klein en vrij van geheimen houden. (De server bouwt uit een git-archive en bevat deze
+# bestanden dus niet; dit beschermt een lokale `docker build`.)
+.git
+.gitignore
+.vs
+**/bin
+**/obj
+**/node_modules
+client/dist
+client/dist-ssr
+
+# Lokale en server-specifieke bestanden
+**/*.db
+**/*.db-shm
+**/*.db-wal
+**/.env
+**/.env.*
+!**/.env.example
+**/appsettings.*.json
+deploy/data
+deploy/backups
+deploy-secrets.json
+**/deploy-secrets.json
+*.log

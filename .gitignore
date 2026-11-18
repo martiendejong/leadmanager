@@ -47,3 +47,8 @@ lerna-debug.log*
 Thumbs.db
 
 deploy-secrets.json
+
+# Jengo Clients Docker: runtime data and backups live on the server only
+deploy/data/
+deploy/backups/
+deploy/.env

@@ -23,8 +23,13 @@ public class AuthSsoController : ControllerBase
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<AuthSsoController> _logger;
 
-    private const string IamIssuer = "https://maendeleo.martiendejong.nl";
-    private const string IamClientId = "leadmanager";
+    // Production IAM by default; test and acc can point to their own IAM through Sso:Issuer / Sso:ClientId.
+    private const string DefaultIamIssuer = "https://maendeleo.martiendejong.nl";
+    private const string DefaultIamClientId = "leadmanager";
+    private string IamIssuer =>
+        string.IsNullOrWhiteSpace(_configuration["Sso:Issuer"]) ? DefaultIamIssuer : _configuration["Sso:Issuer"]!.Trim().TrimEnd('/');
+    private string IamClientId =>
+        string.IsNullOrWhiteSpace(_configuration["Sso:ClientId"]) ? DefaultIamClientId : _configuration["Sso:ClientId"]!.Trim();
 
     public AuthSsoController(
         UserManager<ApplicationUser> userManager,

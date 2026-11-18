@@ -32,8 +32,13 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="8.*" />
   </ItemGroup>
 
+  <PropertyGroup>
+    <!-- Default keeps the Windows layout. The Docker build passes -p:WebSearchProject=/src/websearch/... -->
+    <WebSearchProject Condition="'$(WebSearchProject)' == ''">E:\projects\websearch\WebSearch\WebSearch.csproj</WebSearchProject>
+  </PropertyGroup>
+
   <ItemGroup>
-    <ProjectReference Include="E:\projects\websearch\WebSearch\WebSearch.csproj" Properties="TargetFramework=net8.0" />
+    <ProjectReference Include="$(WebSearchProject)" Properties="TargetFramework=net8.0" />
   </ItemGroup>
 
 </Project>
