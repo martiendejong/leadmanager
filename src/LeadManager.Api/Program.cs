@@ -258,40 +258,9 @@ using (var scope = app.Services.CreateScope())
             await roleManager.CreateAsync(new IdentityRole(role));
     }
 
-    // Seed admin users
-    var admins = new[]
-    {
-        (Email: "info@prospergenics.com",    Password: "SpaceElevator1tam!", First: "Admin",   Last: "Prospergenics"),
-        (Email: "info@martiendejong.nl",     Password: "SpaceElevator1tam!", First: "Martien", Last: "de Jong"),
-    };
-
-    foreach (var (email, password, first, last) in admins)
-    {
-        var user = await userManager.FindByEmailAsync(email);
-        if (user == null)
-        {
-            user = new ApplicationUser
-            {
-                UserName = email,
-                Email = email,
-                FirstName = first,
-                LastName = last,
-                CreatedAt = DateTime.UtcNow,
-                IsActive = true,
-                EmailConfirmed = true
-            };
-            var result = await userManager.CreateAsync(user, password);
-            if (result.Succeeded)
-                await userManager.AddToRoleAsync(user, "Admin");
-        }
-        else
-        {
-            var token = await userManager.GeneratePasswordResetTokenAsync(user);
-            await userManager.ResetPasswordAsync(user, token, password);
-            if (!await userManager.IsInRoleAsync(user, "Admin"))
-                await userManager.AddToRoleAsync(user, "Admin");
-        }
-    }
+    // Admin accounts come from configuration only (Seed:Admins). No password lives in the code.
+    await AdminSeeder.SeedAsync(userManager, builder.Configuration,
+        scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("AdminSeeder"));
 }
 
 // Dev middleware
