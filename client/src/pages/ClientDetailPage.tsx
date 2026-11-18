@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
+import { safeHref } from '../api/crm'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { getClient, updateClient, type Client } from '../api/clients'
 import { useToast } from '../components/Toast'
+import CrmPanel from '../components/crm/CrmPanel'
 import {
   ENGAGEMENT_CATEGORIES,
   CATEGORY_DESCRIPTIONS,
@@ -119,7 +121,7 @@ export default function ClientDetailPage() {
           </div>
           {client.website && (
             <a
-              href={client.website}
+              href={safeHref(client.website)}
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm text-indigo-600 hover:underline flex items-center gap-1"
@@ -319,6 +321,11 @@ export default function ClientDetailPage() {
             ))}
           </div>
         )}
+      </div>
+
+      {/* Relationship screen: next actions, conversations, contacts, links (Jengo Clients) */}
+      <div className="mt-6 max-w-5xl">
+        <CrmPanel parentType="clients" parentId={client.id} />
       </div>
     </div>
   )

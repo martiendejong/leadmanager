@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { safeHref } from '../../api/crm'
 import { Link } from 'react-router-dom'
 import type { Lead, UserDto } from '../../api/leads'
 import { regenerateSalesApproach, enrichLeads, assignLead, fetchUsers, setReminder, updateLeadStatus } from '../../api/leads'
@@ -230,7 +231,7 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
                 <h2 className="text-lg font-bold text-gray-900 truncate">{lead.name}</h2>
                 {lead.website && (
                   <a
-                    href={lead.resolvedUrl || lead.website}
+                    href={safeHref(lead.resolvedUrl || lead.website)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-sm text-indigo-600 hover:underline"

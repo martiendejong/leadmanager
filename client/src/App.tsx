@@ -16,6 +16,7 @@ import ClientDetailPage from './pages/ClientDetailPage'
 import IntakePage from './pages/IntakePage'
 import SalesSettingsPage from './pages/SalesSettingsPage'
 import LeadDetailPage from './pages/LeadDetailPage'
+import TodayPage from './pages/TodayPage'
 
 // Handle SSO token injected by the backend into the URL fragment after redirect
 function SsoTokenHandler() {
@@ -158,6 +159,18 @@ function App() {
               }
             >
               <Route index element={<SalesSettingsPage />} />
+            </Route>
+
+            {/* Daily call list */}
+            <Route
+              path="/vandaag"
+              element={
+                <ProtectedRoute>
+                  <Layout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<TodayPage />} />
             </Route>
 
             {/* Lead detail */}

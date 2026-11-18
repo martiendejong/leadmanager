@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { safeHref } from '../api/crm'
 import { Link } from 'react-router-dom'
 import { getProfile, searchLeadsWithProfile, type CompanyProfile, type QualifiedLead } from '../api/profile'
 import { importSearchResults } from '../api/leads'
@@ -262,7 +263,7 @@ export default function FinderPage() {
                       <td className="px-4 py-3 max-w-[160px]">
                         {lead.website ? (
                           <a
-                            href={lead.website}
+                            href={safeHref(lead.website)}
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()}

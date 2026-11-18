@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { getLead, updateLeadWorkflow } from '../api/leads'
 import type { Lead } from '../api/leads'
 import api from '../api/client'
+import CrmPanel from '../components/crm/CrmPanel'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -1014,6 +1015,11 @@ export default function LeadDetailPage() {
             })}
           </div>
         </div>
+      </div>
+
+      {/* Relationship screen: next actions, conversations, contacts, links (Jengo Clients) */}
+      <div className="mt-6">
+        <CrmPanel parentType="leads" parentId={lead.id} />
       </div>
     </div>
   )

@@ -74,3 +74,28 @@ public record CreatedApiKeyDto(Guid Id, string Name, string Prefix, string Key);
 public record CrmMatchDto(
     string ParentType, Guid ParentId, string Name, string? Website, string? Email,
     string? Phone, string MatchedOn);
+
+// ---- Import (task 8024) ----------------------------------------------------------------
+
+public record ImportContactDto(string Name, string? Role, string? Email, string? Phone, string? Mobile);
+
+/// <summary>OccurredAt is required when there is no SourceRef: it is what makes a re-run recognise the row.</summary>
+public record ImportInteractionDto(
+    string Kind, string? Direction,
+    [property: JsonConverter(typeof(UtcNullableDateTimeConverter))] DateTime? OccurredAt,
+    string Summary, string? Outcome, string? SourceRef);
+
+public record ImportNextActionDto(string Title, [property: JsonConverter(typeof(UtcDateTimeConverter))] DateTime DueAt);
+
+public record ImportLeadDto(
+    string Name, string? Website, string? Sector, string? City, string? Phone, string? Email,
+    string? Source, List<ImportContactDto>? Contacts, List<ImportInteractionDto>? Interactions,
+    List<ImportNextActionDto>? NextActions);
+
+public record ImportRequestDto(List<ImportLeadDto> Leads);
+
+public record ImportLeadResultDto(
+    string Name, string Action, Guid? LeadId, int ContactsCreated, int InteractionsCreated,
+    int InteractionsSkipped, int NextActionsCreated, List<string> Problems);
+
+public record ImportReportDto(bool DryRun, int LeadsCreated, int LeadsMatched, List<ImportLeadResultDto> Leads);
