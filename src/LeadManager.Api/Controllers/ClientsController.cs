@@ -14,10 +14,12 @@ namespace LeadManager.Api.Controllers;
 public class ClientsController : ControllerBase
 {
     private readonly LeadManagerDbContext _db;
+    private readonly DocumentStorage? _storage;
 
-    public ClientsController(LeadManagerDbContext db)
+    public ClientsController(LeadManagerDbContext db, DocumentStorage? storage = null)
     {
         _db = db;
+        _storage = storage;
     }
 
     private string? GetCurrentUserId() =>
@@ -188,8 +190,13 @@ public class ClientsController : ControllerBase
 
         if (client == null) return NotFound();
 
+        var files = await _db.ClientDocumentFiles
+            .Where(f => _db.ClientDocuments.Any(d => d.Id == f.DocumentId && d.ClientId == id))
+            .Select(f => f.StoragePath).ToListAsync();
         _db.Clients.Remove(client);
         await _db.SaveChangesAsync();
+        // The rows cascade away with the client; the files on disk are removed here.
+        if (_storage != null) foreach (var path in files) _storage.TryDelete(path);
         return NoContent();
     }
 

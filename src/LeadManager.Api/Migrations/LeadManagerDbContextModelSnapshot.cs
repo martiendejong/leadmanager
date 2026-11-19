@@ -273,6 +273,119 @@ namespace LeadManager.Api.Migrations
                     b.ToTable("ClientBundles");
                 });
 
+            modelBuilder.Entity("LeadManager.Api.Models.ClientDocument", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("Amount")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedByUserId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("DocumentDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("PredecessorId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("ProjectId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Reference")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("SignedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Url")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ValidUntil")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PredecessorId");
+
+                    b.HasIndex("ProjectId");
+
+                    b.HasIndex("ClientId", "DocumentDate");
+
+                    b.ToTable("ClientDocuments");
+                });
+
+            modelBuilder.Entity("LeadManager.Api.Models.ClientDocumentFile", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("DocumentId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Label")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Sha256")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("StoragePath")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UploadedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UploadedByUserId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DocumentId");
+
+                    b.HasIndex("StoragePath")
+                        .IsUnique();
+
+                    b.ToTable("ClientDocumentFiles");
+                });
+
             modelBuilder.Entity("LeadManager.Api.Models.ClientIntake", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1359,6 +1472,36 @@ namespace LeadManager.Api.Migrations
                     b.Navigation("Client");
                 });
 
+            modelBuilder.Entity("LeadManager.Api.Models.ClientDocument", b =>
+                {
+                    b.HasOne("LeadManager.Api.Models.Client", null)
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("LeadManager.Api.Models.ClientDocument", null)
+                        .WithMany()
+                        .HasForeignKey("PredecessorId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("LeadManager.Api.Models.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("LeadManager.Api.Models.ClientDocumentFile", b =>
+                {
+                    b.HasOne("LeadManager.Api.Models.ClientDocument", "Document")
+                        .WithMany("Files")
+                        .HasForeignKey("DocumentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Document");
+                });
+
             modelBuilder.Entity("LeadManager.Api.Models.ClientIntake", b =>
                 {
                     b.HasOne("LeadManager.Api.Models.Client", "Client")
@@ -1562,6 +1705,11 @@ namespace LeadManager.Api.Migrations
             modelBuilder.Entity("LeadManager.Api.Models.Client", b =>
                 {
                     b.Navigation("Projects");
+                });
+
+            modelBuilder.Entity("LeadManager.Api.Models.ClientDocument", b =>
+                {
+                    b.Navigation("Files");
                 });
 
             modelBuilder.Entity("LeadManager.Api.Models.Lead", b =>

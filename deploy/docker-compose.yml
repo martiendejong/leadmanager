@@ -31,6 +31,8 @@ services:
       Seed__ResetExistingPasswords: ${SEED_RESET_PASSWORDS:-false}
       Cors__Origins__0: ${PUBLIC_URL}
       Sso__CallbackBaseUrl: ${PUBLIC_URL}
+      # Uploaded documents (contracts, quotes) live in the data volume, so the backup script archives them.
+      Documents__Path: /data/documents
       Sso__Issuer: ${SSO_ISSUER:-https://maendeleo.martiendejong.nl}
       Sso__ClientId: ${SSO_CLIENT_ID:-leadmanager}
       # Optioneel. Leeg = die functie staat uit. Op test bewust leeg laten.

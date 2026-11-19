@@ -32,6 +32,8 @@ public class LeadManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<EntityLink> EntityLinks { get; set; }
     public DbSet<ApiKey> ApiKeys { get; set; }
     public DbSet<CalendarFeed> CalendarFeeds { get; set; }
+    public DbSet<ClientDocument> ClientDocuments { get; set; }
+    public DbSet<ClientDocumentFile> ClientDocumentFiles { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -164,6 +166,25 @@ public class LeadManagerDbContext : IdentityDbContext<ApplicationUser>
             e.HasOne<Lead>().WithMany().HasForeignKey(x => x.LeadId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<Client>().WithMany().HasForeignKey(x => x.ClientId).OnDelete(DeleteBehavior.Cascade);
             e.Property(x => x.Kind).HasConversion<string>();
+        });
+
+        builder.Entity<ClientDocument>(e =>
+        {
+            e.HasOne<Client>().WithMany().HasForeignKey(x => x.ClientId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Project>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne<ClientDocument>().WithMany().HasForeignKey(x => x.PredecessorId).OnDelete(DeleteBehavior.SetNull);
+            e.Property(x => x.Kind).HasConversion<string>();
+            e.Property(x => x.Status).HasConversion<string>();
+            e.Property(x => x.Amount).HasPrecision(14, 2);
+            e.HasIndex(x => new { x.ClientId, x.DocumentDate });
+            e.HasIndex(x => x.PredecessorId);
+        });
+
+        builder.Entity<ClientDocumentFile>(e =>
+        {
+            e.HasOne(x => x.Document).WithMany(d => d.Files).HasForeignKey(x => x.DocumentId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => x.DocumentId);
+            e.HasIndex(x => x.StoragePath).IsUnique();
         });
 
         builder.Entity<CalendarFeed>(e =>
