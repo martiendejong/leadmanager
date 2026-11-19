@@ -18,6 +18,7 @@ export interface Lead {
   enrichedAt: string | null
   importedAt: string
   createdAt?: string
+  updatedAt?: string
   source: string
   // RAG enrichment fields
   ownerTitle?: string

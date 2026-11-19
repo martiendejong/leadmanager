@@ -28,6 +28,8 @@ const COLUMNS: { key: string; label: string; sortable: boolean; hideOnMobile: bo
   { key: 'salesPriorityScore',  label: 'Score',        sortable: true,  hideOnMobile: false },
   { key: 'isEnriched',          label: 'Status',       sortable: true,  hideOnMobile: false },
   { key: 'enrichedAt',          label: 'Enriched on',  sortable: true,  hideOnMobile: true  },
+  { key: 'createdAt',           label: 'Created',      sortable: true,  hideOnMobile: true  },
+  { key: 'updatedAt',           label: 'Updated',      sortable: true,  hideOnMobile: true  },
 ]
 
 function SortIcon({ active, desc }: { active: boolean; desc: boolean }) {
@@ -283,6 +285,12 @@ export default function LeadsTable({
                 </td>
                 <td className="hidden sm:table-cell px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
                   {formatDate(lead.enrichedAt)}
+                </td>
+                <td className="hidden sm:table-cell px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
+                  {formatDate(lead.createdAt ?? lead.importedAt)}
+                </td>
+                <td className="hidden sm:table-cell px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
+                  {formatDate(lead.updatedAt ?? null)}
                 </td>
                 <td className="px-4 py-3 w-10" onClick={(e) => e.stopPropagation()}>
                   <button

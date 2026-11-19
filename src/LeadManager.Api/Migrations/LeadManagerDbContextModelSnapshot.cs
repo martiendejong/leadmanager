@@ -946,6 +946,9 @@ namespace LeadManager.Api.Migrations
                     b.Property<string>("TwitterUrl")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("VatNumber")
                         .HasColumnType("TEXT");
 

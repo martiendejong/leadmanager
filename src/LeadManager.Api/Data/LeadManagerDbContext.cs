@@ -35,6 +35,29 @@ public class LeadManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<ClientDocument> ClientDocuments { get; set; }
     public DbSet<ClientDocumentFile> ClientDocumentFiles { get; set; }
 
+    // Every save that touches a lead stamps UpdatedAt, whoever made the change (screen, import, enrichment, API).
+    private void StampLeads()
+    {
+        var now = DateTime.UtcNow;
+        foreach (var entry in ChangeTracker.Entries<Lead>())
+        {
+            if (entry.State == EntityState.Modified) entry.Entity.UpdatedAt = now;
+            else if (entry.State == EntityState.Added && entry.Entity.UpdatedAt == default) entry.Entity.UpdatedAt = now;
+        }
+    }
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        StampLeads();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        StampLeads();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
