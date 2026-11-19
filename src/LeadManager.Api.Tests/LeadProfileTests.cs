@@ -194,4 +194,31 @@ public class LeadProfileTests : IDisposable
         }
         Assert.Equal(12, seen.Distinct().Count());
     }
+
+    private static PatchLeadProfileDto Clear(params string[] fields) =>
+        new(null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+            null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, fields);
+
+    [Fact]
+    public async Task ClearFields_ResetsNumericFields_AndTheScoreDropsAgain()
+    {
+        var lead = Seed("Acme");
+        var scored = await Do("me", lead.Id, Patch(rating: 4.8f, year: 2008));
+        Assert.Equal(2, scored.SalesPriorityScore);   // strong rating 1 + established 1
+        var cleared = await Do("me", lead.Id, Clear("googleRating", "foundingYear", "googleReviewCount"));
+        Assert.Null(cleared.GoogleRating);
+        Assert.Null(cleared.FoundingYear);
+        Assert.Equal(0, cleared.SalesPriorityScore);
+    }
+
+    [Fact]
+    public async Task ClearFields_RefusesUnknownNames_AndSetAndClearTogether()
+    {
+        var lead = Seed("Acme");
+        Assert.IsType<BadRequestObjectResult>(await As("me").PatchProfile(lead.Id, Clear("name")));
+        var both = Clear("googleRating") with { GoogleRating = 4.5f };
+        Assert.IsType<BadRequestObjectResult>(await As("me").PatchProfile(lead.Id, both));
+        var untouched = await Do("me", lead.Id, Patch(rating: 4.8f));
+        Assert.Equal(4.8f, untouched.GoogleRating);   // a refused call changed nothing
+    }
 }
