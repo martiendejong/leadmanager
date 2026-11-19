@@ -74,12 +74,29 @@ against private, loopback, link-local, IPv4-compatible, IPv4-translated, 6to4, N
 redirect to another registrable domain is not followed, so a site's facts are never attributed to another business; the body is capped
 and decoded with the response charset.
 
+## Which values may be removed: provenance
+
+Every value the server writes (a hunt candidate, a verify, the old AI enrichment) is recorded per field as a short hash in
+`Lead.HuntWrittenJson` (`HuntProvenance`). A verify may only **remove or overwrite a value whose hash still matches**, that is a value the
+server wrote and nobody changed since. A value a person typed, or edited after a hunt wrote it, is kept and listed in the note
+("Not removed, because they were entered by a person (confirm to remove them)"); `confirm=true` lifts that for the run. The old AI
+enrichment audit follows the same rule: it records what the enrichment run itself changed (a snapshot before and after) and only audits
+those values; hand-entered mobile numbers, LinkedIn links, e-mail addresses and ratings are never wiped. Existing leads have no provenance,
+so a verify never clears anything on them without `confirm`.
+
+## Google rating
+
+Google Places is asked for the company name, but a listing counts only when its **website is on the business's own registrable domain**
+or its **phone number is one the business's pages publish**. A similar name proves nothing. Without such a match there is no Google point.
+Site builder and hosting domains (`wixsite.com`, `github.io`, `vercel.app`, ...) are treated as public suffixes, so `a.wixsite.com` and
+`b.wixsite.com` are different businesses.
+
 ## Verify and rescore (existing leads)
 
 Rules only, no model. The server fetches the lead's own website and applies the same fact rules.
 
-- A lead that a hunt created (source `Lead hunt ...`) may have values removed that cannot be proven.
-- A lead a person filled in (any other source) is **never** cleared or overwritten by default. What would be removed, and what differs
+- Values that the server wrote itself and nobody changed since (provenance, see above) may be removed when they cannot be proven.
+- A value a person typed is **never** cleared or overwritten by default. What would be removed, and what differs
   from the website, is listed in the evidence note ("Not removed, because they were entered by a person (confirm to remove them)").
 - `POST /api/leads/verify` with `{"ids": [...], "confirm": true}` (or `?confirm=true` for one lead) confirms the removal.
 - `POST /api/leads/{id}/verify?dryRun=true[&confirm=true]` returns the proposed changes (score before and after, what would be removed,
@@ -125,3 +142,16 @@ the hunt is Pending or Running, and whatever the agent creates belongs to the us
 Only information that the business itself publishes is used. A mobile number or a personal e-mail address of a sole proprietor is
 personal data: check the GDPR rules and the Do-Not-Call register before you call or mail. The agent prompt forbids sending anything to
 anyone.
+
+## Database migrations and the environments
+
+| Migration | What |
+|---|---|
+| `20261119155650_AddLeadHunt` | `HuntJobs` and `HuntCandidates` (the first version; applied on test and acc) |
+| `20261119164155_HuntActiveJobIndexAndConfirm` | `ConfirmClear` column and the unique index `IX_HuntJobs_OneActivePerUser`. Before the index is created, a SQL step marks all but the newest Pending or Running job of each user as Failed ("Superseded"), so a database that ran under the old race still migrates. Tested on a data copy with such rows. |
+| `20261119170216_AddLeadHuntProvenance` | `Leads.HuntWrittenJson` (nullable; existing leads stay without provenance) |
+
+How test and acc were handled: they applied `AddLeadHunt` (155650) and then `HuntActiveJobIndexAndConfirm`; their history was checked (no other hunt
+migration row, no active jobs), and the clean-up SQL was added to the migration afterwards, which changes nothing for a database that already ran it.
+An intermediate version of `AddLeadHunt` (id 20261119162503) was generated once and deployed to test, where it failed and rolled back before it was
+recorded; it exists on no database, and its files are gone. Prod has none of these migrations yet and runs all three in order.

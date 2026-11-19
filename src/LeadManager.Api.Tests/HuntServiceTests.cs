@@ -259,6 +259,8 @@ public class HuntServiceTests : IDisposable
             Name = "Tine", Website = Site, ImportedByUserId = Me, OwnerName = "Tine van Wel", GoogleRating = 5f, GoogleReviewCount = 3, FoundingYear = 2009,
             PersonalEmail = "old@elsewhere.nl", City = "Utrecht", Source = "Lead hunt 2026-11-19", // a lead a hunt wrote: unproven values may go
         };
+        // These values were written by an earlier hunt or enrichment and not changed since: they may be removed again.
+        HuntProvenance.Record(lead, new[] { "ownerName", "foundingYear", "personalEmail", "googleRating" });
         var theirs = new Lead { Name = "Not mine", Website = "https://theirs.example.nl", ImportedByUserId = Other, OwnerName = "Keep Me" };
         _db.Leads.AddRange(lead, theirs);
         var job = new HuntJob { UserId = Me, Kind = HuntKinds.Verify, LeadIds = new List<Guid> { lead.Id, theirs.Id }, Total = 2 };

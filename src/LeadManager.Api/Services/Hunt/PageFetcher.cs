@@ -155,6 +155,13 @@ public static class HtmlText
             if (nodes == null) continue;
             foreach (var n in nodes.ToList()) n.Remove();
         }
+        // Block level elements and line breaks separate words and lines: "<p>a</p><p>b</p>" is "a b", not "ab" (word boundaries in the rules depend on it).
+        foreach (var n in doc.DocumentNode.SelectNodes("//p|//div|//li|//br|//h1|//h2|//h3|//h4|//h5|//h6|//section|//article|//nav|//header|//footer|//aside|//main|//td|//th|//tr|//ul|//ol|//blockquote|//label|//button|//address|//figcaption|//dd|//dt")?.ToList() ?? new List<HtmlNode>())
+        {
+            if (n.ParentNode == null) continue;
+            n.ParentNode.InsertBefore(doc.CreateTextNode("\n"), n);
+            n.ParentNode.InsertAfter(doc.CreateTextNode("\n"), n);
+        }
         // Make tel: targets visible in the text, so facts survive the stripping of the markup.
         foreach (var a in doc.DocumentNode.SelectNodes("//a[@href]")?.ToList() ?? new List<HtmlNode>())
         {
@@ -163,6 +170,9 @@ public static class HtmlText
                 a.AppendChild(doc.CreateTextNode(" " + href[4..] + " "));
         }
         var text = WebUtility.HtmlDecode(doc.DocumentNode.InnerText);
-        return Regex.Replace(text, @"\s+", " ").Trim();
+        // A block boundary stays a line break (a name or a statement never runs from one block into the next); all other white space is one space.
+        text = Regex.Replace(text, @"[^\S\n]+", " ");
+        text = Regex.Replace(text, @" ?\n[ \n]*", "\n");
+        return text.Trim();
     }
 }

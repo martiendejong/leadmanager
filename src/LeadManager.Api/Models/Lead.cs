@@ -22,6 +22,9 @@ public class Lead
     public string AnymailfinderResult { get; set; } = "";
     public string LinkedInUrl { get; set; } = "";
     public string Source { get; set; } = "";
+
+    /// <summary>JSON: per field a hash of the value the server (a hunt or an enrichment) wrote. Only such values may be cleared again without confirmation.</summary>
+    public string? HuntWrittenJson { get; set; }
     public LeadStatus Status { get; set; } = LeadStatus.Lead;
     public bool IsEnriched { get; set; } = false;
     public DateTime? EnrichedAt { get; set; }

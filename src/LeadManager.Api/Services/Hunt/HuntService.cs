@@ -208,6 +208,7 @@ public class HuntService
         job.CurrentCandidate = null;
         job.CompletedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(CancellationToken.None);
+        HuntLocks.Forget(job.Id);
         await Push(job, null);
     }
 
@@ -222,6 +223,7 @@ public class HuntService
             j.Status = HuntStatuses.Failed;
             j.Error = $"The Jengo agent did not report in {(int)silence.TotalMinutes} minutes. The candidates that were finished are saved.";
             j.CompletedAt = now;
+            HuntLocks.Forget(j.Id);
         }
         if (stale.Count > 0) await db.SaveChangesAsync();
         return stale.Count;
@@ -302,10 +304,10 @@ public class HuntService
                     await _verifier.DeepenAsync(site, ct);
                     var result = _verifier.VerifyDeterministic(site, lead.OwnerName);
                     // Values that a person typed stay unless the person confirmed the removal; values a hunt or an enrichment wrote may go.
-                    var clear = job.ConfirmClear || IsHuntLead(lead);
+                    var mayClear = MayClear(lead, job.ConfirmClear);
                     var kept = new List<string>();
-                    var removed = LeadVerifier.Apply(lead, result, clearUnverified: clear, _scoring, kept);
-                    await ApplyGoogleAsync(lead, result, ct, existingLead: true, removed, clear, kept);
+                    var removed = LeadVerifier.Apply(lead, result, clearUnverified: true, _scoring, kept, mayClear);
+                    await ApplyGoogleAsync(lead, result, ct, existingLead: true, removed, mayClear("googleRating"), kept);
                     cand.Score = lead.SalesPriorityScore;
                     cand.Outcome = HuntOutcomes.Verified;
                     cand.Reason = $"Verified and rescored: {lead.SalesPriorityScore}.";
@@ -338,16 +340,26 @@ public class HuntService
         if (_places.IsConfigured)
         {
             g = await _places.EnrichAsync(lead.Name, string.IsNullOrWhiteSpace(lead.City) ? null : lead.City);
-            if (g?.GoogleRating != null && NameMatches(g.DisplayName, lead.Name))
+            if (g?.GoogleRating != null && ListingIsThisBusiness(g, lead, result.Facts))
             {
-                lead.GoogleRating = g.GoogleRating;
-                lead.GoogleReviewCount = g.GoogleReviewCount;
-                lead.GoogleMapsUrl = g.GoogleMapsUrl;
-                result.GoogleNote = $"{g.GoogleRating:F1} from {g.GoogleReviewCount} reviews on the Google listing '{g.DisplayName}'.";
+                var existing = lead.GoogleRating;
+                if (existing != null && Math.Abs(existing.Value - g.GoogleRating.Value) > 0.001f && !clear)
+                {
+                    kept?.Add($"googleRating {existing} differs from the Google listing ({g.GoogleRating:F1})");
+                }
+                else
+                {
+                    lead.GoogleRating = g.GoogleRating;
+                    lead.GoogleReviewCount = g.GoogleReviewCount;
+                    lead.GoogleMapsUrl = g.GoogleMapsUrl;
+                    HuntProvenance.Record(lead, new[] { "googleRating" });
+                }
+                result.GoogleNote = $"{g.GoogleRating:F1} from {g.GoogleReviewCount} reviews on the Google listing '{g.DisplayName}' (its website or phone number is this business's).";
             }
             else
             {
-                result.GoogleNote = g == null ? "No Google listing found." : $"The Google listing '{g.DisplayName}' does not clearly match this business, so no rating is used.";
+                result.GoogleNote = g == null ? "No Google listing found."
+                    : $"The Google listing '{g.DisplayName}' does not show this business's website or one of its phone numbers, so it is not taken to be this business and no rating is used.";
                 g = null;
             }
         }
@@ -368,10 +380,13 @@ public class HuntService
         lead.SalesPriorityScore = s.Score; lead.SalesPriorityLabel = s.Label; lead.SalesPriorityReasoning = s.Reasoning;
     }
 
-    /// <summary>A lead that a hunt created: its values were written by the hunt, not typed by a person.</summary>
-    public static bool IsHuntLead(Lead lead) => (lead.Source ?? "").StartsWith("Lead hunt", StringComparison.OrdinalIgnoreCase);
+    /// <summary>
+    /// Which fields a verify may remove: only values the server itself wrote and nobody changed since (see <see cref="HuntProvenance"/>),
+    /// or anything when the person confirmed. A value a person typed, or edited after a hunt wrote it, is never cleared without confirmation.
+    /// </summary>
+    public static Func<string, bool> MayClear(Lead lead, bool confirmed) => field => confirmed || HuntProvenance.Unchanged(lead, field);
 
-    private static string KeptNote(List<string> kept) =>
+    public static string KeptNote(List<string> kept) =>
         kept.Count == 0 ? "" : "\nNot removed, because they were entered by a person (confirm to remove them): " + string.Join("; ", kept);
 
     public record VerifyPreview(Guid LeadId, bool Reachable, int? ScoreBefore, int? ScoreAfter, bool WouldClear, List<object> Verified, List<object> NotCounted,
@@ -388,14 +403,29 @@ public class HuntService
         if (!site.Reachable) return new VerifyPreview(lead.Id, false, before, before, false, new(), new(), new(), new(), new());
         await _verifier.DeepenAsync(site, budget.Token);
         var result = _verifier.VerifyDeterministic(site, copy.OwnerName);
-        var clear = confirm || IsHuntLead(copy);
+        var mayClear = MayClear(copy, confirm);
         var kept = new List<string>();
-        var removed = LeadVerifier.Apply(copy, result, clearUnverified: clear, _scoring, kept);
-        await ApplyGoogleAsync(copy, result, budget.Token, existingLead: true, removed, clear, kept);
-        return new VerifyPreview(lead.Id, true, before, copy.SalesPriorityScore, clear,
+        var removed = LeadVerifier.Apply(copy, result, clearUnverified: true, _scoring, kept, mayClear);
+        await ApplyGoogleAsync(copy, result, budget.Token, existingLead: true, removed, mayClear("googleRating"), kept);
+        return new VerifyPreview(lead.Id, true, before, copy.SalesPriorityScore, confirm || removed.Count > 0,
             result.Verified.Values.Select(c => (object)new { field = c.Field, value = c.Value, source = c.SourceUrl, quote = c.Quote }).ToList(),
             result.Dropped.Select(d => (object)new { field = d.Field, reason = d.Reason }).ToList(),
             removed, kept, result.PageUrls);
+    }
+
+    /// <summary>
+    /// A Google listing is this business only when its website is on the business's own domain, or its phone number is one the business's
+    /// pages publish. A name that merely shares a word proves nothing: another company, in another town, can have that name.
+    /// </summary>
+    public static bool ListingIsThisBusiness(GooglePlacesResult g, Lead lead, EvidenceFacts facts)
+    {
+        if (!string.IsNullOrWhiteSpace(g.Website) && UrlGuard.TryNormalize(g.Website, out var listed) && UrlGuard.TryNormalize(lead.Website, out var own)
+            && UrlGuard.RegistrableDomain(listed.Host) == UrlGuard.RegistrableDomain(own.Host)) return true;
+        var tail = System.Text.RegularExpressions.Regex.Replace(g.Phone ?? "", @"\D", "");
+        if (tail.Length < 9) return false;
+        tail = tail[^9..];
+        string Tail(string n) { var d = System.Text.RegularExpressions.Regex.Replace(n, @"\D", ""); return d.Length >= 9 ? d[^9..] : ""; }
+        return facts.Mobiles.Any(m => Tail(m.Normalized) == tail) || facts.Landlines.Any(l => Tail(l) == tail) || facts.TelNumbers.Any(t => Tail(t) == tail);
     }
 
     public static bool NameMatches(string? listed, string company)

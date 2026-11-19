@@ -126,6 +126,8 @@ public class EnrichmentBackgroundService : BackgroundService
 
     private async Task<string> EnrichLeadAsync(Lead lead, Guid jobId, CancellationToken stoppingToken)
     {
+        // What the lead held before this run: values that differ afterwards were written by the enrichment, and only those may be audited away.
+        var beforeEnrichment = LeadManager.Api.Services.Hunt.HuntProvenance.Snapshot(lead);
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<LeadManagerDbContext>();
 
@@ -477,13 +479,13 @@ public class EnrichmentBackgroundService : BackgroundService
             await db.SaveChangesAsync(stoppingToken);
 
             // The model answers above are claims, not facts: audit the score bearing ones against the website and rescore.
-            await AuditAsync(scope, db, finalLead, salesScoreService, stoppingToken);
+            await AuditAsync(scope, db, finalLead, salesScoreService, beforeEnrichment, stoppingToken);
         }
 
         return finalLead?.OwnerName ?? "";
     }
 
-    private async Task AuditAsync(IServiceScope scope, LeadManagerDbContext db, Lead lead, SalesScoreService scoring, CancellationToken ct)
+    private async Task AuditAsync(IServiceScope scope, LeadManagerDbContext db, Lead lead, SalesScoreService scoring, Dictionary<string, string?> before, CancellationToken ct)
     {
         try
         {
@@ -492,12 +494,16 @@ public class EnrichmentBackgroundService : BackgroundService
             await verifier.DeepenAsync(site, ct);
             var result = verifier.VerifyDeterministic(site, lead.OwnerName);
             if (!result.Checked) return;
-            var removed = LeadManager.Api.Services.Hunt.LeadVerifier.Apply(lead, result, clearUnverified: true, scoring);
-            LeadManager.Api.Services.Hunt.LeadVerifier.ClearUnsourcedGoogle(lead, removed, scoring);
+            // The enrichment's own values are recorded as written by the server; hand-entered values (unchanged by this run) are never cleared.
+            LeadManager.Api.Services.Hunt.HuntProvenance.RecordChanges(lead, before);
+            var mayClear = LeadManager.Api.Services.Hunt.HuntService.MayClear(lead, confirmed: false);
+            var kept = new List<string>();
+            var removed = LeadManager.Api.Services.Hunt.LeadVerifier.Apply(lead, result, clearUnverified: true, scoring, kept, mayClear);
+            LeadManager.Api.Services.Hunt.LeadVerifier.ClearUnsourcedGoogle(lead, removed, scoring, mayClear("googleRating"), kept);
             db.LeadNotes.Add(new LeadNote
             {
                 LeadId = lead.Id, CreatedByUserId = lead.ImportedByUserId ?? "",
-                Content = LeadManager.Api.Services.Hunt.LeadVerifier.BuildNote("Enrichment audit " + DateTime.UtcNow.ToString("yyyy-MM-dd"), lead.SalesPriorityScore ?? 0, result, removed),
+                Content = LeadManager.Api.Services.Hunt.LeadVerifier.BuildNote("Enrichment audit " + DateTime.UtcNow.ToString("yyyy-MM-dd"), lead.SalesPriorityScore ?? 0, result, removed) + LeadManager.Api.Services.Hunt.HuntService.KeptNote(kept),
             });
             await db.SaveChangesAsync(ct);
         }

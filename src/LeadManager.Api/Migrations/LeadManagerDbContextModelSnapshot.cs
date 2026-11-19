@@ -962,6 +962,9 @@ namespace LeadManager.Api.Migrations
                     b.Property<bool>("HasUploadedDocuments")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("HuntWrittenJson")
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime>("ImportedAt")
                         .HasColumnType("TEXT");
 

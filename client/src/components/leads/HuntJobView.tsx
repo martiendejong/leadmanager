@@ -125,7 +125,7 @@ export default function HuntJobView({ jobId, onFinished }: Props) {
         {isHunt && <Stat label="Agent last reported" value={job.lastAgentCallAt ? new Date(job.lastAgentCallAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : 'not yet'} />}
       </div>
 
-      {isHunt && job.taskUrl && (
+      {isHunt && job.taskUrl && /^https?:\/\//i.test(job.taskUrl) && (
         <p className="text-sm text-gray-600">
           A Jengo agent is doing this in the background: <a href={job.taskUrl} target="_blank" rel="noreferrer" className="text-indigo-700 hover:underline">open its task</a>.
         </p>

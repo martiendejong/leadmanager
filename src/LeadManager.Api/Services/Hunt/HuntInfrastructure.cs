@@ -135,6 +135,9 @@ public static class HuntLocks
         return await sem.WaitAsync(wait) ? new Releaser(sem) : null;
     }
 
+    /// <summary>The lock of a job that has ended is not needed any more (an in-flight holder keeps its own reference).</summary>
+    public static void Forget(Guid jobId) => Jobs.TryRemove(jobId, out _);
+
     /// <summary>One candidate of a hunt at a time: null when another submission of this hunt is being checked.</summary>
     public static IDisposable? TryEnterJob(Guid jobId)
     {

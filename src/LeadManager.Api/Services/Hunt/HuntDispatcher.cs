@@ -26,7 +26,9 @@ public interface IHuntDispatcher
 
 /// <summary>
 /// Dispatches by creating a JengoWork task on the configured board: jengo-agi picks the task up and spawns an agent with the task
-/// text as its prompt. The task text never contains a secret; the agent reads its token from the vault.
+/// text as its prompt. The task text contains the token OF THIS HUNT (an HMAC of the hunt id, see <see cref="HuntTokens"/>), and that is acceptable
+/// by design: the token opens only this hunt's agent endpoints, only while the hunt is Pending or Running, so a copy of the task text is
+/// worthless once the hunt ends and for every other hunt. It never contains the server secret, a JengoWork key or any other credential.
 /// </summary>
 public class JengoWorkHuntDispatcher : IHuntDispatcher
 {
@@ -73,7 +75,8 @@ public class JengoWorkHuntDispatcher : IHuntDispatcher
             if (root.TryGetProperty("url", out var u) && u.ValueKind == JsonValueKind.String) url = u.GetString();
         }
         if (string.IsNullOrWhiteSpace(id)) throw new HttpRequestException("JengoWork created the task but returned no task id.");
-        if (url != null && !Uri.TryCreate(url, UriKind.Absolute, out _)) url = null;
+        // Only an http(s) address is kept as the task link: it is rendered as a link in the app.
+        if (url != null && !(Uri.TryCreate(url, UriKind.Absolute, out var taskUri) && (taskUri.Scheme == Uri.UriSchemeHttp || taskUri.Scheme == Uri.UriSchemeHttps))) url = null;
         return new DispatchResult(id!, url);
     }
 }

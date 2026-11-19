@@ -226,6 +226,7 @@ public class HuntController : ControllerBase
         }
         await _db.SaveChangesAsync();
         _registry.Cancel(job.Id);
+        if (!HuntStatuses.IsActive(job.Status)) HuntLocks.Forget(job.Id);
         return Ok(ToDto(job));
     }
 

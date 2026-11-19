@@ -65,6 +65,16 @@ public static class UrlGuard
         return true;
     }
 
+    /// <summary>Public suffixes of site builders and hosting platforms (not in the usual country list): every sub domain is another owner.</summary>
+    public static readonly HashSet<string> SharedHostingSuffixes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "wixsite.com", "wix.com", "editorx.io", "vercel.app", "now.sh", "github.io", "gitlab.io", "netlify.app", "netlify.com", "blogspot.com", "blogspot.nl", "wordpress.com",
+        "squarespace.com", "weebly.com", "webnode.nl", "webnode.com", "myshopify.com", "pages.dev", "workers.dev", "web.app", "firebaseapp.com", "herokuapp.com", "azurewebsites.net",
+        "onrender.com", "framer.website", "framer.app", "jimdosite.com", "jimdofree.com", "webador.nl", "webador.com", "notion.site", "carrd.co", "ucraft.net", "my.canva.site",
+        "canva.site", "google.com", "sites.google.com", "mijnwebwinkel.nl", "mijnwebsite.nl", "yolasite.com", "strikingly.com", "godaddysites.com", "site123.me", "webflow.io",
+        "glitch.me", "repl.co", "replit.app", "fly.dev", "railway.app", "surge.sh", "tumblr.com", "medium.com", "linktr.ee", "bio.link", "beacons.ai", "zyrosite.com", "hostingerapp.com",
+    };
+
     /// <summary>
     /// The registrable part of a host: the last two labels, or three for second level suffixes such as co.uk. A redirect that leaves this
     /// domain is not followed, so facts are never attributed to a business from another site.
@@ -73,6 +83,8 @@ public static class UrlGuard
     {
         var labels = host.ToLowerInvariant().Trim('.').Split('.');
         if (labels.Length <= 2) return string.Join('.', labels);
+        // Site builders and hosting platforms hand out sub domains to different people: the suffix is theirs, the registrable part is one label more.
+        if (SharedHostingSuffixes.Contains(string.Join('.', labels.Skip(labels.Length - 2)))) return string.Join('.', labels.Skip(labels.Length - 3));
         var secondLevel = new[] { "co", "com", "org", "net", "gov", "ac", "edu" };
         var take = labels[^1].Length == 2 && secondLevel.Contains(labels[^2]) ? 3 : 2;
         return string.Join('.', labels.Skip(labels.Length - take));
