@@ -137,4 +137,19 @@ public class ProjectHistoryTests : IDisposable
         Assert.Null(i.ProjectId);
         Assert.Equal(client.Id, i.ClientId);
     }
+
+    [Theory]
+    [InlineData("Concept")]
+    [InlineData("Pilot")]
+    [InlineData("Maintenance")]
+    [InlineData("On Hold")]
+    [InlineData("Completed")]
+    public async Task ProjectStatuses_AllAcceptedOnCreateAndUpdate(string status)
+    {
+        var client = SeedClient();
+        var created = Assert.IsType<CreatedResult>(await Projects().Create(client.Id, new UpsertProjectDto("P", null, status)));
+        var id = Assert.IsType<ProjectDto>(created.Value).Id;
+        Assert.Equal(status, Assert.IsType<ProjectDto>(created.Value).Status);
+        Assert.IsType<OkObjectResult>(await Projects().Update(id, new UpsertProjectDto("P", null, "Pilot")));
+    }
 }

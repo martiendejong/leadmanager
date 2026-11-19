@@ -197,7 +197,7 @@ Action<HttpClient> crawlerDefaults = c =>
 {
     c.Timeout = TimeSpan.FromSeconds(10);
     c.MaxResponseContentBufferSize = CrawlerMaxResponseBytes;
-    c.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (compatible; LeadManager/1.0)");
+    c.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (compatible; JengoClients/1.0)");
 };
 
 // Search service
@@ -221,7 +221,7 @@ builder.Services.AddHttpClient("wp-probe", c =>
 {
     c.Timeout = TimeSpan.FromSeconds(8);
     c.MaxResponseContentBufferSize = CrawlerMaxResponseBytes;
-    c.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (compatible; LeadManager/1.0)");
+    c.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (compatible; JengoClients/1.0)");
 });
 
 // Enrichment services
@@ -275,7 +275,7 @@ builder.Services.AddSignalR();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new() { Title = "LeadManager API", Version = "v1" });
+    c.SwaggerDoc("v1", new() { Title = "Clients API", Version = "v1" });
     c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
     {
         Description = "JWT Authorization header using the Bearer scheme. Example: 'Bearer {token}'",
@@ -330,7 +330,7 @@ using (var scope = app.Services.CreateScope())
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "LeadManager API v1"));
+    app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "Clients API v1"));
 }
 
 if (trustForwardedHeaders)

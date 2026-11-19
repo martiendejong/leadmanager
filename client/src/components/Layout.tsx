@@ -67,7 +67,7 @@ export default function Layout() {
           {/* Logo */}
           <div className="flex-shrink-0">
             <span className="text-xl font-bold text-indigo-700 tracking-tight">
-              LeadManager
+              Clients
             </span>
           </div>
 

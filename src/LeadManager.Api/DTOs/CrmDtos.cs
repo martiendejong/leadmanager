@@ -60,9 +60,10 @@ public record CalendarFeedDto(string Token, string Url);
 
 public record EntityLinkDto(
     Guid Id, Guid? LeadId, Guid? ClientId, string Kind, string Label, string? Url,
-    string? ExternalId, [property: JsonConverter(typeof(UtcDateTimeConverter))] DateTime CreatedAt);
+    string? ExternalId, [property: JsonConverter(typeof(UtcDateTimeConverter))] DateTime CreatedAt,
+    Guid? ProjectId = null);
 
-public record CreateEntityLinkDto(string Kind, string Label, string? Url, string? ExternalId);
+public record CreateEntityLinkDto(string Kind, string Label, string? Url, string? ExternalId, Guid? ProjectId = null);
 
 /// <summary>One row of the unified history of a lead or client.</summary>
 public record TimelineItemDto(

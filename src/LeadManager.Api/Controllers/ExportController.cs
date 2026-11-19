@@ -59,7 +59,7 @@ public class ExportController : ControllerBase
         sb.AppendLine("<head>");
         sb.AppendLine("    <meta charset=\"UTF-8\">");
         sb.AppendLine("    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">");
-        sb.AppendLine("    <title>Leads Export - LeadManager</title>");
+        sb.AppendLine("    <title>Leads Export - Clients</title>");
         sb.AppendLine("    <style>");
         sb.AppendLine("        @media print {");
         sb.AppendLine("            .no-print { display: none; }");

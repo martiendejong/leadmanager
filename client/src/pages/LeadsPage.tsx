@@ -308,7 +308,7 @@ export default function LeadsPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
-          <h3 className="font-semibold text-lg mb-3">Welkom bij LeadManager!</h3>
+          <h3 className="font-semibold text-lg mb-3">Welkom bij Clients!</h3>
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex items-start gap-3">
               <span className="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-500 flex items-center justify-center text-xs font-bold">1</span>

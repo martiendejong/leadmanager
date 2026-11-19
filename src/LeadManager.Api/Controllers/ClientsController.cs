@@ -86,7 +86,7 @@ public class ClientsController : ControllerBase
         if (CrmRules.TooLong(name, CrmRules.MaxName)) return "Naam is te lang.";
         if (website != null && !website.Contains("://")) website = "https://" + website;
         if (website != null && !CrmRules.IsSafeHttpUrl(website)) return "Website moet een geldig http(s)-adres zijn.";
-        if (category != null && !new[] { "Actief", "Beheercontract", "Reactief" }.Contains(category)) return "Onbekende omgangscategorie.";
+        if (category != null && !new[] { "Active", "Maintenance", "Reactive" }.Contains(category)) return "Unknown engagement category.";
         if (email != null && (email.Length > 320 || !System.Net.Mail.MailAddress.TryCreate(email, out _))) return "E-mailadres is niet geldig.";
         if (shortFields.Select(CrmRules.Clean).Any(f => CrmRules.TooLong(f, CrmRules.MaxName)) || CrmRules.TooLong(notes, CrmRules.MaxNotes))
             return "Een veld is te lang.";
@@ -117,7 +117,7 @@ public class ClientsController : ControllerBase
             var pd = CrmRules.Clean(p.Description);
             if (CrmRules.TooLong(pd, CrmRules.MaxNotes)) return BadRequest(new { error = "Projectomschrijving is te lang." });
             var ps = CrmRules.Clean(p.Status) ?? "Active";
-            if (!new[] { "Active", "Completed", "On Hold" }.Contains(ps)) return BadRequest(new { error = "Onbekende projectstatus." });
+            if (!ProjectStatuses.All.Contains(ps)) return BadRequest(new { error = "Onbekende projectstatus." });
             projects.Add(new Project { Name = pn, Description = pd, Status = ps });
         }
 

@@ -3,6 +3,15 @@ using System.Text.Json.Serialization;
 
 namespace LeadManager.Api.Services;
 
+/// <summary>
+/// The statuses a client project can have. Old values stay valid: Active, On Hold and Completed existed first;
+/// Concept (internal draft, not yet offered), Pilot, Maintenance (Beheer) and Archived came later.
+/// </summary>
+public static class ProjectStatuses
+{
+    public static readonly string[] All = { "Concept", "Pilot", "Active", "Maintenance", "On Hold", "Completed", "Archived" };
+}
+
 /// <summary>Input rules shared by the CRM controllers (review fixes for task 8023).</summary>
 public static class CrmRules
 {

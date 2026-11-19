@@ -19,17 +19,19 @@ public class EntityLinksController : CrmControllerBase
     public EntityLinksController(LeadManagerDbContext db, CrmParentAccess access) : base(access) => _db = db;
 
     private static EntityLinkDto ToDto(EntityLink l) =>
-        new(l.Id, l.LeadId, l.ClientId, l.Kind.ToString(), l.Label, l.Url, l.ExternalId, l.CreatedAt);
+        new(l.Id, l.LeadId, l.ClientId, l.Kind.ToString(), l.Label, l.Url, l.ExternalId, l.CreatedAt, l.ProjectId);
 
     // GET /api/leads/{id}/links  |  /api/clients/{id}/links
     [HttpGet($"api/{{parentType:{CrmParentAccess.RouteConstraint}}}/{{parentId:guid}}/links")]
-    public async Task<IActionResult> List(string parentType, Guid parentId)
+    public async Task<IActionResult> List(string parentType, Guid parentId, [FromQuery] Guid? projectId = null, [FromQuery] bool includeProjects = false)
     {
         var parent = await ResolveParentAsync(parentType, parentId);
         if (parent == null) return NotFound();
 
+        // Default: the links of the lead or client itself. projectId = those of one project; includeProjects = all.
         var items = await _db.EntityLinks
             .Where(l => l.LeadId == parent.Value.LeadId && l.ClientId == parent.Value.ClientId)
+            .Where(l => includeProjects || (projectId == null ? l.ProjectId == null : l.ProjectId == projectId))
             .OrderBy(l => l.Kind).ThenBy(l => l.Label)
             .ToListAsync();
         return Ok(items.Select(ToDto));
@@ -59,9 +61,17 @@ public class EntityLinksController : CrmControllerBase
         if (url != null && !IsSafeHttpUrl(url))
             return BadRequest($"Url must be an absolute http or https URL (max {MaxUrl} characters)");
 
-        // The same target is linked once per parent (idempotent for agents that retry).
+        if (dto.ProjectId.HasValue)
+        {
+            // Projects belong to clients only, and to the client in the route.
+            var projectOk = parent.Value.Kind == CrmParentKind.Client
+                && await _db.Projects.AnyAsync(p => p.Id == dto.ProjectId && p.ClientId == parent.Value.Id);
+            if (!projectOk) return BadRequest("Project does not belong to this client");
+        }
+
+        // The same target is linked once per parent or project (idempotent for agents that retry).
         var existing = await _db.EntityLinks.FirstOrDefaultAsync(l =>
-            l.LeadId == parent.Value.LeadId && l.ClientId == parent.Value.ClientId &&
+            l.LeadId == parent.Value.LeadId && l.ClientId == parent.Value.ClientId && l.ProjectId == dto.ProjectId &&
             l.Kind == kind && l.Url == url && l.ExternalId == externalId);
         if (existing != null) return Ok(ToDto(existing));
 
@@ -69,6 +79,7 @@ public class EntityLinksController : CrmControllerBase
         {
             LeadId = parent.Value.LeadId,
             ClientId = parent.Value.ClientId,
+            ProjectId = dto.ProjectId,
             Kind = kind,
             Label = label,
             Url = url,

@@ -165,6 +165,8 @@ public class LeadManagerDbContext : IdentityDbContext<ApplicationUser>
             e.ToTable(t => t.HasCheckConstraint("CK_EntityLinks_OneParent", oneParent));
             e.HasOne<Lead>().WithMany().HasForeignKey(x => x.LeadId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<Client>().WithMany().HasForeignKey(x => x.ClientId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Project>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => x.ProjectId);
             e.Property(x => x.Kind).HasConversion<string>();
         });
 

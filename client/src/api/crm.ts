@@ -84,6 +84,7 @@ export interface EntityLink {
   url: string | null
   externalId: string | null
   createdAt: string
+  projectId?: string | null
 }
 
 export const INTERACTION_LABELS: Record<InteractionKind, string> = {
@@ -161,15 +162,19 @@ export async function deleteContact(id: string): Promise<void> {
   await apiClient.delete(`/api/contacts/${id}`)
 }
 
-export async function getLinks(parentType: ParentType, parentId: string): Promise<EntityLink[]> {
-  const res = await apiClient.get<EntityLink[]>(`/api/${parentType}/${parentId}/links`)
+export async function getLinks(
+  parentType: ParentType,
+  parentId: string,
+  opts?: { projectId?: string; includeProjects?: boolean },
+): Promise<EntityLink[]> {
+  const res = await apiClient.get<EntityLink[]>(`/api/${parentType}/${parentId}/links`, { params: opts })
   return res.data
 }
 
 export async function addLink(
   parentType: ParentType,
   parentId: string,
-  data: { kind: EntityLinkKind; label: string; url?: string | null; externalId?: string | null },
+  data: { kind: EntityLinkKind; label: string; url?: string | null; externalId?: string | null; projectId?: string | null },
 ): Promise<EntityLink> {
   const res = await apiClient.post<EntityLink>(`/api/${parentType}/${parentId}/links`, data)
   return res.data

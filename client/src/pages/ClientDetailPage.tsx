@@ -11,7 +11,7 @@ import {
   ENGAGEMENT_CATEGORIES,
   CATEGORY_DESCRIPTIONS,
   EngagementCategoryBadge,
-  ReactiefBanner,
+  ReactiveBanner,
 } from '../components/EngagementCategory'
 import { intakeApi, type ClientIntake, type ClientBundle, STATUS_LABELS, STATUS_COLORS, PRODUCT_LABELS, BUNDLE_LABELS } from '../api/intake'
 
@@ -88,7 +88,7 @@ export default function ClientDetailPage() {
         )}
       </div>
 
-      {client.engagementCategory === 'Reactief' && <ReactiefBanner />}
+      {client.engagementCategory === 'Reactive' && <ReactiveBanner />}
 
       {/* Client header */}
       <div className="bg-white rounded-xl border border-gray-200 p-6 mb-4">

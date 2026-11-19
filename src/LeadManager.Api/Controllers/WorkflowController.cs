@@ -234,7 +234,7 @@ public class WorkflowController : ControllerBase
                 repoName = $"poc-{slug}";
                 var ghHttp = _httpFactory.CreateClient();
                 ghHttp.DefaultRequestHeaders.Add("Authorization", $"Bearer {githubToken}");
-                ghHttp.DefaultRequestHeaders.Add("User-Agent", "LeadManager/1.0");
+                ghHttp.DefaultRequestHeaders.Add("User-Agent", "JengoClients/1.0");
                 ghHttp.DefaultRequestHeaders.Add("X-GitHub-Api-Version", "2022-11-28");
 
                 var readme = $"# {boardName}\n\n{boardDescription}\n\n" +

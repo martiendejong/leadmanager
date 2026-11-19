@@ -59,7 +59,7 @@ export default function LoginPage() {
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
           {/* Header */}
           <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold text-indigo-700 tracking-tight">LeadManager</h1>
+            <h1 className="text-2xl font-bold text-indigo-700 tracking-tight">Clients</h1>
             <p className="text-gray-500 text-sm mt-1">Log in op je account</p>
           </div>
 

@@ -17,7 +17,7 @@ public record UpsertProjectDto(string Name, string? Description, string? Status)
 [AllowApiKey]
 public class ProjectsController : ControllerBase
 {
-    private static readonly string[] Statuses = { "Active", "Completed", "On Hold" };
+    private static readonly string[] Statuses = ProjectStatuses.All;
     private readonly LeadManagerDbContext _db;
 
     public ProjectsController(LeadManagerDbContext db) => _db = db;
