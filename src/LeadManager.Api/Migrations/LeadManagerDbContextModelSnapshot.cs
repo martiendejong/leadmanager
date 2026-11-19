@@ -136,6 +136,34 @@ namespace LeadManager.Api.Migrations
                     b.ToTable("AspNetUsers", (string)null);
                 });
 
+            modelBuilder.Entity("LeadManager.Api.Models.CalendarFeed", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Token")
+                        .IsUnique();
+
+                    b.HasIndex("UserId")
+                        .IsUnique();
+
+                    b.ToTable("CalendarFeeds");
+                });
+
             modelBuilder.Entity("LeadManager.Api.Models.Client", b =>
                 {
                     b.Property<Guid>("Id")
@@ -175,6 +203,15 @@ namespace LeadManager.Api.Migrations
 
                     b.Property<string>("PrimaryContactPhone")
                         .HasColumnType("TEXT");
+
+                    b.Property<int?>("PriorityEffort")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("PriorityUrgency")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("PriorityValue")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Sector")
                         .HasColumnType("TEXT");

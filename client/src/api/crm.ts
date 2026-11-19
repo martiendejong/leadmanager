@@ -219,5 +219,38 @@ export function safeHref(url: string | null | undefined): string | undefined {
 
 export function errorMessage(err: unknown, fallback: string): string {
   const data = (err as { response?: { data?: unknown } })?.response?.data
-  return typeof data === 'string' && data ? data : fallback
+  if (typeof data === 'string' && data) return data
+  const msg = (data as { error?: unknown } | undefined)?.error
+  return typeof msg === 'string' && msg ? msg : fallback
+}
+
+export interface ActionRow {
+  id: string
+  parentType: ParentType
+  parentId: string
+  parentName: string
+  title: string
+  dueAt: string
+  doneAt: string | null
+  overdue: boolean
+}
+
+export async function getActions(): Promise<ActionRow[]> {
+  const res = await apiClient.get<ActionRow[]>('/api/next-actions')
+  return res.data
+}
+
+export interface CalendarFeed {
+  token: string
+  url: string
+}
+
+export async function getCalendarFeed(): Promise<CalendarFeed> {
+  const res = await apiClient.get<CalendarFeed>('/api/calendar/feed')
+  return res.data
+}
+
+export async function rotateCalendarFeed(): Promise<CalendarFeed> {
+  const res = await apiClient.post<CalendarFeed>('/api/calendar/feed/rotate')
+  return res.data
 }

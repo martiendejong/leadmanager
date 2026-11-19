@@ -49,6 +49,15 @@ public record TodayActionDto(
     Guid Id, string ParentType, Guid ParentId, string ParentName, string? Phone,
     string Title, [property: JsonConverter(typeof(UtcDateTimeConverter))] DateTime DueAt, bool Overdue);
 
+/// <summary>One action in the Acties tab: enough context to show it in a list or calendar and open its parent.</summary>
+public record ActionRowDto(
+    Guid Id, string ParentType, Guid ParentId, string ParentName, string Title,
+    [property: JsonConverter(typeof(UtcDateTimeConverter))] DateTime DueAt,
+    [property: JsonConverter(typeof(UtcNullableDateTimeConverter))] DateTime? DoneAt,
+    bool Overdue);
+
+public record CalendarFeedDto(string Token, string Url);
+
 public record EntityLinkDto(
     Guid Id, Guid? LeadId, Guid? ClientId, string Kind, string Label, string? Url,
     string? ExternalId, [property: JsonConverter(typeof(UtcDateTimeConverter))] DateTime CreatedAt);

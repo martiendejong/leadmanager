@@ -112,6 +112,46 @@ public class NextActionsController : CrmControllerBase
         return NoContent();
     }
 
+    // GET /api/next-actions?from=&to=&includeDone=false
+    // All my actions in a period (default: from 30 days ago to one year ahead) with the parent's name.
+    // Feeds the Acties tab: a list and a calendar.
+    [HttpGet("api/next-actions")]
+    public async Task<IActionResult> Range([FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] bool includeDone = false)
+    {
+        var userId = GetCurrentUserId();
+        if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+        var now = DateTime.UtcNow;
+        // Open actions are never cut off at the back: an overdue action must stay visible however old it is.
+        var open = !includeDone;
+        var start = UtcDateTimeConverter.Normalize(from ?? (open ? new DateTime(2000, 1, 1) : now.AddDays(-30)));
+        var end = UtcDateTimeConverter.Normalize(to ?? now.AddDays(365));
+        if (end < start || (from.HasValue && (end - start).TotalDays > 800)) return BadRequest("Invalid period");
+
+        var query = _db.NextActions.Where(a => a.AssignedToUserId == userId && a.DueAt >= start && a.DueAt <= end);
+        if (!includeDone) query = query.Where(a => a.DoneAt == null);
+        var actions = await query.OrderBy(a => a.DueAt).Take(1000).ToListAsync();
+
+        var leadIds = actions.Where(a => a.LeadId.HasValue).Select(a => a.LeadId!.Value).Distinct().ToList();
+        var clientIds = actions.Where(a => a.ClientId.HasValue).Select(a => a.ClientId!.Value).Distinct().ToList();
+        var leads = await _db.Leads.Where(l => leadIds.Contains(l.Id) && l.ImportedByUserId == userId)
+            .ToDictionaryAsync(l => l.Id, l => l.Name);
+        var clients = await _db.Clients.Where(c => clientIds.Contains(c.Id) && c.CreatedByUserId == userId)
+            .ToDictionaryAsync(c => c.Id, c => c.Name);
+
+        var rows = new List<ActionRowDto>();
+        foreach (var a in actions)
+        {
+            string? name = null;
+            if (a.LeadId.HasValue) leads.TryGetValue(a.LeadId.Value, out name);
+            else if (a.ClientId.HasValue) clients.TryGetValue(a.ClientId.Value, out name);
+            if (name == null) continue;
+            rows.Add(new ActionRowDto(a.Id, a.LeadId.HasValue ? "leads" : "clients", (a.LeadId ?? a.ClientId)!.Value,
+                name, a.Title, a.DueAt, a.DoneAt, a.DoneAt == null && a.DueAt < now));
+        }
+        return Ok(rows);
+    }
+
     // GET /api/next-actions/today
     // Open actions assigned to me that are due by the end of today (Dutch time), including overdue.
     // Each row carries name and phone so the call can start without opening the lead.

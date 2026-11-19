@@ -99,3 +99,12 @@ public class ApiKey
     public DateTime? LastUsedAt { get; set; }
     public DateTime? RevokedAt { get; set; }
 }
+
+/// <summary>Secret token behind the personal calendar feed (ICS) of one user.</summary>
+public class CalendarFeed
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public string UserId { get; set; } = "";
+    public string Token { get; set; } = "";
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}

@@ -25,6 +25,12 @@ export interface Client {
   createdAt: string
   isActive: boolean
   projects: Project[]
+  priorityValue?: number | null
+  priorityUrgency?: number | null
+  priorityEffort?: number | null
+  score?: number
+  nextActionAt?: string | null
+  lastContactAt?: string | null
 }
 
 export interface ConvertLeadData {
@@ -97,4 +103,12 @@ export async function updateProject(
 
 export async function deleteProject(id: string): Promise<void> {
   await apiClient.delete(`/api/projects/${id}`)
+}
+
+export async function updatePriority(
+  id: string,
+  data: { value: number | null; urgency: number | null; effort: number | null },
+): Promise<Client> {
+  const res = await apiClient.put<Client>(`/api/clients/${id}/priority`, data)
+  return res.data
 }

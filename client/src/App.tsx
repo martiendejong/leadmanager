@@ -17,6 +17,7 @@ import IntakePage from './pages/IntakePage'
 import SalesSettingsPage from './pages/SalesSettingsPage'
 import LeadDetailPage from './pages/LeadDetailPage'
 import TodayPage from './pages/TodayPage'
+import ActionsPage from './pages/ActionsPage'
 
 // Handle SSO token injected by the backend into the URL fragment after redirect
 function SsoTokenHandler() {
@@ -171,6 +172,18 @@ function App() {
               }
             >
               <Route index element={<TodayPage />} />
+            </Route>
+
+            {/* All next actions: list and calendar */}
+            <Route
+              path="/acties"
+              element={
+                <ProtectedRoute>
+                  <Layout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<ActionsPage />} />
             </Route>
 
             {/* Lead detail */}

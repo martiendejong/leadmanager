@@ -12,6 +12,7 @@ import argparse
 import os
 import re
 import sys
+import datetime as dt
 import time
 from urllib.parse import quote
 
@@ -105,7 +106,7 @@ def main() -> int:
 
     # --- CRM end to end, then clean up ------------------------------------------------------
     stamp = str(int(time.time()))
-    lead_id = key_id = None
+    lead_id = key_id = client_id = None
     try:
         r = s.post(base + "/api/leads", headers=jwt, timeout=30, json={
             "name": f"Smoke test {stamp}", "website": f"https://smoke-{stamp}.example", "sector": "test",
@@ -163,12 +164,48 @@ def main() -> int:
         if mcp_lead:
             s.delete(f"{base}/api/leads/{mcp_lead}", headers=jwt, timeout=30)
 
+        # Clients with projects and history, priority score, actions overview and the calendar feed.
+        # The id comes from the create response (lists are paged), and the client is deleted in the finally block.
+        r = s.post(base + "/api/clients", headers=jwt, timeout=30, json={
+            "name": f"Smoke client {stamp}", "website": f"smoke-client-{stamp}.example",
+            "projects": [{"name": "Smoke project"}]})
+        check(r.status_code == 201, "create a client with a project")
+        client = r.json() if r.status_code == 201 else {}
+        client_id = client.get("id")
+        if client_id:
+            project_id = (client.get("projects") or [{}])[0].get("id")
+            check(s.post(base + "/api/clients", headers=jwt, timeout=30, json={"name": f"smoke client {stamp}"}).status_code == 409,
+                  "the same client name twice is refused")
+            r = s.put(f"{base}/api/clients/{client_id}/priority", headers=jwt, timeout=30, json={"value": 8, "urgency": 5, "effort": 2})
+            check(r.status_code == 200 and r.json().get("score") == 10, "priority score = value x urgency / effort squared")
+            r = s.post(f"{base}/api/clients/{client_id}/interactions", headers=jwt, timeout=30,
+                       json={"kind": "Note", "summary": "smoke project note", "projectId": project_id})
+            check(r.status_code == 201, "log a note on a project")
+            r = s.get(f"{base}/api/clients/{client_id}/timeline", headers=jwt, params={"projectId": project_id}, timeout=30)
+            check(r.status_code == 200 and len(r.json()) == 1 and r.json()[0].get("projectName") == "Smoke project",
+                  "project history shows its own note")
+            due = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+            r = s.post(f"{base}/api/clients/{client_id}/next-actions", headers=jwt, timeout=30, json={"title": "smoke actie", "dueAt": due})
+            check(r.status_code == 201, "plan a next action on the client")
+            r = s.get(base + "/api/next-actions", headers=jwt, timeout=30)
+            check(r.status_code == 200 and any(a["title"] == "smoke actie" for a in r.json()), "the action shows in the Acties overview")
+            r = s.get(base + "/api/calendar/feed", headers=jwt, timeout=30)
+            feed_url = r.json().get("url") if r.status_code == 200 else None
+            check(bool(feed_url) and feed_url.startswith(base), "calendar feed link is on the public host")
+            if feed_url:
+                fr = requests.get(feed_url, timeout=30)  # anonymous: the token is the credential
+                check(fr.status_code == 200 and "text/calendar" in fr.headers.get("content-type", "") and "smoke actie" in fr.text,
+                      "calendar feed serves the action without login")
+                check(requests.get(feed_url.replace(".ics", "x.ics"), timeout=30).status_code == 404, "a wrong feed token gives 404")
+
         # The key reaches the CRM and nothing else.
         check(s.get(base + "/api/leads", headers=k, timeout=30).status_code == 403, "API key is refused outside the CRM")
         check(s.post(base + "/api/api-keys", headers=k, json={"name": "x"}, timeout=30).status_code == 401, "API key cannot create keys")
     finally:
         if lead_id:
             check(s.delete(f"{base}/api/leads/{lead_id}", headers=jwt, timeout=30).status_code in (200, 204), "clean up: delete the test lead")
+        if client_id:
+            check(s.delete(f"{base}/api/clients/{client_id}", headers=jwt, timeout=30).status_code in (200, 204), "clean up: delete the test client")
         if key_id:
             check(s.delete(f"{base}/api/api-keys/{key_id}", headers=jwt, timeout=30).status_code == 204, "clean up: revoke the test key")
 
