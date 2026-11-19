@@ -125,4 +125,17 @@ public class ClientCreateTests : IDisposable
         Assert.IsType<BadRequestObjectResult>(await As("me").CreateClient(dto));
         Assert.Empty(await _db.Clients.ToListAsync());
     }
+
+    [Fact]
+    public async Task Update_AppliesTheSameRulesAsCreate()
+    {
+        var created = Assert.IsType<CreatedAtActionResult>(await As("me").CreateClient(Dto("Acme")));
+        var id = Assert.IsType<ClientDto>(created.Value).Id;
+        Assert.IsType<BadRequestObjectResult>(await As("me").UpdateClient(id, new UpdateClientDto("  ", null, null, null, null, null, null, null, null, null)));
+        Assert.IsType<BadRequestObjectResult>(await As("me").UpdateClient(id, new UpdateClientDto("Acme", null, null, null, null, null, null, "javascript:alert(1)", null, null)));
+        var ok = Assert.IsType<OkObjectResult>(await As("me").UpdateClient(id, new UpdateClientDto(" Acme 2 ", null, null, null, null, null, null, "acme.nl", null, "Actief")));
+        var dto = Assert.IsType<ClientDto>(ok.Value);
+        Assert.Equal("Acme 2", dto.Name);
+        Assert.Equal("https://acme.nl", dto.Website);
+    }
 }

@@ -39,6 +39,15 @@ public sealed class AllowApiKeyAttribute : Attribute
 }
 
 /// <summary>
+/// An action that stays closed to API keys even inside a controller that allows them: destructive actions are for
+/// a person at the screen, not for an agent or a script holding a key.
+/// </summary>
+[AttributeUsage(AttributeTargets.Method)]
+public sealed class DenyApiKeyAttribute : Attribute
+{
+}
+
+/// <summary>
 /// Authenticates agents and other Jengo tools by the X-Api-Key header. The key acts as the
 /// user that created it, so the existing per-user ownership rules keep applying unchanged.
 /// </summary>

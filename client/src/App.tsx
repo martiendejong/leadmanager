@@ -18,6 +18,7 @@ import SalesSettingsPage from './pages/SalesSettingsPage'
 import LeadDetailPage from './pages/LeadDetailPage'
 import TodayPage from './pages/TodayPage'
 import ActionsPage from './pages/ActionsPage'
+import IntegrationsPage from './pages/IntegrationsPage'
 
 // Handle SSO token injected by the backend into the URL fragment after redirect
 function SsoTokenHandler() {
@@ -184,6 +185,18 @@ function App() {
               }
             >
               <Route index element={<ActionsPage />} />
+            </Route>
+
+            {/* API keys and MCP connection */}
+            <Route
+              path="/koppelingen"
+              element={
+                <ProtectedRoute>
+                  <Layout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<IntegrationsPage />} />
             </Route>
 
             {/* Lead detail */}

@@ -1,6 +1,7 @@
 using LeadManager.Api.Data;
 using LeadManager.Api.DTOs;
 using LeadManager.Api.Models;
+using LeadManager.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -13,6 +14,7 @@ public record UpsertProjectDto(string Name, string? Description, string? Status)
 /// <summary>Projects of a client. Their history is the client's interactions filtered by ProjectId.</summary>
 [ApiController]
 [Authorize]
+[AllowApiKey]
 public class ProjectsController : ControllerBase
 {
     private static readonly string[] Statuses = { "Active", "Completed", "On Hold" };
@@ -80,6 +82,7 @@ public class ProjectsController : ControllerBase
 
     // DELETE /api/projects/{id}  (its history stays on the client, without the project link)
     [HttpDelete("api/projects/{id:guid}")]
+    [DenyApiKey]
     public async Task<IActionResult> Delete(Guid id)
     {
         var project = await FindOwned(id);

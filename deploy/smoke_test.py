@@ -149,7 +149,8 @@ def main() -> int:
         r = rpc("tools/list")
         names = [t["name"] for t in r.json().get("result", {}).get("tools", [])] if r.status_code == 200 else []
         check({"search_leads", "get_lead", "create_lead", "log_interaction", "add_next_action", "next_actions_today",
-               "link_item", "find_by_email_or_domain"} <= set(names), f"MCP lists the planned tools ({len(names)})")
+               "link_item", "find_by_email_or_domain", "list_clients", "create_client", "set_client_priority",
+               "create_project", "list_actions"} <= set(names), f"MCP lists the planned tools ({len(names)})")
         r = rpc("tools/call", {"name": "create_lead", "arguments": {"name": f"Smoke MCP {stamp}", "website": f"https://smoke-mcp-{stamp}.example"}}, 2)
         mcp_text = r.json()["result"]["content"][0]["text"] if r.status_code == 200 else ""
         mcp_lead = None
