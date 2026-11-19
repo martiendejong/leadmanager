@@ -1,5 +1,6 @@
 using System.Text.Json;
 using LeadManager.Api.Hubs;
+using LeadManager.Api.Models;
 using LeadManager.Api.Services.Hunt;
 using Microsoft.AspNetCore.SignalR;
 
@@ -24,42 +25,20 @@ public class FakePageFetcher : IPageFetcher
     }
 }
 
-/// <summary>A language model that answers from a script: the first call is the extractor, the second the critic.</summary>
-public class FakeLlm : ILeadLlm
+/// <summary>Records what would have been sent to JengoWork; no network.</summary>
+public class FakeDispatcher : IHuntDispatcher
 {
-    private readonly Func<string, string, string> _answer;
-    public FakeLlm(Func<string, string, string> answer, bool configured = true) { _answer = answer; IsConfigured = configured; }
+    public FakeDispatcher(bool configured = true) { IsConfigured = configured; }
     public bool IsConfigured { get; }
-    public string ModelName => "fake";
-    public int Calls { get; private set; }
-    public List<string> Prompts { get; } = new();
+    public bool Fail { get; set; }
+    public List<(HuntJob Job, string Prompt)> Dispatched { get; } = new();
 
-    public Task<string> CompleteJsonAsync(string system, string user, HuntBudget budget, CancellationToken ct)
+    public Task<DispatchResult> DispatchAsync(LeadManager.Api.Models.HuntJob job, string prompt, CancellationToken ct)
     {
-        if (!IsConfigured) throw new AiNotConfiguredException();
-        budget.Consume();
-        Calls++;
-        Prompts.Add(user);
-        return Task.FromResult(_answer(system, user));
-    }
-
-    public static bool IsCritic(string system) => system.Contains("very critical fact checker");
-}
-
-public class FakeDiscovery : ILeadDiscovery
-{
-    private readonly Queue<IReadOnlyList<DiscoveredCompany>> _rounds;
-    public FakeDiscovery(params IReadOnlyList<DiscoveredCompany>[] rounds) => _rounds = new Queue<IReadOnlyList<DiscoveredCompany>>(rounds);
-    public bool IsConfigured => true;
-    public int Rounds { get; private set; }
-    public List<IReadOnlyCollection<string>> Excluded { get; } = new();
-
-    public Task<IReadOnlyList<DiscoveredCompany>> DiscoverAsync(string segment, string region, IReadOnlyCollection<string> excludeDomains, int count, HuntBudget budget, CancellationToken ct)
-    {
-        budget.Consume();
-        Rounds++;
-        Excluded.Add(excludeDomains.ToList());
-        return Task.FromResult(_rounds.Count > 0 ? _rounds.Dequeue() : (IReadOnlyList<DiscoveredCompany>)Array.Empty<DiscoveredCompany>());
+        if (!IsConfigured) throw new DispatchNotConfiguredException();
+        if (Fail) throw new HttpRequestException("JengoWork answered 500 when the agent task was created.");
+        Dispatched.Add((job, prompt));
+        return Task.FromResult(new DispatchResult("9001", "https://tasks.example.test/board/x/task/9001"));
     }
 }
 
@@ -88,28 +67,14 @@ public class NoopHub : IHubContext<EnrichmentHub>
     }
 }
 
-/// <summary>Builds the JSON the extractor and the critic answer with, from the fixture sites.</summary>
+/// <summary>Builds the claims JSON an agent submits, and the fixture sites it is checked against.</summary>
 public static class HuntJson
 {
     public static object Claim(string value, string quote, string source) => new { value, quote, source_url = source };
 
     public static string Json(object o) => JsonSerializer.Serialize(o);
 
-    public static string CriticVerifiesAll(string user, params string[] except)
-    {
-        // The critic user message carries the claims as JSON; verify every field named in it except the given ones.
-        var start = user.IndexOf("CLAIMS TO CHECK:", StringComparison.Ordinal);
-        var json = user[(start + "CLAIMS TO CHECK:".Length)..];
-        json = json[..json.IndexOf("\n\nPAGES:", StringComparison.Ordinal)];
-        using var doc = JsonDocument.Parse(json);
-        var verdicts = new Dictionary<string, object>();
-        foreach (var c in doc.RootElement.EnumerateArray())
-        {
-            var field = c.GetProperty("field").GetString()!;
-            verdicts[field] = except.Contains(field) ? new { status = "unverified", reason = "Not convincing." } : new { status = "verified", reason = "Clear in the quote." };
-        }
-        return Json(new { verdicts });
-    }
+    public static JsonElement Element(string json) => JsonDocument.Parse(json).RootElement.Clone();
 
     public const string Site = "https://www.tinevanwel.nl/";
 

@@ -1,11 +1,15 @@
 import apiClient from './client'
 
 export interface HuntCapabilities {
-  aiConfigured: boolean
+  /** The agent dispatch and the agent token are both configured on this server. */
+  huntAvailable: boolean
+  /** The signed in user may start a hunt (an administrator, or on the allow list). */
+  canStartHunt: boolean
+  dispatchConfigured: boolean
+  agentTokenConfigured: boolean
   googlePlacesConfigured: boolean
-  model: string | null
+  maxPerDay: number
   message: string | null
-  maxLlmCallsPerJob: number
 }
 
 export interface HuntCriteria {
@@ -33,10 +37,12 @@ export interface HuntJob {
   screened: number
   qualified: number
   best: number
-  llmCalls: number
-  maxLlmCalls: number
   current: string | null
   error: string | null
+  taskId: string | null
+  taskUrl: string | null
+  summary: string | null
+  lastAgentCallAt: string | null
   createdAt: string
   startedAt: string | null
   completedAt: string | null
@@ -51,6 +57,7 @@ export interface HuntCandidate {
   maxReachable: number | null
   outcome: string
   reason: string
+  at?: string
 }
 
 export interface LeadEvidence {
@@ -62,7 +69,7 @@ export interface LeadEvidence {
   evidence?: {
     website: string
     pages: string[]
-    verified: { field: string; value: string; source: string; quote: string; critic?: string | null }[]
+    verified: { field: string; value: string; source: string; quote: string }[]
     dropped: { field: string; value: string; reason: string }[]
     google?: string | null
   }
@@ -70,7 +77,7 @@ export interface LeadEvidence {
 
 export const isActive = (s: HuntStatus) => s === 'Pending' || s === 'Running'
 
-/** The server message of a failed call (the 503 "AI key not configured on this server" included). */
+/** The server message of a failed call (the 503 "The Jengo agent dispatch is not configured on this server" included). */
 export function errorMessage(err: unknown, fallback = 'Something went wrong'): string {
   const e = err as { response?: { data?: { error?: string; message?: string } | string } }
   const data = e?.response?.data
@@ -83,8 +90,8 @@ export async function getHuntCapabilities(): Promise<HuntCapabilities> {
   return (await apiClient.get<HuntCapabilities>('/api/leads/hunt/capabilities')).data
 }
 
-export async function startHunt(criteria: HuntCriteria): Promise<{ jobId: string }> {
-  return (await apiClient.post<{ jobId: string }>('/api/leads/hunt', criteria)).data
+export async function startHunt(criteria: HuntCriteria): Promise<{ jobId: string; taskUrl: string | null }> {
+  return (await apiClient.post<{ jobId: string; taskUrl: string | null }>('/api/leads/hunt', criteria)).data
 }
 
 export async function startVerify(ids: string[]): Promise<{ jobId: string; leads: number; skipped: number }> {

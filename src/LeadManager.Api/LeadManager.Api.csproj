@@ -32,6 +32,11 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="8.*" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The versioned prompt of the lead hunt agent: rendered into the JengoWork task. -->
+    <EmbeddedResource Include="Agent\LEAD_HUNT_PROMPT.md" />
+  </ItemGroup>
+
   <PropertyGroup>
     <!-- Default keeps the Windows layout. The Docker build passes -p:WebSearchProject=/src/websearch/... -->
     <WebSearchProject Condition="'$(WebSearchProject)' == ''">E:\projects\websearch\WebSearch\WebSearch.csproj</WebSearchProject>

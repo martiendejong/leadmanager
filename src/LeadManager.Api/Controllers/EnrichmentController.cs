@@ -14,13 +14,13 @@ public class EnrichmentController : ControllerBase
 {
     private readonly LeadManagerDbContext _db;
     private readonly EnrichmentChannel _channel;
-    private readonly LeadManager.Api.Services.Hunt.ILeadLlm? _llm;
+    private readonly IConfiguration? _config;
 
-    public EnrichmentController(LeadManagerDbContext db, EnrichmentChannel channel, LeadManager.Api.Services.Hunt.ILeadLlm? llm = null)
+    public EnrichmentController(LeadManagerDbContext db, EnrichmentChannel channel, IConfiguration? config = null)
     {
         _db = db;
         _channel = channel;
-        _llm = llm;
+        _config = config;
     }
 
     [HttpPost]
@@ -29,9 +29,13 @@ public class EnrichmentController : ControllerBase
         if (request.Ids == null || request.Ids.Length == 0)
             return BadRequest("No lead IDs provided.");
 
-        // Without the AI key every step of the enrichment fails behind the scenes; say so instead of starting a job that does nothing.
-        if (_llm != null && !_llm.IsConfigured)
-            return StatusCode(503, new { error = HuntController.NotConfigured, code = "ai_key_missing" });
+        // The old AI enrichment needs an OpenAI key. Without it every step fails behind the scenes: say so, and point to the check that needs no key.
+        if (_config != null && string.IsNullOrWhiteSpace(_config["OpenAI:ApiKey"]))
+            return StatusCode(503, new
+            {
+                error = "AI enrichment is not configured on this server (no OpenAI key). Use Verify and rescore: it checks the lead's own website and needs no key.",
+                code = "ai_key_missing",
+            });
 
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
 

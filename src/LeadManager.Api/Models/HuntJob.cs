@@ -26,9 +26,13 @@ public static class HuntOutcomes
     public const string Unreachable = "Unreachable";       // website does not answer
     public const string Verified = "Verified";             // a verify job rescored an existing lead
     public const string Error = "Error";
+    public const string Rejected = "Rejected";             // the agent submitted something the server could not use
 }
 
-/// <summary>A background run of the evidence-based lead hunt (find new leads) or of a verify and rescore of existing leads.</summary>
+/// <summary>
+/// A background run: a lead hunt (a Jengo agent researches new companies, the server verifies what it submits) or a verify and
+/// rescore of existing leads (done by the server from the leads' own websites).
+/// </summary>
 public class HuntJob
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -53,10 +57,15 @@ public class HuntJob
     public int Screened { get; set; }
     public int Qualified { get; set; }
     public int BestScore { get; set; }
-    public int LlmCalls { get; set; }
-    public int MaxLlmCalls { get; set; }
     public string? CurrentCandidate { get; set; }
     public string? Error { get; set; }
+
+    /// <summary>Hunt jobs: the JengoWork task that started the background agent, and the last time the agent reported.</summary>
+    public string? TaskId { get; set; }
+    public string? TaskUrl { get; set; }
+    public DateTime? LastAgentCallAt { get; set; }
+    /// <summary>The agent's own short summary when it finished.</summary>
+    public string? Summary { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? StartedAt { get; set; }

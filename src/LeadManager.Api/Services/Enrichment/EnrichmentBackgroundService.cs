@@ -488,11 +488,10 @@ public class EnrichmentBackgroundService : BackgroundService
         try
         {
             var verifier = scope.ServiceProvider.GetRequiredService<LeadManager.Api.Services.Hunt.LeadVerifier>();
-            var budget = new LeadManager.Api.Services.Hunt.HuntBudget(8);
             var site = await verifier.QuickLookAsync(lead.Website, ct);
             await verifier.DeepenAsync(site, ct);
-            var result = await verifier.VerifyAsync(site, lead.Name, budget, ct);
-            if (!result.LlmRan) return;
+            var result = verifier.VerifyDeterministic(site, lead.OwnerName);
+            if (!result.Checked) return;
             var removed = LeadManager.Api.Services.Hunt.LeadVerifier.Apply(lead, result, clearUnverified: true, scoring);
             LeadManager.Api.Services.Hunt.LeadVerifier.ClearUnsourcedGoogle(lead, removed, scoring);
             db.LeadNotes.Add(new LeadNote

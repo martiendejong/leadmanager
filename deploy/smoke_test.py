@@ -218,20 +218,23 @@ def main() -> int:
                       "calendar feed serves the action without login")
                 check(requests.get(feed_url.replace(".ics", "x.ics"), timeout=30).status_code == 404, "a wrong feed token gives 404")
 
-        # Lead hunt and verify: without an AI key they must say so (503), never fail silently. With a key, only harmless calls are made
-        # here (a bad request), so a smoke test never starts a paid job.
+        # Lead hunt and verify: a hunt is run by a Jengo agent. Without the dispatch configuration the start must say so (503), never fail
+        # silently. Only harmless calls are made here, so a smoke test never starts an agent or a paid job.
         r = s.get(base + "/api/leads/hunt/capabilities", headers=jwt, timeout=30)
         caps = r.json() if r.status_code == 200 else {}
-        check(r.status_code == 200 and "aiConfigured" in caps, "lead hunt capabilities answer")
+        check(r.status_code == 200 and "huntAvailable" in caps, "lead hunt capabilities answer")
         check(s.get(base + "/api/leads/hunt", headers=jwt, timeout=30).status_code == 200, "recent hunts list answers")
-        if caps.get("aiConfigured") is False:
+        if caps.get("huntAvailable") is False:
             r = s.post(base + "/api/leads/hunt", headers=jwt, timeout=30, json={"segment": "smoke test segment"})
-            check(r.status_code == 503 and "AI key not configured" in r.text, "starting a hunt without an AI key says so (503)")
-            if lead_id:
-                r = s.post(f"{base}/api/leads/{lead_id}/verify", headers=jwt, timeout=30)
-                check(r.status_code == 503 and "AI key not configured" in r.text, "verifying a lead without an AI key says so (503)")
+            check(r.status_code == 503 and "not configured" in r.text, "starting a hunt without the agent dispatch says so (503)")
         else:
             check(s.post(base + "/api/leads/hunt", headers=jwt, timeout=30, json={"segment": ""}).status_code == 400, "a hunt without a segment is refused")
+        check(s.post(base + "/api/leads/verify", headers=jwt, timeout=30, json={"ids": []}).status_code == 400, "verify without leads is refused")
+        # The agent endpoints are closed to everyone without the agent token (a login or an API key does not open them).
+        some_id = "00000000-0000-0000-0000-000000000001"
+        check(requests.get(f"{base}/api/agent/hunts/{some_id}", timeout=30).status_code in (401, 503), "agent endpoint refuses a call without the agent token")
+        check(requests.get(f"{base}/api/agent/hunts/{some_id}", headers={"X-Hunt-Agent-Token": "wrong"}, timeout=30).status_code in (401, 503), "agent endpoint refuses a wrong agent token")
+        check(s.get(f"{base}/api/agent/hunts/{some_id}", headers=jwt, timeout=30).status_code in (401, 503), "a normal login does not open the agent endpoint")
 
         # The key reaches the CRM and nothing else.
         check(s.get(base + "/api/leads", headers=k, timeout=30).status_code == 403, "API key is refused outside the CRM")

@@ -260,6 +260,8 @@ public class LeadEvidenceService
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     /// <summary>A quote counts as the business's own statement that it is small only when it carries one of these phrases.</summary>
+    public static Match? FindSmall(string text) { var m = SmallPhrase.Match(text ?? ""); return m.Success ? m : null; }
+
     public static bool QuoteStatesSmall(string? quote) => !string.IsNullOrWhiteSpace(quote) && SmallPhrase.IsMatch(quote);
 
     /// <summary>True when the pages call the business a B.V., N.V., maatschap, stichting or name a team: it cannot count as small on a 'zelfstandig' remark.</summary>

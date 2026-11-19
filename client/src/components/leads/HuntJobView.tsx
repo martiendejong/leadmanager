@@ -11,6 +11,7 @@ const OUTCOME_LABEL: Record<string, string> = {
   Unreachable: 'Website did not answer',
   Verified: 'Verified and rescored',
   Error: 'Failed',
+  Rejected: 'Not accepted',
 }
 
 export function ScoreBadge({ score }: { score: number | null | undefined }) {
@@ -121,9 +122,18 @@ export default function HuntJobView({ jobId, onFinished }: Props) {
         <Stat label={isHunt ? `Found (target ${job.targetCount})` : 'Rescored'} value={job.qualified} />
         <Stat label="Best score" value={job.best || '-'} />
         {isHunt && <Stat label="Minimum score" value={job.minScore} />}
-        <Stat label="AI calls used" value={`${job.llmCalls} / ${job.maxLlmCalls}`} />
+        {isHunt && <Stat label="Agent last reported" value={job.lastAgentCallAt ? new Date(job.lastAgentCallAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : 'not yet'} />}
       </div>
 
+      {isHunt && job.taskUrl && (
+        <p className="text-sm text-gray-600">
+          A Jengo agent is doing this in the background: <a href={job.taskUrl} target="_blank" rel="noreferrer" className="text-indigo-700 hover:underline">open its task</a>.
+        </p>
+      )}
+      {isHunt && job.status === 'Pending' && (
+        <p className="text-sm text-gray-600">Waiting for the Jengo agent to pick up the task. This usually takes a few minutes, the research itself 10 to 30.</p>
+      )}
+      {isHunt && job.summary && <div className="rounded-md bg-gray-50 border border-gray-200 p-3 text-sm text-gray-700 whitespace-pre-line">{job.summary}</div>}
       {active && job.current && <p className="text-sm text-gray-600">Checking <span className="font-medium">{job.current}</span>...</p>}
       {job.error && <div className="rounded-md bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">{job.error}</div>}
       {error && <div className="rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-700">{error}</div>}

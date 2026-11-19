@@ -179,14 +179,14 @@ public class LeadManagerMcpController : McpControllerBase
             "All open next actions over leads and clients in a period, with parent name. Default: everything open up to a year ahead.",
             new { from = Str("ISO 8601 start (optional)"), to = Str("ISO 8601 end (optional)"), include_done = new { type = "boolean" } }),
         Tool("start_lead_hunt",
-            "Find new leads: searches the web for real companies in a segment, reads their own websites and stores each researched company as a lead with a score computed from verified facts only (every fact has a source and quote). Runs in the background; poll get_lead_hunt. Needs the AI key on the server.",
+            "Find new leads: starts a background Jengo agent that researches real companies in a segment on the web. The server re-checks every candidate against the company's own website and stores it as a lead with a score computed from verified facts only (every fact has a source and quote). Takes 10 to 30 minutes; poll get_lead_hunt. Admins or configured users only.",
             new
             {
                 segment = Str("What to look for, e.g. independent graphic designers"),
                 region = Str("Optional region, e.g. Utrecht"),
-                min_score = new { type = "integer", description = "Minimum verified score, 1-9, default 8" },
+                min_score = new { type = "integer", description = "Minimum verified score, 4-9, default 8" },
                 target_count = new { type = "integer", description = "Leads to find, 1-10, default 3" },
-                max_candidates = new { type = "integer", description = "Companies to look at at most, 1-60, default 30" },
+                max_candidates = new { type = "integer", description = "Companies to look at at most, 5-40, default 30" },
             },
             "segment"),
         Tool("get_lead_hunt",
@@ -381,7 +381,7 @@ public class LeadManagerMcpController : McpControllerBase
                     if (!TryInt(args, "min_score", out var minScore, out var huntError) || !TryInt(args, "target_count", out var target, out huntError)
                         || !TryInt(args, "max_candidates", out var maxCand, out huntError))
                         return (huntError!, true);
-                    return Present(await hunt.Start(new StartHuntRequest(ArgStr(args, "segment"), ArgStr(args, "region"), minScore, target, maxCand, null)));
+                    return Present(await hunt.Start(new StartHuntRequest(ArgStr(args, "segment"), ArgStr(args, "region"), minScore, target, maxCand, null), default));
                 }
 
                 case "get_lead_hunt":
@@ -472,13 +472,13 @@ public class LeadManagerMcpController : McpControllerBase
     private HuntController? Hunt(string userId)
     {
         var sp = _services;
-        var llm = sp?.GetService(typeof(Services.Hunt.ILeadLlm)) as Services.Hunt.ILeadLlm;
+        var dispatcher = sp?.GetService(typeof(Services.Hunt.IHuntDispatcher)) as Services.Hunt.IHuntDispatcher;
         var places = sp?.GetService(typeof(Services.Enrichment.GooglePlacesEnrichmentService)) as Services.Enrichment.GooglePlacesEnrichmentService;
         var queue = sp?.GetService(typeof(Services.Hunt.HuntQueue)) as Services.Hunt.HuntQueue;
         var registry = sp?.GetService(typeof(Services.Hunt.HuntRegistry)) as Services.Hunt.HuntRegistry;
         var config = sp?.GetService(typeof(Microsoft.Extensions.Configuration.IConfiguration)) as Microsoft.Extensions.Configuration.IConfiguration;
-        if (llm == null || places == null || queue == null || registry == null || config == null) return null;
-        return As(new HuntController(_db, llm, places, queue, registry, config), userId);
+        if (dispatcher == null || places == null || queue == null || registry == null || config == null) return null;
+        return As(new HuntController(_db, dispatcher, places, queue, registry, config), userId);
     }
 
     private static string Serialize(object value) => JsonSerializer.Serialize(value, Json);

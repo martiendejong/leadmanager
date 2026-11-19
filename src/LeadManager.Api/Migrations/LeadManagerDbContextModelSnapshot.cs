@@ -742,17 +742,14 @@ namespace LeadManager.Api.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("LastAgentCallAt")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("LeadIds")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<int>("LlmCalls")
-                        .HasColumnType("INTEGER");
-
                     b.Property<int>("MaxCandidates")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("MaxLlmCalls")
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("MinScore")
@@ -782,8 +779,17 @@ namespace LeadManager.Api.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Summary")
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("TargetCount")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("TaskId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TaskUrl")
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("Total")
                         .HasColumnType("INTEGER");
