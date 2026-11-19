@@ -26,6 +26,7 @@ public class LeadManagerMcpController : McpControllerBase
     {
         "search_leads", "find_by_email_or_domain", "get_lead", "create_lead", "log_interaction",
         "add_next_action", "complete_next_action", "next_actions_today", "add_contact", "link_item",
+        "start_lead_hunt", "get_lead_hunt",
     };
 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { WriteIndented = false };
@@ -34,16 +35,18 @@ public class LeadManagerMcpController : McpControllerBase
     private readonly CrmParentAccess _access;
     private readonly ILogger<LeadManagerMcpController> _logger;
     private readonly DocumentStorage _storage;
+    private readonly IServiceProvider? _services;
 
     public LeadManagerMcpController(
         McpConnectorOptions options, IMcpTokenValidator tokens,
         LeadManagerDbContext db, CrmParentAccess access, ILogger<LeadManagerMcpController> logger,
-        DocumentStorage? storage = null)
+        DocumentStorage? storage = null, IServiceProvider? services = null)
         : base(options, tokens)
     {
         _db = db;
         _access = access;
         _logger = logger;
+        _services = services;
         // The MCP tools only read and write document metadata; files are handled in the app.
         _storage = storage ?? new DocumentStorage(new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build());
     }
@@ -175,6 +178,21 @@ public class LeadManagerMcpController : McpControllerBase
         Tool("list_actions",
             "All open next actions over leads and clients in a period, with parent name. Default: everything open up to a year ahead.",
             new { from = Str("ISO 8601 start (optional)"), to = Str("ISO 8601 end (optional)"), include_done = new { type = "boolean" } }),
+        Tool("start_lead_hunt",
+            "Find new leads: searches the web for real companies in a segment, reads their own websites and stores each researched company as a lead with a score computed from verified facts only (every fact has a source and quote). Runs in the background; poll get_lead_hunt. Needs the AI key on the server.",
+            new
+            {
+                segment = Str("What to look for, e.g. independent graphic designers"),
+                region = Str("Optional region, e.g. Utrecht"),
+                min_score = new { type = "integer", description = "Minimum verified score, 1-9, default 8" },
+                target_count = new { type = "integer", description = "Leads to find, 1-10, default 3" },
+                max_candidates = new { type = "integer", description = "Companies to look at at most, 1-60, default 30" },
+            },
+            "segment"),
+        Tool("get_lead_hunt",
+            "Progress and result of a lead hunt: status, counters and one row per company looked at with its verified score and why it stopped.",
+            new { job_id = Str("Id returned by start_lead_hunt") },
+            "job_id"),
         Tool("link_item",
             "Link a lead or client to something in another Jengo tool: a JengoWork board or task, a JengoKnowledge project, a mail thread, a Meet session.",
             new
@@ -356,6 +374,25 @@ public class LeadManagerMcpController : McpControllerBase
                     return Present(await As(new NextActionsController(_db, _access), userId).Range(from, to, includeDone));
                 }
 
+                case "start_lead_hunt":
+                {
+                    var hunt = Hunt(userId);
+                    if (hunt == null) return ("The lead hunt is not available on this server.", true);
+                    if (!TryInt(args, "min_score", out var minScore, out var huntError) || !TryInt(args, "target_count", out var target, out huntError)
+                        || !TryInt(args, "max_candidates", out var maxCand, out huntError))
+                        return (huntError!, true);
+                    return Present(await hunt.Start(new StartHuntRequest(ArgStr(args, "segment"), ArgStr(args, "region"), minScore, target, maxCand, null)));
+                }
+
+                case "get_lead_hunt":
+                {
+                    var hunt = Hunt(userId);
+                    var jobId = ArgGuid(args, "job_id");
+                    if (hunt == null) return ("The lead hunt is not available on this server.", true);
+                    if (jobId == null) return ("job_id is required and must be a GUID", true);
+                    return Present(await hunt.Get(jobId.Value));
+                }
+
                 case "link_item":
                 {
                     var parent = ParentArgs(args, out var error);
@@ -429,6 +466,19 @@ public class LeadManagerMcpController : McpControllerBase
             },
         };
         return controller;
+    }
+
+    /// <summary>The hunt controller for the user behind the key, built from the same services as the REST endpoint.</summary>
+    private HuntController? Hunt(string userId)
+    {
+        var sp = _services;
+        var llm = sp?.GetService(typeof(Services.Hunt.ILeadLlm)) as Services.Hunt.ILeadLlm;
+        var places = sp?.GetService(typeof(Services.Enrichment.GooglePlacesEnrichmentService)) as Services.Enrichment.GooglePlacesEnrichmentService;
+        var queue = sp?.GetService(typeof(Services.Hunt.HuntQueue)) as Services.Hunt.HuntQueue;
+        var registry = sp?.GetService(typeof(Services.Hunt.HuntRegistry)) as Services.Hunt.HuntRegistry;
+        var config = sp?.GetService(typeof(Microsoft.Extensions.Configuration.IConfiguration)) as Microsoft.Extensions.Configuration.IConfiguration;
+        if (llm == null || places == null || queue == null || registry == null || config == null) return null;
+        return As(new HuntController(_db, llm, places, queue, registry, config), userId);
     }
 
     private static string Serialize(object value) => JsonSerializer.Serialize(value, Json);

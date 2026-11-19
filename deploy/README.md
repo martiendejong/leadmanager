@@ -78,6 +78,11 @@ Everything is in `.env` (see `.env.example`); `docker-compose.yml` translates it
 | `SSO_ISSUER`, `SSO_CLIENT_ID` | Jengo IAM, see "Signing in with Jengo IAM". |
 | `SEED_RESET_PASSWORDS` | Recovery switch, only via `init-env --force`; applies to one start. |
 | `OPENAI_API_KEY` etc. | Optional; empty = that feature is off. Deliberately empty on test. |
+| `OPENAI_API_KEY` (lead hunt) | Needed for **Find new leads** and **Verify & rescore**. Empty = both buttons answer `503 AI key not configured on this server` and the Leads screen says so. |
+| `GOOGLE_PLACES_API_KEY` | Optional. Without it no Google rating is ever used, so no lead can reach a score of 9. |
+| `HUNT_MODEL` | Optional. Chat model for the extractor and the critic (default `gpt-4.1-mini`). Use an id from `jengo-knowledge-private/models/CURRENT_MODELS.md`. |
+| `HUNT_SEARCH_MODEL` | Optional. Model for the web search that finds candidate companies (default: the same as `HUNT_MODEL`; it must support the `web_search_preview` tool). |
+| `HUNT_MAX_LLM_CALLS_PER_JOB` | Optional hard cap on language model calls per hunt or verify job (default 120, clamped to 10-400). |
 | `MEM_LIMIT` | Hard memory limit of the container (default 768 MB). |
 
 The container does not start if `Jwt:Key` is empty, shorter than 32 characters or the public key from `appsettings.json`.

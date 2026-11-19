@@ -218,6 +218,21 @@ def main() -> int:
                       "calendar feed serves the action without login")
                 check(requests.get(feed_url.replace(".ics", "x.ics"), timeout=30).status_code == 404, "a wrong feed token gives 404")
 
+        # Lead hunt and verify: without an AI key they must say so (503), never fail silently. With a key, only harmless calls are made
+        # here (a bad request), so a smoke test never starts a paid job.
+        r = s.get(base + "/api/leads/hunt/capabilities", headers=jwt, timeout=30)
+        caps = r.json() if r.status_code == 200 else {}
+        check(r.status_code == 200 and "aiConfigured" in caps, "lead hunt capabilities answer")
+        check(s.get(base + "/api/leads/hunt", headers=jwt, timeout=30).status_code == 200, "recent hunts list answers")
+        if caps.get("aiConfigured") is False:
+            r = s.post(base + "/api/leads/hunt", headers=jwt, timeout=30, json={"segment": "smoke test segment"})
+            check(r.status_code == 503 and "AI key not configured" in r.text, "starting a hunt without an AI key says so (503)")
+            if lead_id:
+                r = s.post(f"{base}/api/leads/{lead_id}/verify", headers=jwt, timeout=30)
+                check(r.status_code == 503 and "AI key not configured" in r.text, "verifying a lead without an AI key says so (503)")
+        else:
+            check(s.post(base + "/api/leads/hunt", headers=jwt, timeout=30, json={"segment": ""}).status_code == 400, "a hunt without a segment is refused")
+
         # The key reaches the CRM and nothing else.
         check(s.get(base + "/api/leads", headers=k, timeout=30).status_code == 403, "API key is refused outside the CRM")
         check(s.post(base + "/api/api-keys", headers=k, json={"name": "x"}, timeout=30).status_code == 401, "API key cannot create keys")

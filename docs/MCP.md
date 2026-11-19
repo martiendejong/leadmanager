@@ -43,6 +43,8 @@ deactivated user is rejected. A JWT from the login page is not a valid MCP token
 | `list_actions` | All open actions across leads and clients in a period, with name |
 | `add_contact` | Add a person to a lead or client |
 | `link_item` | Link to something in another tool: JengoWork board or task, JengoKnowledge project, mail thread, Meet session |
+| `start_lead_hunt` | Find new leads: a real web search for companies in a segment, each checked against its own website. Every fact is kept with its source and quote, the score is computed from verified facts only (maximum 9). Runs in the background; needs the AI key on the server (otherwise it answers that it is not configured) |
+| `get_lead_hunt` | Progress and result of a hunt: status, counters and one row per company with its verified score and why it stopped |
 
 For `get_lead`, `log_interaction`, `add_next_action`, `add_contact` and `link_item`, `parent_type` is
 `leads` (default) or `clients`, with the matching `parent_id`. Times are ISO 8601; without a zone, UTC applies.

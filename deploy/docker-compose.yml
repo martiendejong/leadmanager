@@ -38,6 +38,9 @@ services:
       # Optioneel. Leeg = die functie staat uit. Op test bewust leeg laten.
       OpenAI__ApiKey: ${OPENAI_API_KEY:-}
       GooglePlaces__ApiKey: ${GOOGLE_PLACES_API_KEY:-}
+      Hunt__Model: ${HUNT_MODEL:-}
+      Hunt__SearchModel: ${HUNT_SEARCH_MODEL:-}
+      Hunt__MaxLlmCallsPerJob: ${HUNT_MAX_LLM_CALLS_PER_JOB:-120}
       JengoWork__BaseUrl: ${JENGOWORK_BASE_URL:-}
       JengoWork__ApiKey: ${JENGOWORK_API_KEY:-}
       # Jengo Track (klik-tracking). Uit tenzij TRACK_ENABLED=true.
