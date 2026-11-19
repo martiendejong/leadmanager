@@ -6,6 +6,7 @@ import { useToast } from '../components/Toast'
 import CrmPanel from '../components/crm/CrmPanel'
 import ProjectsSection from '../components/crm/ProjectsSection'
 import PriorityCard from '../components/crm/PriorityCard'
+import DocumentsSection from '../components/crm/DocumentsSection'
 import {
   ENGAGEMENT_CATEGORIES,
   CATEGORY_DESCRIPTIONS,
@@ -291,6 +292,11 @@ export default function ClientDetailPage() {
         onHistoryChanged={() => setHistoryTick((t) => t + 1)}
         onChanged={() => { getClient(client.id).then(setClient).catch(() => showToast('Vernieuwen mislukt', 'error')) }}
       />
+
+      {/* Quotes, orders and signed agreements with their files */}
+      <div className="mt-6">
+        <DocumentsSection clientId={client.id} projects={client.projects} />
+      </div>
 
       {/* Relationship screen: next actions, conversations, contacts, links (Jengo Clients) */}
       <div className="mt-6 max-w-5xl">

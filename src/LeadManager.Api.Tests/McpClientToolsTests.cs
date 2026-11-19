@@ -173,4 +173,34 @@ public class McpClientToolsTests : IDisposable
         Assert.True(isError, text);
         Assert.Empty(await _db.Interactions.ToListAsync());
     }
+
+    [Fact]
+    public async Task Documents_AddChainAndList_ScopedToTheKeysUser()
+    {
+        var key = SeedKey("a@x.test");
+        var other = SeedKey("b@x.test");
+        var (created, _) = await Tool(key, "create_client", new { name = "ThuisNotaris" });
+        var clientId = Parse(created).GetProperty("id").GetGuid();
+
+        var (quote, qErr) = await Tool(key, "add_document", new { client_id = clientId, kind = "Quote", title = "Offerte intake", reference = "OFF-1", amount = 500 });
+        Assert.False(qErr, quote);
+        var quoteId = Parse(quote).GetProperty("id").GetGuid();
+        var (dpa, dErr) = await Tool(key, "add_document", new { client_id = clientId, kind = "Dpa", title = "Verwerkersovereenkomst", status = "Signed", signed_at = "2026-11-12", predecessor_id = quoteId });
+        Assert.False(dErr, dpa);
+        Assert.NotNull(Parse(dpa).GetProperty("signedAt").GetString());
+
+        var (list, lErr) = await Tool(key, "list_documents", new { client_id = clientId });
+        Assert.False(lErr, list);
+        Assert.Equal(2, Parse(list).GetArrayLength());
+
+        var (_, foreignErr) = await Tool(other, "list_documents", new { client_id = clientId });
+        Assert.True(foreignErr);
+        var (_, foreignAdd) = await Tool(other, "add_document", new { client_id = clientId, kind = "Nda", title = "x" });
+        Assert.True(foreignAdd);
+
+        var (_, badAmount) = await Tool(key, "add_document", new { client_id = clientId, kind = "Other", title = "x", amount = "veel" });
+        Assert.True(badAmount);
+        var (_, badDate) = await Tool(key, "add_document", new { client_id = clientId, kind = "Other", title = "x", signed_at = "morgen" });
+        Assert.True(badDate);
+    }
 }

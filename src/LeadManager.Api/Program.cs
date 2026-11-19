@@ -258,6 +258,7 @@ builder.Services.AddSingleton<EnrichmentChannel>();
 builder.Services.AddHostedService<EnrichmentBackgroundService>();
 
 // Hangfire
+builder.Services.AddSingleton<LeadManager.Api.Services.DocumentStorage>();
 builder.Services.AddHangfire(config => config.UseMemoryStorage());
 builder.Services.AddHangfireServer(opts => { opts.WorkerCount = 10; });
 builder.Services.AddScoped<NotificationService>();

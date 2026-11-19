@@ -39,6 +39,8 @@ geldig MCP-token.
 | `create_client` | Klant handmatig toevoegen (weigert dezelfde naam twee keer) |
 | `set_client_priority` | Waarde, urgentie en inspanning zetten: score = waarde × urgentie ÷ inspanning² |
 | `create_project` | Project toevoegen aan een klant; `log_interaction` accepteert daarbij `project_id` |
+| `list_documents` | Het dossier van een klant: offertes, opdrachten, overeenkomsten, verwerkersovereenkomsten, NDA's met status, bedrag, datums, voorgaand document en bestandsnamen |
+| `add_document` | Document vastleggen in het dossier (gegevens en eventueel een link); bestanden uploaden doe je in de app. Koppel met `predecessor_id`: offerte, opdracht, overeenkomst |
 | `list_actions` | Alle open acties over leads en klanten in een periode, met naam |
 | `add_contact` | Persoon toevoegen aan een lead of klant |
 | `link_item` | Koppelen aan iets in een andere tool: JengoWork-bord of -taak, JengoKnowledge-project, mailthread, Meet-sessie |
