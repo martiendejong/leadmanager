@@ -33,15 +33,19 @@ public class LeadManagerMcpController : McpControllerBase
     private readonly LeadManagerDbContext _db;
     private readonly CrmParentAccess _access;
     private readonly ILogger<LeadManagerMcpController> _logger;
+    private readonly DocumentStorage _storage;
 
     public LeadManagerMcpController(
         McpConnectorOptions options, IMcpTokenValidator tokens,
-        LeadManagerDbContext db, CrmParentAccess access, ILogger<LeadManagerMcpController> logger)
+        LeadManagerDbContext db, CrmParentAccess access, ILogger<LeadManagerMcpController> logger,
+        DocumentStorage? storage = null)
         : base(options, tokens)
     {
         _db = db;
         _access = access;
         _logger = logger;
+        // The MCP tools only read and write document metadata; files are handled in the app.
+        _storage = storage ?? new DocumentStorage(new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build());
     }
 
     // ---- tool catalogue -------------------------------------------------------------------------------
@@ -145,6 +149,29 @@ public class LeadManagerMcpController : McpControllerBase
                 status = new { type = "string", @enum = new[] { "Active", "On Hold", "Completed" } },
             },
             "client_id", "name"),
+        Tool("list_documents",
+            "The dossier of a client: quotes, orders, agreements, processing agreements and NDAs with status, amount, dates, the document each one follows from, and the names of attached files.",
+            new { client_id = Str("Id of the client") },
+            "client_id"),
+        Tool("add_document",
+            "Record a document in a client's dossier (metadata and an optional link; files are uploaded in the app). Chain them with predecessor_id: quote, then order, then agreement.",
+            new
+            {
+                client_id = Str("Id of the client"),
+                kind = new { type = "string", @enum = new[] { "Quote", "Order", "Agreement", "Dpa", "Nda", "Invoice", "Other" } },
+                title = Str("Title, e.g. Verwerkersovereenkomst ThuisNotaris"),
+                status = new { type = "string", @enum = new[] { "Draft", "Sent", "Signed", "Rejected", "Expired", "Cancelled" } },
+                reference = Str("Own number, e.g. quote number"),
+                document_date = Str("ISO 8601 date; default today"),
+                signed_at = Str("ISO 8601 date the document was signed"),
+                valid_until = Str("ISO 8601 date until which it is valid"),
+                amount = new { type = "number", description = "Amount in euro excluding VAT" },
+                url = Str("http(s) link to where the document lives"),
+                notes = Str("Notes"),
+                project_id = Str("Optional project of this client"),
+                predecessor_id = Str("Optional: the document this one follows from"),
+            },
+            "client_id", "kind", "title"),
         Tool("list_actions",
             "All open next actions over leads and clients in a period, with parent name. Default: everything open up to a year ahead.",
             new { from = Str("ISO 8601 start (optional)"), to = Str("ISO 8601 end (optional)"), include_done = new { type = "boolean" } }),
@@ -291,6 +318,33 @@ public class LeadManagerMcpController : McpControllerBase
                     if (id == null) return ("client_id is required and must be a GUID", true);
                     return Present(await As(new ProjectsController(_db), userId).Create(id.Value,
                         new UpsertProjectDto(ArgStr(args, "name") ?? "", ArgStr(args, "description"), ArgStr(args, "status"))));
+                }
+
+                case "list_documents":
+                {
+                    var id = ArgGuid(args, "client_id");
+                    if (id == null) return ("client_id is required and must be a GUID", true);
+                    return Present(await As(new DocumentsController(_db, _storage), userId).List(id.Value));
+                }
+
+                case "add_document":
+                {
+                    var id = ArgGuid(args, "client_id");
+                    if (id == null) return ("client_id is required and must be a GUID", true);
+                    if (!TryDate(args, "document_date", out var docDate, out var error) || !TryDate(args, "signed_at", out var signedAt, out error)
+                        || !TryDate(args, "valid_until", out var validUntil, out error)
+                        || !TryOptionalGuid(args, "project_id", out var projectId, out error)
+                        || !TryOptionalGuid(args, "predecessor_id", out var predecessorId, out error))
+                        return (error!, true);
+                    decimal? amount = null;
+                    if (args.ValueKind == JsonValueKind.Object && args.TryGetProperty("amount", out var a) && a.ValueKind != JsonValueKind.Null)
+                    {
+                        if (a.ValueKind != JsonValueKind.Number || !a.TryGetDecimal(out var dec)) return ("amount must be a number", true);
+                        amount = dec;
+                    }
+                    return Present(await As(new DocumentsController(_db, _storage), userId).Create(id.Value, new UpsertDocumentDto(
+                        ArgStr(args, "kind") ?? "", ArgStr(args, "title") ?? "", ArgStr(args, "status"), ArgStr(args, "reference"),
+                        docDate, signedAt, validUntil, amount, ArgStr(args, "notes"), ArgStr(args, "url"), projectId, predecessorId)));
                 }
 
                 case "list_actions":

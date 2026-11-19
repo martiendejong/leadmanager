@@ -150,7 +150,7 @@ def main() -> int:
         names = [t["name"] for t in r.json().get("result", {}).get("tools", [])] if r.status_code == 200 else []
         check({"search_leads", "get_lead", "create_lead", "log_interaction", "add_next_action", "next_actions_today",
                "link_item", "find_by_email_or_domain", "list_clients", "create_client", "set_client_priority",
-               "create_project", "list_actions"} <= set(names), f"MCP lists the planned tools ({len(names)})")
+               "create_project", "list_actions", "list_documents", "add_document"} <= set(names), f"MCP lists the planned tools ({len(names)})")
         r = rpc("tools/call", {"name": "create_lead", "arguments": {"name": f"Smoke MCP {stamp}", "website": f"https://smoke-mcp-{stamp}.example"}}, 2)
         mcp_text = r.json()["result"]["content"][0]["text"] if r.status_code == 200 else ""
         mcp_lead = None
@@ -186,6 +186,25 @@ def main() -> int:
             check(r.status_code == 200 and len(r.json()) == 1 and r.json()[0].get("projectName") == "Smoke project",
                   "project history shows its own note")
             due = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+            # Dossier: quote -> agreement chain with a file, downloaded again, removed with the client.
+            r = s.post(f"{base}/api/clients/{client_id}/documents", headers=jwt, timeout=30,
+                       json={"kind": "Quote", "title": "Smoke offerte", "amount": 100})
+            check(r.status_code == 201, "add a quote to the dossier")
+            quote_id = r.json().get("id") if r.status_code == 201 else None
+            if quote_id:
+                r = s.post(f"{base}/api/clients/{client_id}/documents", headers=jwt, timeout=30,
+                           json={"kind": "Dpa", "title": "Smoke DPA", "status": "Signed", "predecessorId": quote_id})
+                check(r.status_code == 201 and r.json().get("predecessorId") == quote_id and r.json().get("signedAt"), "chain a signed agreement to the quote")
+                r = s.post(f"{base}/api/documents/{quote_id}/files", headers={"Authorization": jwt["Authorization"]}, timeout=60,
+                           files={"file": ("smoke.txt", b"smoke dossier file", "text/plain")})
+                check(r.status_code == 201, "upload a file to a document")
+                file_id = r.json().get("id") if r.status_code == 201 else None
+                if file_id:
+                    dr = s.get(f"{base}/api/documents/files/{file_id}", headers=jwt, timeout=30)
+                    check(dr.status_code == 200 and dr.content == b"smoke dossier file" and dr.headers.get("x-content-type-options") == "nosniff",
+                          "download returns the same bytes as a nosniff attachment")
+                check(s.post(f"{base}/api/documents/{quote_id}/files", headers={"Authorization": jwt["Authorization"]}, timeout=60,
+                             files={"file": ("x.exe", b"MZ", "application/octet-stream")}).status_code == 400, "an .exe upload is refused")
             r = s.post(f"{base}/api/clients/{client_id}/next-actions", headers=jwt, timeout=30, json={"title": "smoke actie", "dueAt": due})
             check(r.status_code == 201, "plan a next action on the client")
             r = s.get(base + "/api/next-actions", headers=jwt, timeout=30)
