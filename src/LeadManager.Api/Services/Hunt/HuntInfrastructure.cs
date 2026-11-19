@@ -114,3 +114,53 @@ public class HuntSweepService : BackgroundService
         catch (OperationCanceledException) { }
     }
 }
+
+/// <summary>Per-user and per-job locks, so the one-job-per-user rule and the counters of a hunt can never be raced.</summary>
+public static class HuntLocks
+{
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> Users = new();
+    private static readonly ConcurrentDictionary<Guid, SemaphoreSlim> Jobs = new();
+
+    private sealed class Releaser : IDisposable
+    {
+        private SemaphoreSlim? _sem;
+        public Releaser(SemaphoreSlim sem) => _sem = sem;
+        public void Dispose() => Interlocked.Exchange(ref _sem, null)?.Release();
+    }
+
+    /// <summary>Waits up to <paramref name="wait"/> for the lock of this user; null when it could not be had.</summary>
+    public static async Task<IDisposable?> EnterUserAsync(string userId, TimeSpan wait)
+    {
+        var sem = Users.GetOrAdd(userId, _ => new SemaphoreSlim(1, 1));
+        return await sem.WaitAsync(wait) ? new Releaser(sem) : null;
+    }
+
+    /// <summary>One candidate of a hunt at a time: null when another submission of this hunt is being checked.</summary>
+    public static IDisposable? TryEnterJob(Guid jobId)
+    {
+        var sem = Jobs.GetOrAdd(jobId, _ => new SemaphoreSlim(1, 1));
+        return sem.Wait(0) ? new Releaser(sem) : null;
+    }
+}
+
+/// <summary>
+/// The token of one hunt: HMAC-SHA256 of the hunt id with the server secret. It opens the agent endpoints of that hunt only, and only while
+/// that hunt is Pending or Running, so it is useless after the hunt ends and for every other hunt. The task text may contain it.
+/// </summary>
+public static class HuntTokens
+{
+    public static string For(string secret, Guid huntId)
+    {
+        using var hmac = new System.Security.Cryptography.HMACSHA256(System.Text.Encoding.UTF8.GetBytes(secret));
+        var mac = hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes("hunt-agent:" + huntId.ToString("D")));
+        return Convert.ToBase64String(mac).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+    }
+
+    public static bool Valid(string secret, Guid huntId, string? given)
+    {
+        if (string.IsNullOrEmpty(secret) || string.IsNullOrEmpty(given)) return false;
+        var a = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(given));
+        var b = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(For(secret, huntId)));
+        return System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(a, b);
+    }
+}

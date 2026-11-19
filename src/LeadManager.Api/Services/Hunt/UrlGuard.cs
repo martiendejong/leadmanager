@@ -30,6 +30,13 @@ public static class UrlGuard
             if (ip.IsIPv6LinkLocal || ip.IsIPv6SiteLocal || ip.IsIPv6Multicast) return false;
             var b = ip.GetAddressBytes();
             if ((b[0] & 0xFE) == 0xFC) return false;                       // unique local fc00::/7
+            if (b.Take(12).All(x => x == 0)) return false;                 // IPv4 compatible ::a.b.c.d (and ::)
+            if (b.Take(8).All(x => x == 0) && b[8] == 0xFF && b[9] == 0xFF && b[10] == 0 && b[11] == 0) return false; // IPv4 translated ::ffff:0:a.b.c.d
+            if (b[0] == 0x20 && b[1] == 0x02) return false;                // 6to4 2002::/16 embeds an IPv4 address
+            if (b[0] == 0x00 && b[1] == 0x64 && b[2] == 0xFF && b[3] == 0x9B) return false; // NAT64 64:ff9b::/32 (covers /96 and the local-use /48)
+            if (b[0] == 0x20 && b[1] == 0x01 && b[2] == 0x00 && b[3] == 0x00) return false; // Teredo 2001::/32
+            if (b[0] == 0x20 && b[1] == 0x01 && b[2] == 0x0D && b[3] == 0xB8) return false; // documentation 2001:db8::/32
+            if (b[0] == 0x01 && b[1] == 0x00 && b.Skip(2).Take(6).All(x => x == 0)) return false; // discard-only 100::/64
             return true;
         }
         return false;
@@ -56,6 +63,19 @@ public static class UrlGuard
             || (u.HostNameType == UriHostNameType.Dns && !host.Contains('.'))) return false;
         uri = u;
         return true;
+    }
+
+    /// <summary>
+    /// The registrable part of a host: the last two labels, or three for second level suffixes such as co.uk. A redirect that leaves this
+    /// domain is not followed, so facts are never attributed to a business from another site.
+    /// </summary>
+    public static string RegistrableDomain(string host)
+    {
+        var labels = host.ToLowerInvariant().Trim('.').Split('.');
+        if (labels.Length <= 2) return string.Join('.', labels);
+        var secondLevel = new[] { "co", "com", "org", "net", "gov", "ac", "edu" };
+        var take = labels[^1].Length == 2 && secondLevel.Contains(labels[^2]) ? 3 : 2;
+        return string.Join('.', labels.Skip(labels.Length - take));
     }
 
     public static string DomainOf(string? url)

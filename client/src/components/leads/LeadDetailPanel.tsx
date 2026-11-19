@@ -17,15 +17,28 @@ interface Props {
   onLeadUpdated?: (lead: Lead) => void
 }
 
-function Field({ label, value }: { label: string; value?: string | number | null }) {
+/** A link is only rendered for an http(s) address; a LinkedIn field only for linkedin.com. Anything else is shown as plain text. */
+export function safeFieldHref(value: string, host?: string): string | null {
+  try {
+    const u = new URL(value)
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return null
+    if (host && u.hostname !== host && !u.hostname.endsWith('.' + host)) return null
+    return u.toString()
+  } catch {
+    return null
+  }
+}
+
+function Field({ label, value, linkHost }: { label: string; value?: string | number | null; linkHost?: string }) {
+  const href = typeof value === 'string' && value.startsWith('http') ? safeFieldHref(value, linkHost) : null
   return (
     <div>
       <dt className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</dt>
       <dd className="mt-0.5 text-sm text-gray-900">
         {value ? (
-          typeof value === 'string' && value.startsWith('http') ? (
+          href ? (
             <a
-              href={value}
+              href={href}
               target="_blank"
               rel="noopener noreferrer"
               className="text-indigo-600 hover:underline break-all"
@@ -587,7 +600,7 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
                 <Field label="Last name" value={lead.ownerLastName} />
                 <Field label="Job title" value={lead.ownerTitle} />
                 <Field label="Personal email" value={lead.personalEmail} />
-                <Field label="LinkedIn" value={lead.linkedInUrl} />
+                <Field label="LinkedIn" value={lead.linkedInUrl} linkHost="linkedin.com" />
               </Section>
 
               {(lead.description || lead.services || lead.targetAudience) && (

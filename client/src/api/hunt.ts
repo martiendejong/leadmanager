@@ -94,8 +94,26 @@ export async function startHunt(criteria: HuntCriteria): Promise<{ jobId: string
   return (await apiClient.post<{ jobId: string; taskUrl: string | null }>('/api/leads/hunt', criteria)).data
 }
 
-export async function startVerify(ids: string[]): Promise<{ jobId: string; leads: number; skipped: number }> {
-  return (await apiClient.post('/api/leads/verify', { ids })).data
+/** Verify and rescore. Values a person typed are kept unless `confirm` is true; use previewVerify first to see what would change. */
+export async function startVerify(ids: string[], confirm = false): Promise<{ jobId: string; leads: number; skipped: number }> {
+  return (await apiClient.post('/api/leads/verify', { ids, confirm })).data
+}
+
+export interface VerifyPreview {
+  leadId: string
+  reachable: boolean
+  scoreBefore: number | null
+  scoreAfter: number | null
+  wouldClear: boolean
+  wouldRemove: string[]
+  keptBecauseEntered: string[]
+  verified: { field: string; value: string; source: string; quote: string }[]
+  notCounted: { field: string; reason: string }[]
+}
+
+/** A dry run: what a verify would do to one lead, without changing anything. */
+export async function previewVerify(id: string, confirm = false): Promise<VerifyPreview> {
+  return (await apiClient.post<VerifyPreview>(`/api/leads/${id}/verify`, null, { params: { dryRun: true, confirm } })).data
 }
 
 export async function getHunt(id: string): Promise<{ job: HuntJob; candidates: HuntCandidate[] }> {

@@ -11,44 +11,79 @@ is a *contactability* score (how directly the owner can be reached, maximum 9, s
 must rest on facts that were seen, with their source:
 
 - the agent has real web search and fetch (the Claude Code harness), so the research is real;
-- the server fetches the candidate's own pages itself and accepts a claim only when its quote occurs on those pages and the rule for its
-  field holds (a landline is not a mobile, a footer range is not a founding year, a role mailbox is not personal, a LinkedIn handle must
-  carry the owner's name, a B.V. contradicts "small");
-- the score is always computed by `SalesScoreService` from the verified fields, never taken from the agent (`claimedScore` is only
-  compared and recorded: "The agent claimed 9; the server verified 6");
-- a Google rating is only used when Google Places produced it, never from a website widget or a review site.
+- the server fetches the candidate's own pages itself and finds the facts with its own rules (`LeadEvidenceService`): a person named with an
+  owner cue (owner, founder, director, "my name is", JSON-LD founder, an about-page heading), a first-person or labelled-legal statement
+  that the business is a one-person business, mobile numbers, LinkedIn links, mailboxes, years, KvK numbers;
+- an agent claim counts only when its quote is in the **visible** text of a fetched page (scripts, styles, the document head and hidden
+  elements are not visible text), the extractor found the same fact, and the rule for the field holds (a landline is not a mobile, a
+  footer range is not a founding year, a role mailbox or a free-provider address is not the business's personal mailbox, a LinkedIn
+  handle must carry the owner's name, a B.V. contradicts "small", a number next to a review or a web designer's credit does not count
+  when the site shows several numbers);
+- **what is stored is the value the server found, never the string the agent sent**: the canonical LinkedIn address built from the
+  handle, the mobile number normalised, the mailbox as published, the year and the KvK number from the matching fact, the name as the
+  site writes it;
+- the score is always computed by `SalesScoreService` from the verified fields (`claimedScore` is only compared and recorded: "The agent
+  claimed 9; the server verified 6");
+- a Google rating is only used when Google Places produced it, never from a website widget or a review site;
+- free text from the agent or a website (description, services, ...) is untrusted: control characters, markup and instruction-like
+  phrases are removed and it is clamped. The sales-approach prompt wraps it in `<bedrijfsdata>` delimiters and says it is data.
 
 ## Flow
 
 ```
 Leads screen  ->  POST /api/leads/hunt            (checks, creates HuntJob, creates a JengoWork task)
-                  jengo-agi picks up the task      (spawns an agent with the task text = the versioned prompt)
-Agent         ->  GET  /api/agent/hunts/{id}               brief + known domains
-              ->  POST /api/agent/hunts/{id}/candidates    one researched company, with claims and quotes
+                  jengo-agi picks up the task      (spawns an agent with the task text = the versioned prompt, incl. the token of this hunt)
+Agent         ->  GET  /api/agent/hunts/{id}               brief (criteria, stop)
+              ->  POST /api/agent/hunts/{id}/check         which of these websites are already leads (yes/no per site)
+              ->  POST /api/agent/hunts/{id}/candidates    one researched company, with claims and quotes (one at a time)
               <-  outcome, verified score, bestScoreSoFar, stop
               ->  POST /api/agent/hunts/{id}/complete      (or /fail)
 Leads screen  <-  progress via SignalR (HuntProgress) and a 4 s poll; found companies appear in the list as they arrive
 ```
 
 The prompt is `src/LeadManager.Api/Agent/LEAD_HUNT_PROMPT.md` (embedded resource, `prompt-version` on the first line). The criteria are
-rendered into a delimited data block, sanitized (letters, digits, spaces and `-,.&/()'` only, segment at most 120 characters, region at most
-80). The task text never contains a secret.
+rendered into a delimited data block. A segment or region with a line break, markup characters or an instruction-like phrase
+("ignore previous instructions", "system:", ...) is **refused with 400**; the accepted text is reduced to letters, digits, spaces and
+`-,.&/()'`; segment at most 120 characters, region at most 80.
+
+## The token of a hunt
+
+The agent proves itself with `X-Hunt-Agent-Token`. That token is `HMAC-SHA256(Hunt:AgentSecret, "hunt-agent:" + huntId)`, derived per
+hunt and compared in constant time. It opens **only that hunt** and **only while it is Pending or Running**, so it is useless after
+the hunt ends and for every other hunt. For that reason the dispatcher puts it **in the task text** (the least-leaky design: the agent
+needs no vault access, and a copy of the task text is worthless once the hunt is over). The server secret itself (`HUNT_AGENT_SECRET`) is
+never put anywhere but the server's environment (and the vault, for ops). Without the secret the agent endpoints answer 503.
 
 ## What the server decides
 
 | Rule | Where |
 |---|---|
-| One active job per user; at most `Hunt:MaxPerUserPerDay` hunts per user per day (default 5) | `HuntController.Start` |
-| Only administrators, or the users in `Hunt:AllowedEmails`, may start a hunt | `HuntAccess` |
+| One active job per user (a unique index in the database) and a per-user lock around check-and-insert, so two requests at the same moment cannot both start | `HuntController.CreateJobAsync`, `IX_HuntJobs_OneActivePerUser` |
+| At most `Hunt:MaxPerUserPerDay` hunts (default 5) and `Hunt:MaxVerifyPerUserPerDay` verify runs (default 20) per user per day | `HuntController` |
+| Only administrators, or the users in `Hunt:AllowedEmails`, may start a hunt; verifying several leads at once needs the same access, verifying one lead does not | `HuntAccess` |
 | `minScore` 4 to 9 (default 8), `targetCount` 1 to 10 (default 3), `maxCandidates` 5 to 40 (default 30) | `HuntController.Start` |
-| Stop (`stop: true` to the agent) when the target is reached, the candidate limit is reached, or the user cancelled | `HuntService.ShouldStop` |
-| A company that is already a lead of the user (same domain) is reported back and not added | `HuntService.SubmitCandidateAsync` |
-| An unreachable website is recorded but not added as a lead | idem |
-| Every researched candidate is stored as a lead (source `Lead hunt <date>`) with an evidence note: accepted claims with source and quote, rejected claims with the reason | idem |
+| One candidate of a hunt is checked at a time (a second submission gets 429); the stop conditions are checked again after the slow part, before anything is saved | `HuntLocks`, `HuntService.SubmitCandidateAsync` |
+| A candidate may take 120 s and one site 60 s in total; one page fetch has a hard 20 s limit for the whole body, so a site that drips its answer cannot hold a worker | `SafePageFetcher`, `SitePages.Budget`, `HuntService.CandidateBudget` |
+| A company that is already a lead of the user is reported back and not added; the agent can only ask yes/no per website, never read the user's lead list | `HuntAgentController.Check` |
+| An unreachable website is recorded but not added as a lead | `HuntService` |
+| Every researched candidate is stored as a lead (source `Lead hunt <date>`) with an evidence note: accepted claims with source and quote, rejected claims with the reason | `HuntService` |
 | A hunt whose agent has been silent for 45 minutes is marked failed | `HuntSweepService` |
 
-The fetching is SSRF-guarded (`UrlGuard`, `SafePageFetcher`): public http(s) addresses only, every connection and redirect hop is checked
-against private, loopback and link-local ranges.
+Fetching is SSRF-guarded (`UrlGuard`, `SafePageFetcher`): public http(s) addresses only; every connection and redirect hop is checked
+against private, loopback, link-local, IPv4-compatible, IPv4-translated, 6to4, NAT64, Teredo and documentation ranges; no proxy is used; a
+redirect to another registrable domain is not followed, so a site's facts are never attributed to another business; the body is capped
+and decoded with the response charset.
+
+## Verify and rescore (existing leads)
+
+Rules only, no model. The server fetches the lead's own website and applies the same fact rules.
+
+- A lead that a hunt created (source `Lead hunt ...`) may have values removed that cannot be proven.
+- A lead a person filled in (any other source) is **never** cleared or overwritten by default. What would be removed, and what differs
+  from the website, is listed in the evidence note ("Not removed, because they were entered by a person (confirm to remove them)").
+- `POST /api/leads/verify` with `{"ids": [...], "confirm": true}` (or `?confirm=true` for one lead) confirms the removal.
+- `POST /api/leads/{id}/verify?dryRun=true[&confirm=true]` returns the proposed changes (score before and after, what would be removed,
+  what is kept because a person entered it) and changes nothing.
 
 ## Configuration
 
@@ -57,33 +92,33 @@ against private, loopback and link-local ranges.
 | `JENGOWORK_BASE_URL`, `JENGOWORK_API_KEY` | JengoWork API and an agent key (`tm_...`) that may create tasks |
 | `HUNT_DISPATCH_BOARD_ID` | The board (list id) that receives the tasks: `POST {base}/api/v2/list/{board}/task` with `{name, description}` |
 | `HUNT_DISPATCH_STATUS` | Optional lane for the new task so that jengo-agi picks it up at once (for example `todo`) |
-| `HUNT_AGENT_TOKEN` | Shared secret of the agent. Header `X-Hunt-Agent-Token`, compared in constant time. Empty = agent endpoints answer 503 |
+| `HUNT_AGENT_SECRET` | Server secret from which the token of each hunt is derived. Empty = Find new leads and the agent endpoints answer 503 |
 | `HUNT_ALLOWED_EMAILS` | Comma separated; empty = administrators only |
-| `HUNT_MAX_PER_USER_PER_DAY` | default 5 |
+| `HUNT_MAX_PER_USER_PER_DAY`, `HUNT_MAX_VERIFY_PER_USER_PER_DAY` | default 5 and 20 |
 | `HUNT_API_BASE_URL` | The URL the agent calls; default the public URL |
 | `GOOGLE_PLACES_API_KEY` | Optional; without it no lead can reach 9 |
 
-Without the dispatch settings or the token, **Find new leads** answers `503` ("The Jengo agent dispatch is not configured on this server" or
-"The Jengo agent token is not configured on this server") and the screen says so.
+Without the dispatch settings or the secret, **Find new leads** answers `503` ("The Jengo agent dispatch is not configured on this server" or
+"The Jengo agent token secret is not configured on this server") and the screen says so.
 
 ## Setting it up on an environment
 
 1. Pick or create a JengoWork board for the hunts and make sure **jengo-agi monitors it** (a board that is not monitored never starts an
    agent). Put its id in `HUNT_DISPATCH_BOARD_ID`, and a lane name that jengo-agi polls in `HUNT_DISPATCH_STATUS`.
-2. Create the vault credential **`Clients hunt agent token`** in project 12 (a long random value), put the same value in `HUNT_AGENT_TOKEN` in
-   the environment's `.env`, and restart the stack. The agent reads it from the vault by that name.
+2. Generate a long random value for `HUNT_AGENT_SECRET`, put it in the environment's `.env` (keep a copy in the vault, project 12, credential
+   `Clients hunt agent secret`) and restart the stack.
 3. Set `JENGOWORK_BASE_URL` and `JENGOWORK_API_KEY`.
 4. Run the smoke test: it checks that the agent endpoints refuse a call without the token and that the capabilities answer.
 
 ## Endpoints
 
 User (JWT or API key): `GET /api/leads/hunt/capabilities`, `POST /api/leads/hunt`, `GET /api/leads/hunt`, `GET /api/leads/hunt/{id}`,
-`POST /api/leads/hunt/{id}/cancel`, `POST /api/leads/verify`, `POST /api/leads/{id}/verify`, `GET /api/leads/{id}/evidence`.
-MCP: `start_lead_hunt`, `get_lead_hunt`.
+`POST /api/leads/hunt/{id}/cancel`, `POST /api/leads/verify`, `POST /api/leads/{id}/verify[?dryRun=true&confirm=true]`,
+`GET /api/leads/{id}/evidence`. MCP: `start_lead_hunt`, `get_lead_hunt`.
 
-Agent (agent token only; no login or API key opens them): `GET /api/agent/hunts/{id}`, `POST /api/agent/hunts/{id}/candidates`,
-`POST /api/agent/hunts/{id}/complete`, `POST /api/agent/hunts/{id}/fail`. They only work while the hunt is Pending or Running, and
-whatever the agent creates belongs to the user who started the hunt.
+Agent (the token of that hunt only; no login or API key opens them): `GET /api/agent/hunts/{id}`, `POST /api/agent/hunts/{id}/check`,
+`POST /api/agent/hunts/{id}/candidates`, `POST /api/agent/hunts/{id}/complete`, `POST /api/agent/hunts/{id}/fail`. They only work while
+the hunt is Pending or Running, and whatever the agent creates belongs to the user who started the hunt.
 
 ## Privacy
 

@@ -79,6 +79,8 @@ public class LeadManagerDbContext : IdentityDbContext<ApplicationUser>
                 v => System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions?)null),
                 v => System.Text.Json.JsonSerializer.Deserialize<List<Guid>>(v, (System.Text.Json.JsonSerializerOptions?)null) ?? new List<Guid>());
             e.HasIndex(j => new { j.UserId, j.CreatedAt });
+            // At most one active job per user, enforced by the database, so two requests at the same moment cannot both start.
+            e.HasIndex(j => j.UserId).IsUnique().HasFilter("\"Status\" IN ('Pending', 'Running')").HasDatabaseName("IX_HuntJobs_OneActivePerUser");
             e.HasMany(j => j.Candidates).WithOne(c => c.Job).HasForeignKey(c => c.JobId).OnDelete(DeleteBehavior.Cascade);
         });
         builder.Entity<HuntCandidate>(e =>

@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore;
 namespace LeadManager.Api.Controllers;
 
 public record StartHuntRequest(string? Segment, string? Region, int? MinScore, int? TargetCount, int? MaxCandidates, bool? Ratchet);
-public record VerifyLeadsRequest(Guid[]? Ids);
+public record VerifyLeadsRequest(Guid[]? Ids, bool? Confirm = null);
 
 /// <summary>
 /// Lead hunt and verify. A hunt is researched by a background Jengo agent that the app starts (a JengoWork task); every candidate the
@@ -25,7 +25,7 @@ public class HuntController : ControllerBase
 {
     public const int MaxVerifyIds = 50;
     public const string NotConfigured = "The Jengo agent dispatch is not configured on this server";
-    public const string TokenMissing = "The Jengo agent token is not configured on this server";
+    public const string TokenMissing = "The Jengo agent token secret is not configured on this server";
 
     private readonly LeadManagerDbContext _db;
     private readonly IHuntDispatcher _dispatcher;
@@ -33,15 +33,16 @@ public class HuntController : ControllerBase
     private readonly HuntQueue _queue;
     private readonly HuntRegistry _registry;
     private readonly IConfiguration _config;
+    private readonly HuntService? _service;
 
-    public HuntController(LeadManagerDbContext db, IHuntDispatcher dispatcher, GooglePlacesEnrichmentService places, HuntQueue queue, HuntRegistry registry, IConfiguration config)
+    public HuntController(LeadManagerDbContext db, IHuntDispatcher dispatcher, GooglePlacesEnrichmentService places, HuntQueue queue, HuntRegistry registry, IConfiguration config, HuntService? service = null)
     {
-        _db = db; _dispatcher = dispatcher; _places = places; _queue = queue; _registry = registry; _config = config;
+        _db = db; _dispatcher = dispatcher; _places = places; _queue = queue; _registry = registry; _config = config; _service = service;
     }
 
     private string? UserId => User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
 
-    private bool AgentTokenConfigured => !string.IsNullOrWhiteSpace(_config["Hunt:AgentToken"]);
+    private bool AgentTokenConfigured => !string.IsNullOrWhiteSpace(_config["Hunt:AgentSecret"]);
     private int MaxPerDay => Math.Clamp(int.TryParse(_config["Hunt:MaxPerUserPerDay"], out var n) ? n : 5, 1, 50);
 
     // GET /api/leads/hunt/capabilities
@@ -72,6 +73,9 @@ public class HuntController : ControllerBase
         if (!await HuntAccess.IsAllowedAsync(_db, _config, userId))
             return StatusCode(403, new { error = "You are not allowed to start a lead hunt. Ask an administrator.", code = "hunt_not_allowed" });
 
+        // Free text that ends up in the agent's prompt: no line breaks, markup or instruction-like phrases. Refused, not silently repaired.
+        if (TextSafety.Suspicious(request.Segment) || TextSafety.Suspicious(request.Region))
+            return BadRequest(new { error = "The segment or region contains line breaks, markup characters or phrases that are not allowed. Describe the segment in plain words." });
         var segment = HuntPrompt.Sanitize(request.Segment, 121);
         var region = HuntPrompt.Sanitize(request.Region, 81);
         if (segment.Length < 3) return BadRequest(new { error = "Describe the segment to search (at least 3 characters)." });
@@ -83,23 +87,18 @@ public class HuntController : ControllerBase
         if (target is < 1 or > 10) return BadRequest(new { error = "The number of leads to find is between 1 and 10." });
         if (maxCandidates is < 5 or > 40) return BadRequest(new { error = "Candidates to screen is between 5 and 40." });
 
-        if (await _db.HuntJobs.AnyAsync(j => j.UserId == userId && (j.Status == HuntStatuses.Pending || j.Status == HuntStatuses.Running), ct))
-            return Conflict(new { error = "A job is already running for you. Wait for it to finish or cancel it." });
-        var since = DateTime.UtcNow.Date;
-        if (await _db.HuntJobs.CountAsync(j => j.UserId == userId && j.Kind == HuntKinds.Hunt && j.CreatedAt >= since, ct) >= MaxPerDay)
-            return StatusCode(429, new { error = $"You can start {MaxPerDay} lead hunts per day. Try again tomorrow.", code = "daily_cap" });
-
         var job = new HuntJob
         {
             UserId = userId, Kind = HuntKinds.Hunt, Segment = segment, Region = region, MinScore = min, TargetCount = target,
             MaxCandidates = maxCandidates, Ratchet = request.Ratchet ?? true, Total = maxCandidates,
         };
-        _db.HuntJobs.Add(job);
-        await _db.SaveChangesAsync(ct);
+        var refused = await CreateJobAsync(job, HuntKinds.Hunt, MaxPerDay, ct);
+        if (refused != null) return refused;
 
         try
         {
-            var result = await _dispatcher.DispatchAsync(job, HuntPrompt.Render(job, HuntAccess.ApiBase(_config)), ct);
+            var token = HuntTokens.For(_config["Hunt:AgentSecret"]!, job.Id);
+            var result = await _dispatcher.DispatchAsync(job, HuntPrompt.Render(job, HuntAccess.ApiBase(_config), token), ct);
             job.TaskId = result.TaskId;
             job.TaskUrl = result.TaskUrl;
             await _db.SaveChangesAsync(CancellationToken.None);
@@ -115,14 +114,57 @@ public class HuntController : ControllerBase
         return Accepted(new { jobId = job.Id, taskUrl = job.TaskUrl });
     }
 
-    // POST /api/leads/verify   and   POST /api/leads/{id}/verify
+    /// <summary>
+    /// Creates a job when the user has no active job and is under the daily cap, atomically: a per-user lock serialises the check and the
+    /// insert, and a unique index in the database refuses a second active job even if the lock were bypassed. Null means it was created.
+    /// </summary>
+    private async Task<IActionResult?> CreateJobAsync(HuntJob job, string kind, int perDay, CancellationToken ct)
+    {
+        using var gate = await HuntLocks.EnterUserAsync(job.UserId!, TimeSpan.FromSeconds(5));
+        if (gate == null) return Conflict(new { error = "Another request of yours is being handled. Try again in a moment." });
+
+        if (await _db.HuntJobs.AnyAsync(j => j.UserId == job.UserId && (j.Status == HuntStatuses.Pending || j.Status == HuntStatuses.Running), ct))
+            return Conflict(new { error = "A job is already running for you. Wait for it to finish or cancel it." });
+        var since = DateTime.UtcNow.Date;
+        if (await _db.HuntJobs.CountAsync(j => j.UserId == job.UserId && j.Kind == kind && j.CreatedAt >= since, ct) >= perDay)
+            return StatusCode(429, new { error = kind == HuntKinds.Hunt ? $"You can start {perDay} lead hunts per day. Try again tomorrow." : $"You can start {perDay} verify runs per day. Try again tomorrow.", code = "daily_cap" });
+
+        _db.HuntJobs.Add(job);
+        try { await _db.SaveChangesAsync(ct); }
+        catch (DbUpdateException)
+        {
+            _db.Entry(job).State = EntityState.Detached;
+            return Conflict(new { error = "A job is already running for you. Wait for it to finish or cancel it." });
+        }
+        return null;
+    }
+
+    // POST /api/leads/verify   and   POST /api/leads/{id}/verify[?dryRun=true]
     [HttpPost("verify")]
-    public Task<IActionResult> VerifyMany([FromBody] VerifyLeadsRequest request) => StartVerify(request.Ids ?? Array.Empty<Guid>());
+    public async Task<IActionResult> VerifyMany([FromBody] VerifyLeadsRequest request, CancellationToken ct = default)
+    {
+        var ids = (request.Ids ?? Array.Empty<Guid>()).Distinct().ToArray();
+        // A bulk run (more than one lead) is for people who may run the hunt tooling; a single lead can be verified by its owner.
+        if (ids.Length > 1 && !await HuntAccess.IsAllowedAsync(_db, _config, UserId))
+            return StatusCode(403, new { error = "Verifying several leads at once is for administrators and the users who may start lead hunts.", code = "hunt_not_allowed" });
+        return await StartVerify(ids, request.Confirm == true, ct);
+    }
 
     [HttpPost("{id:guid}/verify")]
-    public Task<IActionResult> VerifyOne(Guid id) => StartVerify(new[] { id });
+    public async Task<IActionResult> VerifyOne(Guid id, [FromQuery] bool dryRun = false, [FromQuery] bool confirm = false, CancellationToken ct = default)
+    {
+        if (!dryRun) return await StartVerify(new[] { id }, confirm, ct);
+        var userId = UserId;
+        if (string.IsNullOrEmpty(userId)) return Unauthorized();
+        if (_service == null) return StatusCode(503, new { error = "Verify is not available here." });
+        var lead = await _db.Leads.AsNoTracking().FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == userId, ct);
+        if (lead == null) return NotFound(new { error = "This lead does not belong to your account." });
+        return Ok(await _service.PreviewAsync(lead, confirm, ct));
+    }
 
-    private async Task<IActionResult> StartVerify(Guid[] ids)
+    private int MaxVerifyPerDay => Math.Clamp(int.TryParse(_config["Hunt:MaxVerifyPerUserPerDay"], out var n) ? n : 20, 1, 200);
+
+    private async Task<IActionResult> StartVerify(Guid[] ids, bool confirm, CancellationToken ct)
     {
         var userId = UserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
@@ -130,16 +172,13 @@ public class HuntController : ControllerBase
         if (ids.Length == 0) return BadRequest(new { error = "No lead IDs provided." });
         if (ids.Length > MaxVerifyIds) return BadRequest(new { error = $"At most {MaxVerifyIds} leads per request." });
 
-        var own = await _db.Leads.Where(l => ids.Contains(l.Id) && l.ImportedByUserId == userId).Select(l => l.Id).ToListAsync();
+        var own = await _db.Leads.Where(l => ids.Contains(l.Id) && l.ImportedByUserId == userId).Select(l => l.Id).ToListAsync(ct);
         if (own.Count == 0) return NotFound(new { error = "None of these leads belong to your account." });
 
-        if (await _db.HuntJobs.AnyAsync(j => j.UserId == userId && (j.Status == HuntStatuses.Pending || j.Status == HuntStatuses.Running)))
-            return Conflict(new { error = "A job is already running for you. Wait for it to finish or cancel it." });
-
-        var job = new HuntJob { UserId = userId, Kind = HuntKinds.Verify, LeadIds = own, Total = own.Count };
-        _db.HuntJobs.Add(job);
-        await _db.SaveChangesAsync();
-        await _queue.Writer.WriteAsync(job.Id);
+        var job = new HuntJob { UserId = userId, Kind = HuntKinds.Verify, LeadIds = own, Total = own.Count, ConfirmClear = confirm };
+        var refused = await CreateJobAsync(job, HuntKinds.Verify, MaxVerifyPerDay, ct);
+        if (refused != null) return refused;
+        await _queue.Writer.WriteAsync(job.Id, ct);
         return Accepted(new { jobId = job.Id, leads = own.Count, skipped = ids.Length - own.Count });
     }
 

@@ -45,7 +45,7 @@ export default function EvidencePanel({ leadId, refreshKey }: { leadId: string; 
                 <li key={v.field} className="border-l-2 border-green-400 pl-3">
                   <div className="font-medium text-gray-800">{FIELD_LABEL[v.field] ?? v.field}: <span className="font-normal">{v.value}</span></div>
                   <blockquote className="text-xs text-gray-600 italic">"{v.quote}"</blockquote>
-                  <a href={v.source} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:underline break-all">{v.source}</a>
+                  {/^https?:\/\//i.test(v.source) ? <a href={v.source} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:underline break-all">{v.source}</a> : <span className="text-xs text-gray-500 break-all">{v.source}</span>}
                 </li>
               ))}
             </ul>

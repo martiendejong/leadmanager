@@ -80,85 +80,108 @@ public class HuntService
         return sites.Select(UrlGuard.DomainOf).Where(d => d != "").Distinct(StringComparer.OrdinalIgnoreCase).Take(max).ToList();
     }
 
+    /// <summary>One candidate (all its pages, the verification and the save) may take this long.</summary>
+    public static readonly TimeSpan CandidateBudget = TimeSpan.FromSeconds(120);
+
+    /// <summary>
+    /// Verifies one submitted candidate. The caller holds the lock of the job (<see cref="HuntLocks.TryEnterJob"/>), so counters are never
+    /// updated by two submissions at once; the stop conditions are checked again after the slow part, before anything is saved.
+    /// </summary>
     public async Task<SubmissionResult> SubmitCandidateAsync(HuntJob job, Submission sub, CancellationToken ct)
     {
         Touch(job);
+        await _db.SaveChangesAsync(CancellationToken.None);
         SubmissionResult Done(string outcome, string reason, int? score = null, Guid? leadId = null, bool dup = false) =>
             new(outcome, score, reason, leadId, dup, job.BestScore, job.Qualified, job.Screened, ShouldStop(job));
 
-        if (ShouldStop(job))
-        {
-            await _db.SaveChangesAsync(CancellationToken.None);
-            return Done(HuntOutcomes.Rejected, job.CancelRequested ? "The hunt was cancelled." : "The hunt already reached its limit.");
-        }
+        if (ShouldStop(job)) return Done(HuntOutcomes.Rejected, job.CancelRequested ? "The hunt was cancelled." : "The hunt already reached its limit.");
 
-        var name = (sub.Name ?? "").Trim();
-        if (name.Length < 2 || name.Length > MaxNameLength) return Done(HuntOutcomes.Rejected, "The company name is missing or too long.");
+        var name = TextSafety.Clean(sub.Name, MaxNameLength);
+        if (name.Length < 2) return Done(HuntOutcomes.Rejected, "The company name is missing or too long.");
         if (!UrlGuard.TryNormalize(sub.Website ?? "", out var uri)) return Done(HuntOutcomes.Rejected, "The website is not a public http(s) address.");
         var website = uri.GetLeftPart(UriPartial.Authority);
         var domain = UrlGuard.DomainOf(website);
 
-        job.Screened++;
         job.CurrentCandidate = name;
+        await _db.SaveChangesAsync(CancellationToken.None);
+
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        budget.CancelAfter(CandidateBudget);
         var cand = new HuntCandidate { JobId = job.Id, Name = name, Website = website };
-
-        var knownDomains = await KnownDomainsAsync(job.UserId, int.MaxValue);
-        if (knownDomains.Contains(domain, StringComparer.OrdinalIgnoreCase))
-        {
-            cand.Outcome = HuntOutcomes.Duplicate;
-            cand.Reason = "This company is already one of your leads. Skipped.";
-            await Record(job, cand);
-            return Done(cand.Outcome, cand.Reason, dup: true);
-        }
-
+        Lead? lead = null;
+        string? note = null;
+        var matched = false;
         var source = $"Lead hunt {DateTime.UtcNow:yyyy-MM-dd}";
         try
         {
-            var site = await _verifier.QuickLookAsync(website, ct);
-            if (!site.Reachable)
+            var knownDomains = await KnownDomainsAsync(job.UserId, int.MaxValue);
+            if (knownDomains.Contains(domain, StringComparer.OrdinalIgnoreCase))
             {
-                cand.Outcome = HuntOutcomes.Unreachable;
-                cand.Reason = "The website did not answer, so nothing could be checked. Not added as a lead.";
-                await Record(job, cand);
-                return Done(cand.Outcome, cand.Reason);
+                cand.Outcome = HuntOutcomes.Duplicate;
+                cand.Reason = "This company is already one of your leads. Skipped.";
             }
-            await _verifier.DeepenAsync(site, ct);
-            var result = _verifier.VerifyClaims(site, sub.Claims);
-
-            var lead = new Lead
+            else
             {
-                Name = name, Website = website, City = Clip(sub.City, 80) ?? "", Sector = Clip(sub.Sector, 120) ?? "", Source = source,
-                ImportedByUserId = job.UserId, ImportedAt = DateTime.UtcNow, CreatedAt = DateTime.UtcNow,
-            };
-            LeadVerifier.Apply(lead, result, clearUnverified: false, _scoring);
-            await ApplyGoogleAsync(lead, result, ct);
-            var score = lead.SalesPriorityScore ?? 0;
-            cand.Score = score;
-            cand.MaxReachable = LeadVerifier.MaxReachable(result.Facts, _places.IsConfigured);
+                var site = await _verifier.QuickLookAsync(website, budget.Token);
+                if (!site.Reachable)
+                {
+                    cand.Outcome = HuntOutcomes.Unreachable;
+                    cand.Reason = "The website did not answer, so nothing could be checked. Not added as a lead.";
+                }
+                else
+                {
+                    await _verifier.DeepenAsync(site, budget.Token);
+                    var result = _verifier.VerifyClaims(site, sub.Claims);
 
-            var matched = score >= job.MinScore;
-            cand.Outcome = matched ? HuntOutcomes.Qualified
-                : !string.IsNullOrWhiteSpace(sub.StopReason) ? HuntOutcomes.StoppedEarly : HuntOutcomes.BelowMinimum;
-            var claimedNote = sub.ClaimedScore is int c && c != score ? $" The agent claimed {c}; the server verified {score}." : "";
-            cand.Reason = (matched
-                ? $"Verified score {score} reaches the minimum of {job.MinScore}."
-                : !string.IsNullOrWhiteSpace(sub.StopReason) ? $"Verified score {score}. The agent stopped researching: {Clip(sub.StopReason, 300)}"
-                : $"Verified score {score} is below the minimum of {job.MinScore}.") + claimedNote;
-            cand.EvidenceJson = LeadVerifier.BuildEvidenceJson(result, cand.MaxReachable);
+                    lead = new Lead
+                    {
+                        Name = name, Website = website, City = TextSafety.Clean(sub.City, 60), Sector = TextSafety.Clean(sub.Sector, 80), Source = source,
+                        ImportedByUserId = job.UserId, ImportedAt = DateTime.UtcNow, CreatedAt = DateTime.UtcNow,
+                    };
+                    LeadVerifier.Apply(lead, result, clearUnverified: false, _scoring);
+                    await ApplyGoogleAsync(lead, result, budget.Token);
+                    var score = lead.SalesPriorityScore ?? 0;
+                    cand.Score = score;
+                    cand.MaxReachable = LeadVerifier.MaxReachable(result.Facts, _places.IsConfigured);
 
-            var note = LeadVerifier.BuildNote(source, score, result, Array.Empty<string>()) + claimedNote;
-            if (await SaveLeadAsync(job, cand, lead, note))
-            {
-                if (matched) job.Qualified++;
-                job.BestScore = Math.Max(job.BestScore, score);
+                    matched = score >= job.MinScore;
+                    cand.Outcome = matched ? HuntOutcomes.Qualified
+                        : !string.IsNullOrWhiteSpace(sub.StopReason) ? HuntOutcomes.StoppedEarly : HuntOutcomes.BelowMinimum;
+                    var claimedNote = sub.ClaimedScore is int c && c != score ? $" The agent claimed {c}; the server verified {score}." : "";
+                    cand.Reason = (matched
+                        ? $"Verified score {score} reaches the minimum of {job.MinScore}."
+                        : !string.IsNullOrWhiteSpace(sub.StopReason) ? $"Verified score {score}. The agent stopped researching: {TextSafety.Clean(sub.StopReason, 300)}"
+                        : $"Verified score {score} is below the minimum of {job.MinScore}.") + claimedNote;
+                    cand.EvidenceJson = LeadVerifier.BuildEvidenceJson(result, cand.MaxReachable);
+                    note = LeadVerifier.BuildNote(source, score, result, Array.Empty<string>()) + claimedNote;
+                }
             }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+        catch (OperationCanceledException)
+        {
+            lead = null;
+            cand.Outcome = HuntOutcomes.Error;
+            cand.Reason = $"Checking this company took longer than {(int)CandidateBudget.TotalSeconds} seconds. It was skipped and not saved.";
+        }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Candidate {Name} failed", name);
+            lead = null;
             cand.Outcome = HuntOutcomes.Error;
             cand.Reason = "Checking this company failed: " + (ex is HttpRequestException ? ex.Message : "unexpected error.");
+        }
+
+        // The hunt may have been cancelled, finished or have reached its limit while the pages were fetched: nothing is saved then.
+        await _db.Entry(job).ReloadAsync(CancellationToken.None);
+        if (ShouldStop(job))
+            return Done(HuntOutcomes.Rejected, job.CancelRequested ? "The hunt was cancelled while this company was being checked. It was not saved." : "The hunt reached its limit while this company was being checked. It was not saved.");
+
+        job.Screened++;
+        if (lead != null && note != null && await SaveLeadAsync(job, cand, lead, note))
+        {
+            if (matched) job.Qualified++;
+            job.BestScore = Math.Max(job.BestScore, cand.Score ?? 0);
         }
         await Record(job, cand);
         return Done(cand.Outcome, cand.Reason, cand.Score, cand.LeadId, cand.Outcome == HuntOutcomes.Duplicate);
@@ -278,13 +301,16 @@ public class HuntService
                 {
                     await _verifier.DeepenAsync(site, ct);
                     var result = _verifier.VerifyDeterministic(site, lead.OwnerName);
-                    var removed = LeadVerifier.Apply(lead, result, clearUnverified: true, _scoring);
-                    await ApplyGoogleAsync(lead, result, ct, existingLead: true, removed);
+                    // Values that a person typed stay unless the person confirmed the removal; values a hunt or an enrichment wrote may go.
+                    var clear = job.ConfirmClear || IsHuntLead(lead);
+                    var kept = new List<string>();
+                    var removed = LeadVerifier.Apply(lead, result, clearUnverified: clear, _scoring, kept);
+                    await ApplyGoogleAsync(lead, result, ct, existingLead: true, removed, clear, kept);
                     cand.Score = lead.SalesPriorityScore;
                     cand.Outcome = HuntOutcomes.Verified;
                     cand.Reason = $"Verified and rescored: {lead.SalesPriorityScore}.";
                     cand.EvidenceJson = LeadVerifier.BuildEvidenceJson(result, null);
-                    _db.LeadNotes.Add(new LeadNote { LeadId = lead.Id, CreatedByUserId = job.UserId ?? "", Content = LeadVerifier.BuildNote("Verify and rescore " + DateTime.UtcNow.ToString("yyyy-MM-dd"), lead.SalesPriorityScore ?? 0, result, removed) });
+                    _db.LeadNotes.Add(new LeadNote { LeadId = lead.Id, CreatedByUserId = job.UserId ?? "", Content = LeadVerifier.BuildNote("Verify and rescore " + DateTime.UtcNow.ToString("yyyy-MM-dd"), lead.SalesPriorityScore ?? 0, result, removed) + KeptNote(kept) });
                     job.Qualified++;
                     job.BestScore = Math.Max(job.BestScore, lead.SalesPriorityScore ?? 0);
                 }
@@ -306,7 +332,7 @@ public class HuntService
     /// The rating comes from the Google Places listing only, and only when the listing is clearly this business. For an existing lead,
     /// a rating that did not come from Google Places is removed, because a widget or a review site is not Google.
     /// </summary>
-    private async Task ApplyGoogleAsync(Lead lead, VerificationResult result, CancellationToken ct, bool existingLead = false, List<string>? removed = null)
+    private async Task ApplyGoogleAsync(Lead lead, VerificationResult result, CancellationToken ct, bool existingLead = false, List<string>? removed = null, bool clear = true, List<string>? kept = null)
     {
         GooglePlacesResult? g = null;
         if (_places.IsConfigured)
@@ -329,12 +355,47 @@ public class HuntService
 
         if (g == null && existingLead && lead.GoogleRating != null && string.IsNullOrWhiteSpace(lead.GoogleMapsUrl))
         {
-            removed?.Add($"googleRating {lead.GoogleRating} (it is not from a Google listing)");
-            lead.GoogleRating = null;
-            lead.GoogleReviewCount = null;
+            var what = $"googleRating {lead.GoogleRating} (it is not from a Google listing)";
+            if (clear)
+            {
+                removed?.Add(what);
+                lead.GoogleRating = null;
+                lead.GoogleReviewCount = null;
+            }
+            else kept?.Add(what);
         }
         var s = _scoring.CalculateScore(lead);
         lead.SalesPriorityScore = s.Score; lead.SalesPriorityLabel = s.Label; lead.SalesPriorityReasoning = s.Reasoning;
+    }
+
+    /// <summary>A lead that a hunt created: its values were written by the hunt, not typed by a person.</summary>
+    public static bool IsHuntLead(Lead lead) => (lead.Source ?? "").StartsWith("Lead hunt", StringComparison.OrdinalIgnoreCase);
+
+    private static string KeptNote(List<string> kept) =>
+        kept.Count == 0 ? "" : "\nNot removed, because they were entered by a person (confirm to remove them): " + string.Join("; ", kept);
+
+    public record VerifyPreview(Guid LeadId, bool Reachable, int? ScoreBefore, int? ScoreAfter, bool WouldClear, List<object> Verified, List<object> NotCounted,
+        List<string> WouldRemove, List<string> KeptBecauseEntered, List<string> Pages);
+
+    /// <summary>What a verify would do to one lead, without saving anything (a dry run).</summary>
+    public async Task<VerifyPreview> PreviewAsync(Lead lead, bool confirm, CancellationToken ct)
+    {
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        budget.CancelAfter(CandidateBudget);
+        var copy = (Lead)_db.Entry(lead).CurrentValues.ToObject();
+        var before = _scoring.CalculateScore(copy).Score;
+        var site = await _verifier.QuickLookAsync(lead.Website, budget.Token);
+        if (!site.Reachable) return new VerifyPreview(lead.Id, false, before, before, false, new(), new(), new(), new(), new());
+        await _verifier.DeepenAsync(site, budget.Token);
+        var result = _verifier.VerifyDeterministic(site, copy.OwnerName);
+        var clear = confirm || IsHuntLead(copy);
+        var kept = new List<string>();
+        var removed = LeadVerifier.Apply(copy, result, clearUnverified: clear, _scoring, kept);
+        await ApplyGoogleAsync(copy, result, budget.Token, existingLead: true, removed, clear, kept);
+        return new VerifyPreview(lead.Id, true, before, copy.SalesPriorityScore, clear,
+            result.Verified.Values.Select(c => (object)new { field = c.Field, value = c.Value, source = c.SourceUrl, quote = c.Quote }).ToList(),
+            result.Dropped.Select(d => (object)new { field = d.Field, reason = d.Reason }).ToList(),
+            removed, kept, result.PageUrls);
     }
 
     public static bool NameMatches(string? listed, string company)

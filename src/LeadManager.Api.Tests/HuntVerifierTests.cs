@@ -55,7 +55,7 @@ public class HuntVerifierTests
         fetcher.Add(Site + "contact", "<p>Bel mij op 010 206 12 34, Mail: tine@tinevanwel.nl</p>");
         var extraction = JsonSerialize(("ownerMobile", Claim("010 206 12 34", "Bel mij op 010 206 12 34", Site + "contact")));
         var (result, lead) = await Run(fetcher, () => extraction);
-        Assert.Contains(result.Dropped, d => d.Field == "ownerMobile" && d.Reason.Contains("Not a Dutch mobile"));
+        Assert.Contains(result.Dropped, d => d.Field == "ownerMobile" && d.Reason.Contains("Dutch mobile"));
         Assert.Null(lead.OwnerMobile);
     }
 

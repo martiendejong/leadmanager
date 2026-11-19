@@ -477,8 +477,9 @@ public class LeadManagerMcpController : McpControllerBase
         var queue = sp?.GetService(typeof(Services.Hunt.HuntQueue)) as Services.Hunt.HuntQueue;
         var registry = sp?.GetService(typeof(Services.Hunt.HuntRegistry)) as Services.Hunt.HuntRegistry;
         var config = sp?.GetService(typeof(Microsoft.Extensions.Configuration.IConfiguration)) as Microsoft.Extensions.Configuration.IConfiguration;
+        var service = sp?.GetService(typeof(Services.Hunt.HuntService)) as Services.Hunt.HuntService;
         if (dispatcher == null || places == null || queue == null || registry == null || config == null) return null;
-        return As(new HuntController(_db, dispatcher, places, queue, registry, config), userId);
+        return As(new HuntController(_db, dispatcher, places, queue, registry, config, service), userId);
     }
 
     private static string Serialize(object value) => JsonSerializer.Serialize(value, Json);

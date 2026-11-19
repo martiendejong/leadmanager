@@ -82,9 +82,9 @@ Everything is in `.env` (see `.env.example`); `docker-compose.yml` translates it
 | `JENGOWORK_BASE_URL`, `JENGOWORK_API_KEY` | Needed for **Find new leads**: the app creates a JengoWork task, jengo-agi spawns the agent. The key is a JengoWork agent key (a `tm_` key). |
 | `HUNT_DISPATCH_BOARD_ID` | The JengoWork board (list id) that receives the hunt tasks. Must be a board that jengo-agi monitors. See `docs/agent/LEAD_HUNT.md`. |
 | `HUNT_DISPATCH_STATUS` | Optional lane the task is created in (so jengo-agi picks it up at once), for example `todo`. Empty = the board default. |
-| `HUNT_AGENT_TOKEN` | The shared secret of the hunt agent (vault project 12, credential `Clients hunt agent token`). Empty = the agent endpoints answer 503. |
+| `HUNT_AGENT_SECRET` | The server secret (a long random value; keep a copy in the vault, project 12, credential `Clients hunt agent secret`) from which a token per hunt is derived (HMAC of the hunt id). That token goes into the task text of that hunt only and stops working when the hunt ends. Empty = Find new leads and the agent endpoints answer 503. |
 | `HUNT_ALLOWED_EMAILS` | Who may start a hunt, comma separated. Empty = administrators only. |
-| `HUNT_MAX_PER_USER_PER_DAY` | Hunts per user per day (default 5). |
+| `HUNT_MAX_PER_USER_PER_DAY` | Hunts per user per day (default 5). `HUNT_MAX_VERIFY_PER_USER_PER_DAY` is the same for verify runs (default 20). |
 | `HUNT_API_BASE_URL` | Optional. The URL the agent calls (default: `PUBLIC_URL`). |
 | `MEM_LIMIT` | Hard memory limit of the container (default 768 MB). |
 

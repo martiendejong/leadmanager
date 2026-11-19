@@ -11,6 +11,8 @@ public class FakePageFetcher : IPageFetcher
 {
     private readonly Dictionary<string, string> _pages = new(StringComparer.OrdinalIgnoreCase);
     public List<string> Requested { get; } = new();
+    /// <summary>Runs on every fetch: lets a test change the world (for example cancel the hunt) while pages are being read.</summary>
+    public Action? OnFetch { get; set; }
 
     public FakePageFetcher Add(string url, string html) { _pages[Canon(url)] = html; return this; }
 
@@ -19,6 +21,7 @@ public class FakePageFetcher : IPageFetcher
     public Task<FetchedPage?> FetchAsync(string url, CancellationToken ct)
     {
         Requested.Add(url);
+        OnFetch?.Invoke();
         if (!UrlGuard.TryNormalize(url, out var uri)) return Task.FromResult<FetchedPage?>(null);
         if (!_pages.TryGetValue(Canon(uri.ToString()), out var html)) return Task.FromResult<FetchedPage?>(new FetchedPage(uri.ToString(), 404, "", ""));
         return Task.FromResult<FetchedPage?>(new FetchedPage(uri.ToString(), 200, html, HtmlText.ToText(html)));

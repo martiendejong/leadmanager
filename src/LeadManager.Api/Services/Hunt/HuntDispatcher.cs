@@ -109,7 +109,7 @@ public static class HuntPrompt
 
     public static string TaskTitle(HuntJob job) => $"Lead hunt {job.Id.ToString()[..8]}: {Sanitize(job.Segment, 60)}";
 
-    public static string Render(HuntJob job, string apiBase)
+    public static string Render(HuntJob job, string apiBase, string agentToken)
     {
         var data = JsonSerializer.Serialize(new
         {
@@ -123,7 +123,8 @@ public static class HuntPrompt
         return Template()
             .Replace("{{DATA}}", data)
             .Replace("{{HUNT_ID}}", job.Id.ToString())
-            .Replace("{{API_BASE}}", apiBase.TrimEnd('/'));
+            .Replace("{{API_BASE}}", apiBase.TrimEnd('/'))
+            .Replace("{{AGENT_TOKEN}}", agentToken);
     }
 }
 

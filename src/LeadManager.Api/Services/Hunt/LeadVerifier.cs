@@ -31,7 +31,11 @@ public class VerificationResult
 /// <summary>The pages of one website, fetched step by step: a quick look first, a deeper look only when the quick look is promising.</summary>
 public class SitePages
 {
+    /// <summary>The whole look at one site (all its pages) may take this long.</summary>
+    public static readonly TimeSpan Budget = TimeSpan.FromSeconds(60);
+
     public string Website { get; init; } = "";
+    public DateTime Deadline { get; init; } = DateTime.UtcNow + Budget;
     public FetchedPage? Home { get; set; }
     public List<FetchedPage> Pages { get; } = new();
     public HashSet<string> Seen { get; } = new(StringComparer.OrdinalIgnoreCase);
@@ -102,7 +106,7 @@ public class LeadVerifier
         {
             foreach (var (url, label) in links)
             {
-                if (site.Pages.Count >= limit) return;
+                if (site.Pages.Count >= limit || DateTime.UtcNow >= site.Deadline) return;
                 if (!words.Any(w => label.Contains(w))) continue;
                 if (!site.Seen.Add(Canon(url))) continue;
                 var page = await _fetcher.FetchAsync(url, ct);
@@ -144,8 +148,10 @@ public class LeadVerifier
     };
 
     /// <summary>
-    /// Checks the claims a researcher submitted (the Jengo agent) against the fetched pages. The model is not trusted: a claim counts
-    /// only when its quote occurs on a fetched page and the rule for its field holds (and the independent extractor agrees where it can).
+    /// Checks the claims a researcher submitted (the Jengo agent) against the fetched pages. The agent is not trusted: a claim counts only
+    /// when its quote is in the VISIBLE text of a fetched page, the server's own extractor found the same fact on the site (a person with an
+    /// owner cue, a first-person statement, a published number, a link, an address, a year) and the rule for the field holds. What is
+    /// stored is the value the extractor found, never the string the agent sent.
     /// </summary>
     public VerificationResult VerifyClaims(SitePages site, JsonElement submitted)
     {
@@ -155,19 +161,20 @@ public class LeadVerifier
 
         foreach (var field in ScoreFields)
         {
-            var claim = ReadClaim(submitted, field);
+            var (claim, readError) = ReadClaim(submitted, field);
+            if (readError != null) { result.Dropped.Add(new DroppedClaim(field, "", readError)); continue; }
             if (claim == null) continue;
-            var check = CheckClaim(claim, site, result.Facts, result.Verified);
-            if (check == null) result.Verified[field] = ResolveSource(claim, site) ?? claim;
-            else result.Dropped.Add(new DroppedClaim(field, claim.Value, check));
+            var (canonical, reason) = CheckClaim(claim, site, result.Facts, result.Verified);
+            if (canonical != null) result.Verified[field] = canonical;
+            else result.Dropped.Add(new DroppedClaim(field, TextSafety.Clean(claim.Value, 80), reason ?? "Not verified."));
         }
         ReadDescriptive(submitted, site, result);
         return result;
     }
 
     /// <summary>
-    /// Verifies an existing lead from its own website without anyone's claims: only what the rules find on the pages (and the owner
-    /// name the lead already has, when the pages show it) is accepted.
+    /// Verifies an existing lead from its own website without anyone's claims: only what the rules find on the pages is accepted, and the
+    /// owner is the person the site names as owner (preferring the name the lead already has).
     /// </summary>
     public VerificationResult VerifyDeterministic(SitePages site, string? knownOwnerName)
     {
@@ -176,51 +183,40 @@ public class LeadVerifier
         var f = result.Facts;
         var claims = new Dictionary<string, object>();
 
-        string? owner = null;
+        OwnerFact? owner = null;
         if (!string.IsNullOrWhiteSpace(knownOwnerName))
         {
-            var parts = knownOwnerName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length >= 2)
-                foreach (var p in site.Pages)
-                {
-                    var i = p.Text.IndexOf(parts[^1], StringComparison.OrdinalIgnoreCase);
-                    if (i < 0 || !Squash(p.Text).Contains(Squash(parts[0]))) continue;
-                    claims["ownerName"] = new { value = knownOwnerName.Trim(), quote = Snippet(p.Text, i, parts[^1].Length), source_url = p.Url };
-                    owner = knownOwnerName.Trim();
-                    break;
-                }
+            var key = LeadEvidenceService.NameKey(knownOwnerName);
+            owner = f.Owners.FirstOrDefault(o => LeadEvidenceService.NameKey(o.Name) == key);
         }
-        var mobile = f.Mobiles.FirstOrDefault();
-        if (mobile != null) claims["ownerMobile"] = new { value = mobile.AsWritten, quote = mobile.Quote, source_url = mobile.SourceUrl };
+        owner ??= string.IsNullOrWhiteSpace(knownOwnerName) ? f.Owners.FirstOrDefault() : null;
         if (owner != null)
         {
-            var link = f.LinkedIns.FirstOrDefault(l => l.Kind == "in" && LeadEvidenceService.HandleCarriesName(l.Handle, owner));
+            claims["ownerName"] = new { value = owner.Name, quote = owner.Quote, source_url = owner.SourceUrl };
+            var link = f.LinkedIns.FirstOrDefault(l => l.Kind == "in" && LeadEvidenceService.HandleCarriesName(l.Handle, owner.Name));
             if (link != null) claims["ownerLinkedInUrl"] = new { value = link.Url, quote = "linkedin.com/in/" + link.Handle, source_url = link.SourceUrl };
         }
+        var mobile = f.Mobiles.Where(m => !m.Credit).OrderByDescending(m => m.Contact).FirstOrDefault();
+        if (mobile != null) claims["ownerMobile"] = new { value = mobile.AsWritten, quote = mobile.Quote, source_url = mobile.SourceUrl };
         var company = f.LinkedIns.FirstOrDefault(l => l.Kind == "company");
         if (company != null) claims["companyLinkedInUrl"] = new { value = company.Url, quote = "linkedin.com/company/" + company.Handle, source_url = company.SourceUrl };
         var mail = f.Emails.FirstOrDefault(e => !e.Role && e.SameDomain && e.Warning == null);
         if (mail != null) claims["personalEmail"] = new { value = mail.Address, quote = mail.Quote, source_url = mail.SourceUrl };
         var year = f.Years.Where(y => y.Kind != "Copyright" && !y.CareerLike).OrderBy(y => y.Year).FirstOrDefault();
         if (year != null) claims["foundingYear"] = new { value = year.Year.ToString(), quote = year.Quote, source_url = year.SourceUrl };
-        foreach (var p in site.Pages)
-        {
-            var m = LeadEvidenceService.FindSmall(p.Text);
-            if (m == null) continue;
-            claims["smallCompany"] = new { value = "1", quote = Snippet(p.Text, m.Index, m.Length), source_url = p.Url };
-            break;
-        }
+        var small = f.Small.FirstOrDefault();
+        if (small != null) claims["smallCompany"] = new { value = "1", quote = small.Quote, source_url = small.SourceUrl };
         var kvk = f.Kvk.FirstOrDefault();
         if (kvk != null) claims["kvkNumber"] = new { value = kvk.Number, quote = kvk.Quote, source_url = kvk.SourceUrl };
 
         using var doc = JsonDocument.Parse(JsonSerializer.Serialize(claims));
         foreach (var field in ScoreFields)
         {
-            var claim = ReadClaim(doc.RootElement, field);
-            if (claim == null) continue;
-            var check = CheckClaim(claim, site, f, result.Verified);
-            if (check == null) result.Verified[field] = ResolveSource(claim, site) ?? claim;
-            else result.Dropped.Add(new DroppedClaim(field, claim.Value, check));
+            var (claim, readError) = ReadClaim(doc.RootElement, field);
+            if (readError != null || claim == null) continue;
+            var (canonical, reason) = CheckClaim(claim, site, f, result.Verified);
+            if (canonical != null) result.Verified[field] = canonical;
+            else result.Dropped.Add(new DroppedClaim(field, TextSafety.Clean(claim.Value, 80), reason ?? "Not verified."));
         }
         result.Checked = true;
         return result;
@@ -234,22 +230,20 @@ public class LeadVerifier
         return result;
     }
 
-    private static string Snippet(string text, int index, int length)
-    {
-        var start = Math.Max(0, index - 70);
-        var end = Math.Min(text.Length, index + length + 70);
-        return Regex.Replace(text[start..end], @"\s+", " ").Trim();
-    }
-
     // ---- claim reading and the rule check ----------------------------------------------------------------
 
-    private static Claim? ReadClaim(JsonElement root, string field)
+    private const int MaxValueChars = 200;
+    private const int MaxQuoteChars = 600;
+
+    private static (Claim? Claim, string? Error) ReadClaim(JsonElement root, string field)
     {
-        if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty(field, out var el) || el.ValueKind != JsonValueKind.Object) return null;
+        if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty(field, out var el) || el.ValueKind != JsonValueKind.Object) return (null, null);
         string S(string n) => el.TryGetProperty(n, out var v) ? v.ValueKind == JsonValueKind.Number ? v.GetRawText() : v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : "" : "";
         var value = S("value").Trim();
-        if (value.Length == 0) return null;
-        return new Claim(field, value, S("source_url").Trim(), S("quote").Trim());
+        if (value.Length == 0) return (null, null);
+        var quote = S("quote").Trim();
+        if (value.Length > MaxValueChars || quote.Length > MaxQuoteChars) return (null, "The value or the quote is far too long to be a fact from a page.");
+        return (new Claim(field, value, S("source_url").Trim(), quote), null);
     }
 
     public static string Squash(string? s)
@@ -265,122 +259,205 @@ public class LeadVerifier
         return sb.ToString();
     }
 
-    /// <summary>The page that really contains the quote (the claimed one first), or null when the quote is nowhere: an invented quote is dropped.</summary>
-    private static Claim? ResolveSource(Claim claim, SitePages site)
+    /// <summary>The quote must be on a fetched page, in its VISIBLE text. Links (a LinkedIn profile, a mailto) may also be found in the markup.</summary>
+    private static bool QuoteOnPage(Claim claim, SitePages site, bool markupAllowed)
     {
         var q = Squash(claim.Quote);
-        if (q.Length < 6) return null;
-        var ordered = site.Pages.OrderByDescending(p => p.Url.Equals(claim.SourceUrl, StringComparison.OrdinalIgnoreCase) ? 1 : 0);
-        foreach (var p in ordered)
-            if (Squash(p.Text).Contains(q) || Squash(System.Net.WebUtility.HtmlDecode(p.Html)).Contains(q))
-                return claim with { SourceUrl = p.Url };
-        return null;
+        if (q.Length < 6) return false;
+        foreach (var p in site.Pages)
+        {
+            if (Squash(p.Text).Contains(q)) return true;
+            if (markupAllowed && Squash(System.Net.WebUtility.HtmlDecode(p.Html)).Contains(q)) return true;
+        }
+        return false;
     }
 
-    /// <summary>Returns null when the claim holds, or the reason it is dropped.</summary>
-    private static string? CheckClaim(Claim claim, SitePages site, EvidenceFacts facts, Dictionary<string, Claim> accepted)
+    private static readonly Regex LinkedInPersonal = new(@"^https?://(?:[a-z]{2,3}\.|www\.)?linkedin\.com/in/([A-Za-z0-9\-_%.]{2,100})/?$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex LinkedInCompany = new(@"^https?://(?:[a-z]{2,3}\.|www\.)?linkedin\.com/company/([A-Za-z0-9\-_%.]{2,100})/?$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex EmailWhole = new(@"^[A-Za-z0-9._%+\-]{1,64}@[A-Za-z0-9\-]+(?:\.[A-Za-z0-9\-]+)*\.[A-Za-z]{2,}$", RegexOptions.Compiled);
+
+    /// <summary>
+    /// The canonical claim (the value taken from the matching fact the server found on the site) or the reason the claim is dropped.
+    /// </summary>
+    private static (Claim? Canonical, string? Reason) CheckClaim(Claim claim, SitePages site, EvidenceFacts facts, Dictionary<string, Claim> accepted)
     {
-        if (ResolveSource(claim, site) == null) return "The quote does not occur on any fetched page.";
+        var markup = claim.Field is "ownerLinkedInUrl" or "companyLinkedInUrl" or "personalEmail";
+        if (!QuoteOnPage(claim, site, markup)) return (null, "The quote does not occur on any fetched page.");
         var quoteSquashed = Squash(claim.Quote);
 
         switch (claim.Field)
         {
             case "ownerName":
                 {
-                    var parts = claim.Value.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                    if (parts.Length < 2) return "A full name (first and last name) is needed.";
-                    if (!Squash(claim.Quote).Contains(Squash(parts[^1]))) return "The quote does not contain the name.";
-                    return null;
+                    var key = LeadEvidenceService.NameKey(claim.Value);
+                    if (key.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length < 2) return (null, "A full name (first and last name) is needed.");
+                    var fact = facts.Owners.FirstOrDefault(o => LeadEvidenceService.NameKey(o.Name) == key);
+                    if (fact == null) return (null, "The site does not name this full name as its owner, founder or director (no owner cue next to the name).");
+                    return (new Claim("ownerName", fact.Name, fact.SourceUrl, fact.Quote), null);
                 }
             case "ownerLinkedInUrl":
                 {
-                    var m = Regex.Match(claim.Value, @"linkedin\.com/in/([A-Za-z0-9\-_%.]+)", RegexOptions.IgnoreCase);
-                    if (!m.Success) return "Not a personal LinkedIn profile (/in/).";
+                    var m = LinkedInPersonal.Match(claim.Value);
+                    if (!m.Success) return (null, "Not a personal LinkedIn profile address (linkedin.com/in/...).");
                     var handle = m.Groups[1].Value.TrimEnd('/', '.');
-                    if (!facts.LinkedIns.Any(l => l.Kind == "in" && l.Handle.TrimEnd('/', '.').Equals(handle, StringComparison.OrdinalIgnoreCase)))
-                        return "The business does not publish this link on its own pages.";
-                    if (!accepted.TryGetValue("ownerName", out var owner)) return "No verified owner name to match the profile to.";
-                    if (!LeadEvidenceService.HandleCarriesName(handle, owner.Value)) return "The profile handle does not carry the owner's name.";
-                    return null;
+                    var fact = facts.LinkedIns.FirstOrDefault(l => l.Kind == "in" && l.Handle.Equals(handle, StringComparison.OrdinalIgnoreCase));
+                    if (fact == null) return (null, "The business does not publish this link on its own pages.");
+                    if (!accepted.TryGetValue("ownerName", out var owner)) return (null, "No verified owner name to match the profile to.");
+                    if (!LeadEvidenceService.HandleCarriesName(fact.Handle, owner.Value)) return (null, "The profile handle does not carry the owner's name.");
+                    return (new Claim("ownerLinkedInUrl", fact.Url, fact.SourceUrl, "linkedin.com/in/" + fact.Handle), null);
                 }
             case "companyLinkedInUrl":
                 {
-                    var m = Regex.Match(claim.Value, @"linkedin\.com/company/([A-Za-z0-9\-_%.]+)", RegexOptions.IgnoreCase);
-                    if (!m.Success) return "Not a company LinkedIn page (/company/).";
-                    return facts.LinkedIns.Any(l => l.Kind == "company" && l.Handle.Equals(m.Groups[1].Value.TrimEnd('/', '.'), StringComparison.OrdinalIgnoreCase))
-                        ? null : "The business does not publish this link on its own pages.";
+                    var m = LinkedInCompany.Match(claim.Value);
+                    if (!m.Success) return (null, "Not a company LinkedIn page address (linkedin.com/company/...).");
+                    var fact = facts.LinkedIns.FirstOrDefault(l => l.Kind == "company" && l.Handle.Equals(m.Groups[1].Value.TrimEnd('/', '.'), StringComparison.OrdinalIgnoreCase));
+                    return fact == null ? (null, "The business does not publish this link on its own pages.")
+                        : (new Claim("companyLinkedInUrl", fact.Url, fact.SourceUrl, "linkedin.com/company/" + fact.Handle), null);
                 }
             case "ownerMobile":
                 {
-                    var norm = PhoneNumbers.NormalizeMobile(claim.Value);
-                    if (norm == null) return "Not a Dutch mobile number (06). Landlines, 085, 088, 0800 and 0900 do not count.";
-                    return facts.Mobiles.Any(x => x.Normalized == norm) ? null : "The number is not published on the business's own pages.";
+                    var norm = PhoneNumbers.NormalizeMobileStrict(claim.Value);
+                    if (norm == null) return (null, "Not a single Dutch mobile number (06). Landlines, 085, 088, 0800, 0900 and text around the number do not count.");
+                    var facts06 = facts.Mobiles.Where(x => x.Normalized == norm).ToList();
+                    if (facts06.Count == 0) return (null, "The number is not published on the business's own pages.");
+                    var many = facts.Mobiles.Select(x => x.Normalized).Distinct().Count() > 1;
+                    var fact = facts06.FirstOrDefault(x => !x.Credit && (!many || x.Contact)) ;
+                    if (fact == null) return (null, many ? "Several mobile numbers are on the site and this one does not stand in a contact context (it is next to a review or a credit)." : "The number stands next to a review or a web designer's credit.");
+                    return (new Claim("ownerMobile", PhoneNumbers.Format(norm), fact.SourceUrl, fact.Quote), null);
                 }
             case "personalEmail":
                 {
                     var addr = claim.Value.Trim().ToLowerInvariant();
+                    if (!EmailWhole.IsMatch(addr)) return (null, "Not a single e-mail address.");
                     var matching = facts.Emails.Where(e => e.Address == addr).ToList();
-                    if (matching.Count == 0) return "The address is not published on the business's own pages.";
-                    if (matching.All(e => e.Role)) return "A role mailbox (info@, contact@, ...) does not count as a personal address.";
-                    if (matching.All(e => e.Warning != null && e.Warning.StartsWith("The link shows"))) return "The link on the page opens a different address than the one it shows.";
-                    return null;
+                    if (matching.Count == 0) return (null, "The address is not published on the business's own pages.");
+                    if (matching.All(e => e.Role)) return (null, "A role mailbox (info@, contact@, ...) does not count as a personal address.");
+                    if (matching.All(e => e.Warning != null && e.Warning.StartsWith("The link shows"))) return (null, "The link on the page opens a different address than the one it shows.");
+                    var best = matching.FirstOrDefault(e => !e.Role && e.SameDomain && (e.Warning == null || !e.Warning.StartsWith("The link shows")));
+                    if (best == null) return (null, matching.Any(e => e.FreeProvider) ? "An address on a free provider (gmail, hotmail, ...) is not counted as the business's own mailbox." : "The address is not on the business's own domain.");
+
+                    var local = best.Address[..best.Address.IndexOf('@')];
+                    var foldedLocal = LeadEvidenceService.Fold(local);
+                    var parts = local.Split(new[] { '.', '-', '_', '+' }, StringSplitOptions.RemoveEmptyEntries).Select(LeadEvidenceService.Fold).Where(t => t.Length > 0).ToList();
+                    var names = facts.Owners.Select(o => o.Name).ToList();
+                    if (accepted.TryGetValue("ownerName", out var ownerClaim)) names.Add(ownerClaim.Value);
+                    var tied = names.Any(n =>
+                    {
+                        var first = LeadEvidenceService.FirstName(n);
+                        var last = LeadEvidenceService.LastName(n);
+                        if (first.Length >= 2 && parts.Contains(first)) return true;
+                        if (last.Length >= 3 && parts.Contains(last)) return true;
+                        if (first.Length >= 3 && foldedLocal.StartsWith(first)) return true;
+                        return last.Length >= 3 && first.Length >= 1 && foldedLocal.StartsWith(first[..1]) && foldedLocal.EndsWith(last);
+                    });
+                    if (!tied) return (null, "The mailbox name is not tied to a person the site names as its owner.");
+                    return (new Claim("personalEmail", best.Address, best.SourceUrl, best.Quote), null);
                 }
             case "foundingYear":
                 {
-                    if (!int.TryParse(claim.Value, out var year)) return "Not a year.";
+                    if (!int.TryParse(claim.Value.Trim(), out var year)) return (null, "Not a year.");
                     var hits = facts.Years.Where(y => y.Year == year && y.Kind != "Copyright").ToList();
-                    if (hits.Count == 0) return facts.Years.Any(y => y.Year == year) ? "The year only appears in a copyright notice, which is the age of the website, not of the business." : "No sentence on the site states that the business started in this year.";
-                    if (hits.All(y => y.CareerLike)) return "The sentence describes the owner's career, not the start of this business.";
-                    if (!quoteSquashed.Contains(year.ToString())) return "The quote does not contain the year.";
-                    return null;
+                    if (hits.Count == 0) return (null, facts.Years.Any(y => y.Year == year) ? "The year only appears in a copyright notice, which is the age of the website, not of the business." : "No sentence on the site states that the business started in this year.");
+                    var good = hits.FirstOrDefault(y => !y.CareerLike);
+                    if (good == null) return (null, "The sentence describes the owner's career, not the start of this business.");
+                    if (!quoteSquashed.Contains(year.ToString())) return (null, "The quote does not contain the year.");
+                    return (new Claim("foundingYear", year.ToString(), good.SourceUrl, good.Quote), null);
                 }
             case "smallCompany":
                 {
-                    if (!LeadEvidenceService.QuoteStatesSmall(claim.Quote)) return "The quote is not the business's own statement that it is a sole proprietorship or one person.";
-                    if (LeadEvidenceService.ContradictsSmall(facts)) return "The site also names a B.V., N.V., partnership, foundation or a team, which contradicts 'small'.";
-                    return null;
+                    var fact = facts.Small.FirstOrDefault(s => Squash(s.Quote).Contains(quoteSquashed) || quoteSquashed.Contains(Squash(s.Quote)));
+                    if (fact == null) return (null, "The quote is not a first-person or legal statement of the business that it is a one-person business (a plural, a negation, a customer or a testimonial does not count).");
+                    if (LeadEvidenceService.ContradictsSmall(facts)) return (null, "The site also names a B.V., N.V., partnership, foundation or a team, which contradicts 'small'.");
+                    return (new Claim("smallCompany", "1", fact.SourceUrl, fact.Quote), null);
                 }
             case "kvkNumber":
-                return facts.Kvk.Any(k => k.Number == Regex.Replace(claim.Value, @"\D", "")) ? null : "The KvK number is not published on the business's own pages.";
+                {
+                    var m = Regex.Match(claim.Value, @"^\s*(?:kvk[\s:\-]*)?(\d{8})\s*$", RegexOptions.IgnoreCase);
+                    if (!m.Success) return (null, "Not an 8 digit KvK number.");
+                    var fact = facts.Kvk.FirstOrDefault(k => k.Number == m.Groups[1].Value);
+                    return fact == null ? (null, "The KvK number is not published on the business's own pages.") : (new Claim("kvkNumber", fact.Number, fact.SourceUrl, fact.Quote), null);
+                }
         }
-        return "Unknown field.";
+        return (null, "Unknown field.");
+    }
+
+    private static readonly Regex ZipWhole = new(@"^\d{4}\s?[A-Za-z]{2}$", RegexOptions.Compiled);
+    private static readonly Regex SocialWhole = new(@"^https://(?:www\.)?(facebook|instagram)\.com/[A-Za-z0-9._\-/]{1,100}$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    /// <summary>A text value that must literally stand on ONE page (digits and words are never joined across tokens or pages).</summary>
+    private static bool LiteralOnOnePage(string value, SitePages site)
+    {
+        var v = Regex.Replace(value, @"\s+", " ").Trim();
+        return v.Length >= 4 && site.Pages.Any(p => p.Text.Contains(v, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>A phone value is stored only when it IS a number the pages publish: a mobile fact, a landline fact or a tel: link.</summary>
+    public static string? CanonicalPhone(string value, EvidenceFacts facts)
+    {
+        var norm = PhoneNumbers.NormalizeMobileStrict(value);
+        if (norm != null) return facts.Mobiles.Any(m => m.Normalized == norm) ? PhoneNumbers.Format(norm) : null;
+        if (!Regex.IsMatch(value, @"^[0-9 +\-().]{9,20}$")) return null;
+        var digits = Regex.Replace(value, @"\D", "");
+        if (digits.Length < 9) return null;
+        var landline = facts.Landlines.FirstOrDefault(l => Regex.Replace(l, @"\D", "") == digits);
+        if (landline != null) return Regex.Replace(landline, @"\s+", " ").Trim();
+        var tail = digits[^9..];
+        return facts.TelNumbers.Any(t => Regex.Replace(t, @"\D", "").EndsWith(tail)) ? value.Trim() : null;
     }
 
     private static void ReadDescriptive(JsonElement root, SitePages site, VerificationResult result)
     {
-        var all = Squash(string.Join(" ", site.Pages.Select(p => p.Text)));
-        var html = string.Join(" ", site.Pages.Select(p => p.Html));
+        var html = string.Join(" ", site.Pages.Select(p => System.Net.WebUtility.HtmlDecode(p.Html)));
         string? Get(string name, int max)
         {
-            if (!root.TryGetProperty(name, out var el)) return null;
+            if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty(name, out var el)) return null;
             var s = el.ValueKind == JsonValueKind.String ? el.GetString() : el.ValueKind == JsonValueKind.Object && el.TryGetProperty("value", out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
-            s = s?.Trim();
-            if (string.IsNullOrEmpty(s)) return null;
-            return s.Length > max ? s[..max] : s;
+            s = TextSafety.Clean(s, max);
+            return string.IsNullOrEmpty(s) ? null : s;
         }
 
-        foreach (var (name, max) in new[] { ("ownerFirstName", 80), ("ownerLastName", 120), ("ownerTitle", 120), ("sector", 120), ("city", 80),
+        // Free text about the business: cleaned of anything that looks like an instruction and clamped. It is shown to people and read by
+        // a language model later, so it is treated as untrusted whatever the agent wrote.
+        foreach (var (name, max) in new[] { ("ownerFirstName", 60), ("ownerLastName", 80), ("ownerTitle", 80), ("sector", 80), ("city", 60),
             ("description", 400), ("services", 400), ("targetAudience", 300), ("workingArea", 200), ("certifications", 300), ("openingHours", 300) })
         {
             var v = Get(name, max);
             if (v != null) result.Descriptive[name] = v;
         }
-        // Values that must literally occur on the pages.
-        foreach (var name in new[] { "phone", "companyEmail", "street", "zipCode" })
+
+        var phone = Get("phone", 40);
+        if (phone != null)
         {
-            var v = Get(name, 200);
-            if (v == null) continue;
-            if (Squash(v).Length >= 4 && all.Contains(Squash(v))) result.Descriptive[name] = v;
-            else result.Dropped.Add(new DroppedClaim(name, v, "The value does not occur on the fetched pages."));
+            var canonical = CanonicalPhone(phone, result.Facts);
+            if (canonical != null) result.Descriptive["phone"] = canonical;
+            else result.Dropped.Add(new DroppedClaim("phone", phone, "The number is not a mobile, landline or tel: number that the pages publish."));
+        }
+        var companyEmail = Get("companyEmail", 100);
+        if (companyEmail != null)
+        {
+            var fact = result.Facts.Emails.FirstOrDefault(e => e.Address.Equals(companyEmail.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (fact != null) result.Descriptive["companyEmail"] = fact.Address;
+            else result.Dropped.Add(new DroppedClaim("companyEmail", companyEmail, "The address is not published on the fetched pages."));
+        }
+        var street = Get("street", 100);
+        if (street != null)
+        {
+            if (LiteralOnOnePage(street, site)) result.Descriptive["street"] = street;
+            else result.Dropped.Add(new DroppedClaim("street", street, "The value does not occur on one fetched page."));
+        }
+        var zip = Get("zipCode", 10);
+        if (zip != null)
+        {
+            if (ZipWhole.IsMatch(zip) && LiteralOnOnePage(zip, site)) result.Descriptive["zipCode"] = zip.ToUpperInvariant();
+            else result.Dropped.Add(new DroppedClaim("zipCode", zip, "Not a postcode that a fetched page shows."));
         }
         foreach (var name in new[] { "facebookUrl", "instagramUrl" })
         {
-            var v = Get(name, 300);
+            var v = Get(name, 140);
             if (v == null) continue;
-            if (html.Contains(v, StringComparison.OrdinalIgnoreCase) && Regex.IsMatch(v, @"^https?://(www\.)?(facebook|instagram)\.com/", RegexOptions.IgnoreCase)) result.Descriptive[name] = v;
-            else result.Dropped.Add(new DroppedClaim(name, v, "The link is not published on the fetched pages."));
+            if (SocialWhole.IsMatch(v) && html.Contains(v, StringComparison.OrdinalIgnoreCase)) result.Descriptive[name] = v;
+            else result.Dropped.Add(new DroppedClaim(name, v, "Not a facebook or instagram address that the fetched pages link to."));
         }
-        if (result.Descriptive.TryGetValue("phone", out var ph)) result.Descriptive["phone"] = ph;
     }
 
     // ---- applying --------------------------------------------------------------------------------------
@@ -389,46 +466,60 @@ public class LeadVerifier
     /// Writes the verified state to the lead. With clearUnverified (an existing lead) score bearing values that could not be verified are
     /// removed, so the score never keeps a point nobody can prove. The score itself is computed by SalesScoreService, never by the model.
     /// </summary>
-    public static List<string> Apply(Lead lead, VerificationResult r, bool clearUnverified, SalesScoreService scoring)
+    public static List<string> Apply(Lead lead, VerificationResult r, bool clearUnverified, SalesScoreService scoring, List<string>? kept = null)
     {
         var removed = new List<string>();
+        // With clearUnverified a value that could not be verified is removed; without it the value stays and is listed in 'kept' (what a run with clearing would remove).
+        void Drop(string what, Action clear) { if (clearUnverified) { removed.Add(what); clear(); } else kept?.Add(what); }
         string Val(string f) => r.Verified.TryGetValue(f, out var c) ? c.Value : "";
+        // Without clearing, a value a person already has is never overwritten, not even by a verified one: it is listed and the person decides.
+        bool CanWrite(string field, string? current, string verified)
+        {
+            if (clearUnverified || string.IsNullOrWhiteSpace(current) || string.Equals(current.Trim(), verified.Trim(), StringComparison.OrdinalIgnoreCase)) return true;
+            kept?.Add($"{field} '{current}' differs from what the website shows ('{verified}')");
+            return false;
+        }
 
         if (r.Reachable) { lead.WebsiteStatus = WebsiteStatus.Reachable; lead.ResolvedUrl = r.PageUrls.FirstOrDefault(); }
 
         if (r.Verified.ContainsKey("ownerName"))
         {
+            if (!CanWrite("ownerName", lead.OwnerName, Val("ownerName"))) goto afterOwner;
             lead.OwnerName = Val("ownerName");
             var parts = lead.OwnerName.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
             lead.OwnerFirstName = r.Descriptive.GetValueOrDefault("ownerFirstName") is { Length: > 0 } f ? f : parts[0];
             lead.OwnerLastName = r.Descriptive.GetValueOrDefault("ownerLastName") is { Length: > 0 } l ? l : parts.Length > 1 ? parts[1] : "";
             if (r.Descriptive.TryGetValue("ownerTitle", out var title)) lead.OwnerTitle = title;
         }
-        else if (clearUnverified && !string.IsNullOrWhiteSpace(lead.OwnerName)) { removed.Add($"ownerName '{lead.OwnerName}'"); lead.OwnerName = ""; }
+        else if (!string.IsNullOrWhiteSpace(lead.OwnerName)) Drop($"ownerName '{lead.OwnerName}'", () => lead.OwnerName = "");
+        afterOwner:
 
         Set(r.Verified, "ownerLinkedInUrl", v => lead.OwnerLinkedInUrl = v, () => lead.OwnerLinkedInUrl, () => lead.OwnerLinkedInUrl = null);
         Set(r.Verified, "companyLinkedInUrl", v => lead.LinkedInUrl = v, () => lead.LinkedInUrl, () => lead.LinkedInUrl = "");
         Set(r.Verified, "ownerMobile", v => lead.OwnerMobile = v, () => lead.OwnerMobile, () => lead.OwnerMobile = null);
         Set(r.Verified, "personalEmail", v => lead.PersonalEmail = v, () => lead.PersonalEmail, () => lead.PersonalEmail = "");
-        if (r.Verified.ContainsKey("foundingYear") && int.TryParse(Val("foundingYear"), out var year)) lead.FoundingYear = year;
-        else if (clearUnverified && lead.FoundingYear != null) { removed.Add($"foundingYear {lead.FoundingYear}"); lead.FoundingYear = null; }
+        if (r.Verified.ContainsKey("foundingYear") && int.TryParse(Val("foundingYear"), out var year))
+        {
+            if (CanWrite("foundingYear", lead.FoundingYear?.ToString(), year.ToString())) lead.FoundingYear = year;
+        }
+        else if (lead.FoundingYear != null) Drop($"foundingYear {lead.FoundingYear}", () => lead.FoundingYear = null);
         if (r.Verified.ContainsKey("kvkNumber")) lead.KvkNumber = Regex.Replace(Val("kvkNumber"), @"\D", "");
 
         if (r.Verified.TryGetValue("smallCompany", out var small))
         {
-            lead.EmployeeCount = "1";
-            if (Regex.IsMatch(small.Quote, @"eenmanszaak", RegexOptions.IgnoreCase)) lead.LegalForm = "Eenmanszaak";
+            if (CanWrite("employeeCount", lead.EmployeeCount, "1")) lead.EmployeeCount = "1";
+            if (Regex.IsMatch(small.Quote, @"eenmanszaak", RegexOptions.IgnoreCase) && CanWrite("legalForm", lead.LegalForm, "Eenmanszaak")) lead.LegalForm = "Eenmanszaak";
         }
-        else if (clearUnverified)
+        else
         {
-            if (!string.IsNullOrWhiteSpace(lead.EmployeeCount)) { removed.Add($"employeeCount '{lead.EmployeeCount}'"); lead.EmployeeCount = null; }
-            if (!string.IsNullOrWhiteSpace(lead.LegalForm)) { removed.Add($"legalForm '{lead.LegalForm}'"); lead.LegalForm = null; }
+            if (!string.IsNullOrWhiteSpace(lead.EmployeeCount)) Drop($"employeeCount '{lead.EmployeeCount}'", () => lead.EmployeeCount = null);
+            if (!string.IsNullOrWhiteSpace(lead.LegalForm)) Drop($"legalForm '{lead.LegalForm}'", () => lead.LegalForm = null);
         }
 
         // Phone: a mobile number in this field also scores, so it must be a published one.
         if (r.Descriptive.TryGetValue("phone", out var phone) && (string.IsNullOrWhiteSpace(lead.Phone) || clearUnverified)) lead.Phone = phone;
-        else if (clearUnverified && PhoneNumbers.IsDutchMobile(lead.Phone) && !r.Facts.Mobiles.Any(m => m.Normalized == PhoneNumbers.NormalizeMobile(lead.Phone)))
-        { removed.Add($"phone '{lead.Phone}' (a mobile number that is not on the website)"); lead.Phone = ""; }
+        else if (PhoneNumbers.IsDutchMobile(lead.Phone) && !r.Facts.Mobiles.Any(m => m.Normalized == PhoneNumbers.NormalizeMobile(lead.Phone)))
+            Drop($"phone '{lead.Phone}' (a mobile number that is not on the website)", () => lead.Phone = "");
 
         if (r.Descriptive.TryGetValue("companyEmail", out var ce) && string.IsNullOrWhiteSpace(lead.CompanyEmail)) lead.CompanyEmail = ce;
         FillIfEmpty(r, "description", v => lead.Description = v, () => lead.Description);
@@ -456,8 +547,8 @@ public class LeadVerifier
 
         void Set(Dictionary<string, Claim> verified, string field, Action<string> set, Func<string?> get, Action clear)
         {
-            if (verified.TryGetValue(field, out var c)) set(c.Value);
-            else if (clearUnverified && !string.IsNullOrWhiteSpace(get())) { removed.Add($"{field} '{get()}'"); clear(); }
+            if (verified.TryGetValue(field, out var c)) { if (CanWrite(field, get(), c.Value)) set(c.Value); }
+            else if (!string.IsNullOrWhiteSpace(get())) Drop($"{field} '{get()}'", clear);
         }
     }
 

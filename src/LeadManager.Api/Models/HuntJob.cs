@@ -49,6 +49,9 @@ public class HuntJob
     public int MaxCandidates { get; set; } = 30;
     public bool Ratchet { get; set; } = true;
 
+    /// <summary>Verify jobs: the person confirmed that values the verification cannot prove may be removed, also when they typed them.</summary>
+    public bool ConfirmClear { get; set; }
+
     /// <summary>Verify jobs: the leads to verify (stored as JSON).</summary>
     public List<Guid> LeadIds { get; set; } = new();
 

@@ -729,6 +729,9 @@ namespace LeadManager.Api.Migrations
                     b.Property<DateTime?>("CompletedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("ConfirmClear")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
 
@@ -798,6 +801,11 @@ namespace LeadManager.Api.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_HuntJobs_OneActivePerUser")
+                        .HasFilter("\"Status\" IN ('Pending', 'Running')");
 
                     b.HasIndex("UserId", "CreatedAt");
 
