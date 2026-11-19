@@ -152,4 +152,59 @@ public class ProjectHistoryTests : IDisposable
         Assert.Equal(status, Assert.IsType<ProjectDto>(created.Value).Status);
         Assert.IsType<OkObjectResult>(await Projects().Update(id, new UpsertProjectDto("P", null, "Pilot")));
     }
+
+    private EntityLinksController Links(string user = "me") { var c = new EntityLinksController(_db, _access); Auth(c, user); return c; }
+
+    [Fact]
+    public async Task ProjectLinks_AreSeparatedFromClientLinks_AndOwnedByTheClientsProject()
+    {
+        var client = SeedClient();
+        var project = new Project { ClientId = client.Id, Name = "Platform" };
+        var other = SeedClient("Other client");
+        var foreign = new Project { ClientId = other.Id, Name = "Elsewhere" };
+        _db.Projects.AddRange(project, foreign);
+        await _db.SaveChangesAsync();
+
+        Assert.IsType<CreatedAtActionResult>(await Links().Create("clients", client.Id, new CreateEntityLinkDto("GitHubRepo", "Backend", "https://github.com/x/y", null, project.Id)));
+        Assert.IsType<CreatedAtActionResult>(await Links().Create("clients", client.Id, new CreateEntityLinkDto("JengoWorkBoard", "Client board", "https://tasks.example/board/1", null)));
+
+        // The project of another client is refused, and a project link cannot be put on a lead.
+        Assert.IsType<BadRequestObjectResult>(await Links().Create("clients", client.Id, new CreateEntityLinkDto("Web", "x", "https://x.example", null, foreign.Id)));
+        var lead = new Lead { Name = "L", ImportedByUserId = "me" };
+        _db.Leads.Add(lead);
+        await _db.SaveChangesAsync();
+        Assert.IsType<BadRequestObjectResult>(await Links().Create("leads", lead.Id, new CreateEntityLinkDto("Web", "x", "https://x.example", null, project.Id)));
+
+        IEnumerable<EntityLinkDto> Of(IActionResult r) => Assert.IsAssignableFrom<IEnumerable<EntityLinkDto>>(Assert.IsType<OkObjectResult>(r).Value);
+        Assert.Equal(new[] { "Client board" }, Of(await Links().List("clients", client.Id)).Select(l => l.Label).ToArray());
+        Assert.Equal(new[] { "Backend" }, Of(await Links().List("clients", client.Id, project.Id)).Select(l => l.Label).ToArray());
+        Assert.Equal(2, Of(await Links().List("clients", client.Id, null, true)).Count());
+    }
+
+    [Fact]
+    public async Task ProjectLink_IsIdempotentPerProject_AndGoesWhenTheProjectGoes()
+    {
+        var client = SeedClient();
+        var a = new Project { ClientId = client.Id, Name = "A" };
+        var b = new Project { ClientId = client.Id, Name = "B" };
+        _db.Projects.AddRange(a, b);
+        await _db.SaveChangesAsync();
+        var dto = new CreateEntityLinkDto("GitHubRepo", "Repo", "https://github.com/x/y", null, a.Id);
+
+        await Links().Create("clients", client.Id, dto);
+        Assert.IsType<OkObjectResult>(await Links().Create("clients", client.Id, dto));                       // same project: returned, not duplicated
+        Assert.IsType<CreatedAtActionResult>(await Links().Create("clients", client.Id, dto with { ProjectId = b.Id })); // other project: its own link
+        Assert.Equal(2, await _db.EntityLinks.CountAsync());
+
+        Assert.IsType<NoContentResult>(await Projects().Delete(a.Id));
+        Assert.Equal(1, await _db.EntityLinks.CountAsync());
+    }
+
+    [Fact]
+    public async Task ArchivedStatus_IsAccepted()
+    {
+        var client = SeedClient();
+        var created = Assert.IsType<CreatedResult>(await Projects().Create(client.Id, new UpsertProjectDto("Old", null, "Archived")));
+        Assert.Equal("Archived", Assert.IsType<ProjectDto>(created.Value).Status);
+    }
 }

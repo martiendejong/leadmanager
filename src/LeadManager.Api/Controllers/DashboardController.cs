@@ -46,7 +46,8 @@ public class DashboardController : ControllerBase
     private const int ExpiringDays = 45;
     private const int RowLimit = 6;
 
-    private static readonly DocumentStatus[] OpenQuoteStatuses = { DocumentStatus.Draft, DocumentStatus.Sent };
+    // Only documents that someone has to sign wait for a signature (not invoices or loose files).
+    private static readonly DocumentKind[] Signable = { DocumentKind.Quote, DocumentKind.Order, DocumentKind.Agreement, DocumentKind.Dpa, DocumentKind.Nda };
     private static readonly string[] RunningProjectStatuses = { "Pilot", "Active", "Maintenance" };
 
     private readonly LeadManagerDbContext _db;
@@ -67,6 +68,7 @@ public class DashboardController : ControllerBase
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
         utcNow = UtcDateTimeConverter.Normalize(utcNow);
         var endOfToday = NextActionsController.EndOfDayNl(utcNow);
+        var startOfToday = endOfToday.AddDays(-1); // same day boundary as the Today list: Dutch midnight
 
         var clients = await _db.Clients.AsNoTracking().Where(c => c.CreatedByUserId == userId).ToListAsync();
         var clientIds = clients.Select(c => c.Id).ToList();
@@ -99,7 +101,7 @@ public class DashboardController : ControllerBase
             d.Id, d.ClientId, clientNames[d.ClientId], d.Kind.ToString(), d.Status.ToString(), d.Title, d.Amount, d.DocumentDate, d.ValidUntil);
 
         var openQuotes = documents.Where(d => d.Kind == DocumentKind.Quote && d.Status == DocumentStatus.Sent).ToList();
-        var awaiting = documents.Where(d => d.Status == DocumentStatus.Sent).OrderBy(d => d.DocumentDate).ToList();
+        var awaiting = documents.Where(d => d.Status == DocumentStatus.Sent && Signable.Contains(d.Kind)).OrderBy(d => d.DocumentDate).ToList();
         var expiring = documents
             .Where(d => d.ValidUntil.HasValue && d.ValidUntil >= utcNow && d.ValidUntil <= utcNow.AddDays(ExpiringDays)
                         && d.Status is DocumentStatus.Sent or DocumentStatus.Signed)
@@ -111,8 +113,9 @@ public class DashboardController : ControllerBase
             .GroupBy(l => l.PipelineStatus).Select(g => new { g.Key, N = g.Count() }).ToListAsync();
 
         var leadNames = await _db.Leads.AsNoTracking().Where(l => l.ImportedByUserId == userId).ToDictionaryAsync(l => l.Id, l => l.Name);
+        var ownLeadIds = _db.Leads.Where(l => l.ImportedByUserId == userId).Select(l => l.Id);
         var recent = await _db.Interactions.AsNoTracking()
-            .Where(i => (i.ClientId != null && clientIds.Contains(i.ClientId.Value)) || (i.LeadId != null && leadNames.Keys.Contains(i.LeadId.Value)))
+            .Where(i => (i.ClientId != null && clientIds.Contains(i.ClientId.Value)) || (i.LeadId != null && ownLeadIds.Contains(i.LeadId.Value)))
             .OrderByDescending(i => i.OccurredAt).Take(8).ToListAsync();
 
         var counts = new DashboardCounts(
@@ -120,8 +123,9 @@ public class DashboardController : ControllerBase
             Clients: clients.Count,
             ActiveProjects: projects.Count(p => RunningProjectStatuses.Contains(p.Status)),
             OpenActions: openActions.Count,
-            DueToday: openActions.Count(a => a.DueAt >= utcNow && a.DueAt <= endOfToday),
-            Overdue: openActions.Count(a => a.DueAt < utcNow),
+            // Due today = anywhere in today (Dutch time); overdue = before today. Together they are what the Today list shows.
+            DueToday: openActions.Count(a => a.DueAt >= startOfToday && a.DueAt <= endOfToday),
+            Overdue: openActions.Count(a => a.DueAt < startOfToday),
             OpenQuotes: openQuotes.Count,
             OpenQuotesAmount: openQuotes.Sum(d => d.Amount ?? 0),
             AwaitingSignature: awaiting.Count);

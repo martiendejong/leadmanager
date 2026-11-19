@@ -117,7 +117,7 @@ public class ClientsController : ControllerBase
             var pd = CrmRules.Clean(p.Description);
             if (CrmRules.TooLong(pd, CrmRules.MaxNotes)) return BadRequest(new { error = "Project description is too long." });
             var ps = CrmRules.Clean(p.Status) ?? "Active";
-            if (!ProjectStatuses.All.Contains(ps)) return BadRequest(new { error = "Onbekende projectstatus." });
+            if (!ProjectStatuses.All.Contains(ps)) return BadRequest(new { error = "Unknown project status." });
             projects.Add(new Project { Name = pn, Description = pd, Status = ps });
         }
 

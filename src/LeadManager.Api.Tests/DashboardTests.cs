@@ -101,15 +101,16 @@ public class DashboardTests : IDisposable
         var c = Client("Acme");
         _db.NextActions.AddRange(
             new NextAction { ClientId = c.Id, Title = "late", DueAt = Now.AddDays(-2), AssignedToUserId = "me" },
+            new NextAction { ClientId = c.Id, Title = "earlier today", DueAt = Now.AddHours(-2), AssignedToUserId = "me" },
             new NextAction { ClientId = c.Id, Title = "today", DueAt = Now.AddHours(2), AssignedToUserId = "me" },
             new NextAction { ClientId = c.Id, Title = "later", DueAt = Now.AddDays(5), AssignedToUserId = "me" },
             new NextAction { ClientId = c.Id, Title = "done", DueAt = Now.AddDays(-1), AssignedToUserId = "me", DoneAt = Now });
         await _db.SaveChangesAsync();
 
         var d = await Load();
-        Assert.Equal(3, d.Counts.OpenActions);
+        Assert.Equal(4, d.Counts.OpenActions);
         Assert.Equal(1, d.Counts.Overdue);
-        Assert.Equal(1, d.Counts.DueToday);
+        Assert.Equal(2, d.Counts.DueToday);   // earlier today and later today both count as today
     }
 
     [Fact]
@@ -120,6 +121,7 @@ public class DashboardTests : IDisposable
             new ClientDocument { ClientId = c.Id, Kind = DocumentKind.Quote, Status = DocumentStatus.Sent, Title = "Q1", Amount = 1000, DocumentDate = Now.AddDays(-5) },
             new ClientDocument { ClientId = c.Id, Kind = DocumentKind.Quote, Status = DocumentStatus.Sent, Title = "Q2", Amount = 500, DocumentDate = Now.AddDays(-2) },
             new ClientDocument { ClientId = c.Id, Kind = DocumentKind.Quote, Status = DocumentStatus.Signed, Title = "Won", Amount = 9999, DocumentDate = Now.AddDays(-20) },
+            new ClientDocument { ClientId = c.Id, Kind = DocumentKind.Invoice, Status = DocumentStatus.Sent, Title = "Invoice", Amount = 77, DocumentDate = Now.AddDays(-9) },
             new ClientDocument { ClientId = c.Id, Kind = DocumentKind.Dpa, Status = DocumentStatus.Signed, Title = "DPA", DocumentDate = Now.AddDays(-300), ValidUntil = Now.AddDays(20) },
             new ClientDocument { ClientId = c.Id, Kind = DocumentKind.Nda, Status = DocumentStatus.Signed, Title = "Far", DocumentDate = Now.AddDays(-30), ValidUntil = Now.AddDays(400) });
         await _db.SaveChangesAsync();
@@ -184,5 +186,14 @@ public class DashboardTests : IDisposable
         Assert.Equal("Lead BV", d.RecentActivity[1].ParentName);
         Assert.Equal("leads", d.RecentActivity[1].ParentType);
         Assert.Equal(1, d.LeadsByStage["New"]);
+    }
+
+    [Fact]
+    public async Task ReactiveClients_AreNeverListedAsSilent()
+    {
+        Client("Reactive one", category: "Reactive");
+        var d = await Load();
+        Assert.Empty(d.Silent);
+        Assert.Empty(d.NoNextAction);
     }
 }
