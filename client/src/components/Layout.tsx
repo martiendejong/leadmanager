@@ -32,6 +32,7 @@ export default function Layout() {
       <NavLink to="/leads/zoeken" className={linkClass} onClick={closeMenu}>Leads zoeken</NavLink>
       <NavLink to="/leads/analytics" className={linkClass} onClick={closeMenu}>Analyse</NavLink>
       <NavLink to="/settings" className={linkClass} onClick={closeMenu}>Instellingen</NavLink>
+      <NavLink to="/koppelingen" className={linkClass} onClick={closeMenu}>Koppelingen</NavLink>
       {user?.role === 'Admin' && (
         <NavLink to="/admin/users" className={linkClass} onClick={closeMenu}>Gebruikers</NavLink>
       )}
@@ -48,6 +49,7 @@ export default function Layout() {
       <NavLink to="/leads/zoeken" className={mobileLinkClass} onClick={closeMenu}>Leads zoeken</NavLink>
       <NavLink to="/leads/analytics" className={mobileLinkClass} onClick={closeMenu}>Analyse</NavLink>
       <NavLink to="/settings" className={mobileLinkClass} onClick={closeMenu}>Instellingen</NavLink>
+      <NavLink to="/koppelingen" className={mobileLinkClass} onClick={closeMenu}>Koppelingen</NavLink>
       {user?.role === 'Admin' && (
         <NavLink to="/admin/users" className={mobileLinkClass} onClick={closeMenu}>Gebruikers</NavLink>
       )}

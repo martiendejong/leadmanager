@@ -6,8 +6,9 @@ gekopieerd, ongewijzigd) met een tokenbron op de API-key-tabel van de app.
 
 ## Aansluiten
 
-1. Maak een API-key aan in de app (inloggen, dan `POST /api/api-keys` met `{"name": "..."}`; de sleutel
-   begint met `lm_` en wordt maar één keer getoond).
+1. Maak een API-key aan in de app onder **Koppelingen** (of `POST /api/api-keys` met `{"name": "..."}`; de sleutel
+   begint met `lm_` en wordt maar één keer getoond). Dat scherm geeft ook de kant-en-klare opdracht voor Claude Code
+   en een JSON-configuratie voor andere MCP-clients.
 2. Gebruik die sleutel als Bearer-token:
 
 ```
@@ -30,6 +31,11 @@ geldig MCP-token.
 | `add_next_action` | Volgende stap plannen; komt op de Vandaag-lijst als hij aan de beurt is |
 | `complete_next_action` | Actie afvinken |
 | `next_actions_today` | De belijst: vandaag (Nederlandse tijd) of achterstallig, met naam en telefoonnummer |
+| `list_clients` | Alle klanten, hoogste prioriteit eerst, met score, projecten, volgende actie en laatste contact |
+| `create_client` | Klant handmatig toevoegen (weigert dezelfde naam twee keer) |
+| `set_client_priority` | Waarde, urgentie en inspanning zetten: score = waarde × urgentie ÷ inspanning² |
+| `create_project` | Project toevoegen aan een klant; `log_interaction` accepteert daarbij `project_id` |
+| `list_actions` | Alle open acties over leads en klanten in een periode, met naam |
 | `add_contact` | Persoon toevoegen aan een lead of klant |
 | `link_item` | Koppelen aan iets in een andere tool: JengoWork-bord of -taak, JengoKnowledge-project, mailthread, Meet-sessie |
 

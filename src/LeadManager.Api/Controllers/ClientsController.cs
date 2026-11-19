@@ -11,6 +11,7 @@ namespace LeadManager.Api.Controllers;
 [Route("api/clients")]
 [ApiController]
 [Authorize]
+[AllowApiKey]
 public class ClientsController : ControllerBase
 {
     private readonly LeadManagerDbContext _db;

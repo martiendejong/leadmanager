@@ -167,12 +167,14 @@ public class CrmReviewFixTests : IDisposable
         foreach (var type in controllers)
         {
             var allowed = type.GetCustomAttribute<AllowApiKeyAttribute>(inherit: true) != null;
-            var isCrm = typeof(CrmControllerBase).IsAssignableFrom(type);
+            // Clients and Projects are CRM data too (task 8090): the same user, the same ownership rules.
+            var isCrm = typeof(CrmControllerBase).IsAssignableFrom(type)
+                || type.Name is nameof(ClientsController) or nameof(ProjectsController);
             Assert.True(allowed == isCrm, $"{type.Name}: AllowApiKey={allowed} but isCrm={isCrm}");
         }
 
         // Spot-check the ones that must stay closed.
-        foreach (var name in new[] { nameof(LeadsController), nameof(ClientsController), nameof(IntakeController),
+        foreach (var name in new[] { nameof(LeadsController), nameof(IntakeController),
                                      nameof(EnrichmentController), nameof(ProfileController), nameof(SalesSettingsController),
                                      nameof(UsersController), nameof(ApiKeysController) })
         {
