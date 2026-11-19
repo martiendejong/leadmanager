@@ -129,6 +129,8 @@ public class LeadsController : ControllerBase
             "salespriorityscore"  => filters.SortDesc ? query.OrderByDescending(l => l.SalesPriorityScore) : query.OrderBy(l => l.SalesPriorityScore),
             _                     => filters.SortDesc ? query.OrderByDescending(l => l.Name)               : query.OrderBy(l => l.Name),
         };
+        // Stable paging: rows with equal sort values must come in the same order on every page.
+        query = ((IOrderedQueryable<Lead>)query).ThenBy(l => l.Id);
 
         var total = await query.CountAsync();
         var items = await query
@@ -181,6 +183,7 @@ public class LeadsController : ControllerBase
         lead.OwnerLastName = dto.OwnerLastName;
         lead.PersonalEmail = dto.PersonalEmail;
         lead.LinkedInUrl = dto.LinkedInUrl;
+        Rescore(lead);
 
         await _db.SaveChangesAsync();
         return Ok(ToDto(lead));
@@ -210,7 +213,7 @@ public class LeadsController : ControllerBase
             v = v.Trim();
             if (v == "") return "";
             // A bare address gets https://; an address with any other scheme (ftp:, javascript:, ...) is refused, not rewritten.
-            if (!v.Contains("://") && !v.StartsWith("javascript:", StringComparison.OrdinalIgnoreCase) && !v.Contains(':')) v = "https://" + v;
+            if (!System.Text.RegularExpressions.Regex.IsMatch(v, @"^[a-zA-Z][a-zA-Z0-9+.\-]*:")) v = "https://" + v;
             if (!CrmRules.IsSafeHttpUrl(v)) { error ??= $"{field} must be a valid http(s) address."; return null; }
             return v;
         }
@@ -225,7 +228,7 @@ public class LeadsController : ControllerBase
         {
             if (v == null) return null;
             v = v.Trim();
-            if (v != "" && (v.Length > 320 || !System.Net.Mail.MailAddress.TryCreate(v, out _))) { error ??= $"{field} is not a valid e-mail address."; return null; }
+            if (v != "" && (v.Length > 320 || !System.Net.Mail.MailAddress.TryCreate(v, out var addr) || addr.Address != v || !v.Contains('.', StringComparison.Ordinal))) { error ??= $"{field} is not a valid e-mail address."; return null; }
             return v;
         }
 
@@ -264,9 +267,10 @@ public class LeadsController : ControllerBase
         var clients = Text(dto.NotableClients, "Notable clients", 2000);
 
         if (dto.FoundingYear is < 1800 || dto.FoundingYear > DateTime.UtcNow.Year) error ??= "Founding year is not valid.";
-        if (dto.GoogleRating is < 0 or > 5) error ??= "Google rating is between 0 and 5.";
+        if (dto.GoogleRating.HasValue && !(dto.GoogleRating.Value >= 0 && dto.GoogleRating.Value <= 5)) error ??= "Google rating is between 0 and 5.";
         if (dto.GoogleReviewCount is < 0) error ??= "Review count cannot be negative.";
         if (name == "") error ??= "Name cannot be empty.";
+        if (website == "") error ??= "Website cannot be empty.";
         if (error != null) return BadRequest(new { error });
 
         if (name != null) lead.Name = name;
@@ -306,13 +310,27 @@ public class LeadsController : ControllerBase
         if (hours != null) lead.OpeningHours = hours;
         if (clients != null) lead.NotableClients = clients;
 
+        Rescore(lead);
+
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            // Name + website are unique per user: another lead already has that combination.
+            return Conflict(new { error = "Another lead already has this name and website." });
+        }
+        return Ok(ToDto(lead));
+    }
+
+    /// <summary>The score is always derived from the profile; every edit path keeps it in step.</summary>
+    private void Rescore(Lead lead)
+    {
         var scored = _scoring.CalculateScore(lead);
         lead.SalesPriorityScore = scored.Score;
         lead.SalesPriorityLabel = scored.Label;
         lead.SalesPriorityReasoning = scored.Reasoning;
-
-        await _db.SaveChangesAsync();
-        return Ok(ToDto(lead));
     }
 
     // POST /api/leads/{id}/status - Update lead status (forward transitions only)

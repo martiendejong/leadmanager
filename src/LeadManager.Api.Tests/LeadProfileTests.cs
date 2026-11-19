@@ -146,4 +146,52 @@ public class LeadProfileTests : IDisposable
         var lead = Seed("Secret", owner: "other");
         Assert.IsType<NotFoundResult>(await As("me").PatchProfile(lead.Id, Patch(ownerName: "x")));
     }
+
+    [Fact]
+    public async Task Patch_ToANameAndWebsiteAnotherLeadHas_IsAConflict_NotAServerError()
+    {
+        var a = Seed("Acme");
+        var b = Seed("Beta");
+        var result = await As("me").PatchProfile(b.Id, Patch(website: a.Website));   // same website, different name: allowed
+        Assert.IsType<OkObjectResult>(result);
+        var clash = await As("me").PatchProfile(b.Id, new PatchLeadProfileDto("Acme", a.Website, null, null, null, null, null, null, null, null, null, null, null, null,
+            null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null));
+        Assert.IsType<ConflictObjectResult>(clash);
+    }
+
+    [Fact]
+    public async Task Patch_EmptyWebsite_IsRefused_AndBareAddressesGetHttps()
+    {
+        var lead = Seed("Acme");
+        Assert.IsType<BadRequestObjectResult>(await As("me").PatchProfile(lead.Id, Patch(website: "")));
+        var d = await Do("me", lead.Id, Patch(ownerLinkedIn: "linkedin.com/in/jan-jansen"));
+        Assert.Equal("https://linkedin.com/in/jan-jansen", d.OwnerLinkedInUrl);
+        Assert.IsType<BadRequestObjectResult>(await As("me").PatchProfile(lead.Id, Patch(personalEmail: "Jan <jan@acme.example>")));
+        Assert.IsType<BadRequestObjectResult>(await As("me").PatchProfile(lead.Id, Patch(rating: float.NaN)));
+    }
+
+    [Fact]
+    public async Task NormalEdit_RescoresToo()
+    {
+        var lead = Seed("Acme");
+        await Do("me", lead.Id, Patch(ownerLinkedIn: "https://www.linkedin.com/in/jan"));
+        var put = new UpdateLeadDto("Acme", lead.Website, "", "", "", "", "x", "Jan Jansen", "Jan", "Jansen", "jan@acme.example", "", null);
+        var ok = Assert.IsType<OkObjectResult>(await As("me").UpdateLead(lead.Id, put));
+        var dto = Assert.IsType<LeadDto>(ok.Value);
+        Assert.Equal(4, dto.SalesPriorityScore);   // owner LinkedIn 2 + owner name 1 + personal e-mail 1
+    }
+
+    [Fact]
+    public async Task Paging_IsStable_WhenManyLeadsShareTheSortValue()
+    {
+        for (var i = 0; i < 12; i++) Seed($"Lead{i:00}");   // none enriched: every row ties on isEnriched
+        var seen = new List<string>();
+        for (var page = 1; page <= 3; page++)
+        {
+            var result = Assert.IsType<OkObjectResult>(await As("me").GetLeads(new LeadFilterParams(Page: page, PageSize: 5, SortBy: "isEnriched", SortDesc: true)));
+            var items = (IEnumerable<LeadDto>)result.Value!.GetType().GetProperty("items")!.GetValue(result.Value)!;
+            seen.AddRange(items.Select(i => i.Name));
+        }
+        Assert.Equal(12, seen.Distinct().Count());
+    }
 }
