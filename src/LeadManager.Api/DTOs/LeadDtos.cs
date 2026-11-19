@@ -172,7 +172,8 @@ public record UpdateLeadStatusDto(string Status);
 
 /// <summary>
 /// Partial update of the researched profile of a lead. A null field is left as it is; an empty string clears a text
-/// field. The sales priority score is recalculated from the profile on every call.
+/// field. Numeric fields cannot be cleared with a value, so ClearFields names the ones to reset to null (foundingYear,
+/// googleRating, googleReviewCount). The sales priority score is recalculated from the profile on every call.
 /// </summary>
 public record PatchLeadProfileDto(
     string? Name, string? Website, string? Sector, string? City, string? Phone, string? CompanyEmail,
@@ -182,4 +183,5 @@ public record PatchLeadProfileDto(
     float? GoogleRating, int? GoogleReviewCount, string? GoogleMapsUrl,
     string? FacebookUrl, string? InstagramUrl, string? TwitterUrl,
     string? Description, string? Services, string? TargetAudience, string? AiSummary, string? SalesPitch,
-    string? WorkingArea, string? Certifications, string? PricingInfo, string? OpeningHours, string? NotableClients);
+    string? WorkingArea, string? Certifications, string? PricingInfo, string? OpeningHours, string? NotableClients,
+    IReadOnlyList<string>? ClearFields = null);

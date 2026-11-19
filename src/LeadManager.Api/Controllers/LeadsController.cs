@@ -189,6 +189,8 @@ public class LeadsController : ControllerBase
         return Ok(ToDto(lead));
     }
 
+    private static readonly HashSet<string> ClearableNumericFields = new(StringComparer.OrdinalIgnoreCase) { "foundingYear", "googleRating", "googleReviewCount" };
+
     // PATCH /api/leads/{id}/profile
     // Updates the researched profile (owner, LinkedIn, mobile, size, rating, ...) and recalculates the sales priority score
     // from it. Only the fields that are sent change; the score is always derived, never set by hand.
@@ -271,6 +273,17 @@ public class LeadsController : ControllerBase
         if (dto.GoogleReviewCount is < 0) error ??= "Review count cannot be negative.";
         if (name == "") error ??= "Name cannot be empty.";
         if (website == "") error ??= "Website cannot be empty.";
+
+        var clear = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var f in dto.ClearFields ?? Array.Empty<string>())
+        {
+            var key = (f ?? "").Trim();
+            if (!ClearableNumericFields.Contains(key)) { error ??= $"Field '{f}' cannot be cleared. Allowed: foundingYear, googleRating, googleReviewCount."; continue; }
+            clear.Add(key);
+        }
+        if (clear.Contains("foundingYear") && dto.FoundingYear.HasValue) error ??= "foundingYear is both set and cleared.";
+        if (clear.Contains("googleRating") && dto.GoogleRating.HasValue) error ??= "googleRating is both set and cleared.";
+        if (clear.Contains("googleReviewCount") && dto.GoogleReviewCount.HasValue) error ??= "googleReviewCount is both set and cleared.";
         if (error != null) return BadRequest(new { error });
 
         if (name != null) lead.Name = name;
@@ -295,6 +308,9 @@ public class LeadsController : ControllerBase
         if (dto.FoundingYear.HasValue) lead.FoundingYear = dto.FoundingYear;
         if (dto.GoogleRating.HasValue) lead.GoogleRating = dto.GoogleRating;
         if (dto.GoogleReviewCount.HasValue) lead.GoogleReviewCount = dto.GoogleReviewCount;
+        if (clear.Contains("foundingYear")) lead.FoundingYear = null;
+        if (clear.Contains("googleRating")) lead.GoogleRating = null;
+        if (clear.Contains("googleReviewCount")) lead.GoogleReviewCount = null;
         if (mapsUrl != null) lead.GoogleMapsUrl = mapsUrl;
         if (facebook != null) lead.FacebookUrl = facebook;
         if (instagram != null) lead.InstagramUrl = instagram;
