@@ -19,6 +19,7 @@ export default function ClientDetailPage() {
   const navigate = useNavigate()
   const [client, setClient] = useState<Client | null>(null)
   const [loading, setLoading] = useState(true)
+  const [historyTick, setHistoryTick] = useState(0)
   const [intakes, setIntakes] = useState<ClientIntake[]>([])
   const [bundle, setBundle] = useState<ClientBundle | null>(null)
 
@@ -284,12 +285,13 @@ export default function ClientDetailPage() {
       <ProjectsSection
         clientId={client.id}
         projects={client.projects}
+        onHistoryChanged={() => setHistoryTick((t) => t + 1)}
         onChanged={() => { getClient(client.id).then(setClient).catch(() => showToast('Vernieuwen mislukt', 'error')) }}
       />
 
       {/* Relationship screen: next actions, conversations, contacts, links (Jengo Clients) */}
       <div className="mt-6 max-w-5xl">
-        <CrmPanel parentType="clients" parentId={client.id} />
+        <CrmPanel key={historyTick} parentType="clients" parentId={client.id} />
       </div>
     </div>
   )

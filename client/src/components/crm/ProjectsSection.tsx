@@ -33,7 +33,7 @@ function toLocalInput(d: Date) {
 }
 
 /** The history of one project: a list of items with a form to paste in new ones. */
-function ProjectHistory({ clientId, project }: { clientId: string; project: Project }) {
+function ProjectHistory({ clientId, project, onLogged }: { clientId: string; project: Project; onLogged: () => void }) {
   const { showToast } = useToast()
   const [items, setItems] = useState<TimelineItem[] | null>(null)
   const [kind, setKind] = useState<InteractionKind>('Note')
@@ -64,6 +64,7 @@ function ProjectHistory({ clientId, project }: { clientId: string; project: Proj
       setSummary('')
       setWhen(toLocalInput(new Date()))
       load()
+      onLogged()
     } catch (err) {
       showToast(errorMessage(err, 'Vastleggen mislukt'), 'error')
     } finally {
@@ -86,6 +87,7 @@ function ProjectHistory({ clientId, project }: { clientId: string; project: Proj
           className={input}
           rows={3}
           placeholder="Plak hier een bericht, mail of notitie..."
+          aria-label="Bericht of notitie"
           value={summary}
           onChange={(e) => setSummary(e.target.value)}
           maxLength={8000}
@@ -123,10 +125,12 @@ export default function ProjectsSection({
   clientId,
   projects,
   onChanged,
+  onHistoryChanged,
 }: {
   clientId: string
   projects: Project[]
   onChanged: () => void
+  onHistoryChanged: () => void
 }) {
   const { showToast } = useToast()
   const [open, setOpen] = useState<string | null>(null)
@@ -134,6 +138,7 @@ export default function ProjectsSection({
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [busy, setBusy] = useState(false)
+  const [statusBusy, setStatusBusy] = useState(false)
 
   const add = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -154,11 +159,14 @@ export default function ProjectsSection({
   }
 
   const setStatus = async (p: Project, status: string) => {
+    setStatusBusy(true)
     try {
       await updateProject(p.id, { name: p.name, description: p.description ?? null, status })
       onChanged()
     } catch (err) {
       showToast(errorMessage(err, 'Status wijzigen mislukt'), 'error')
+    } finally {
+      setStatusBusy(false)
     }
   }
 
@@ -180,13 +188,13 @@ export default function ProjectsSection({
           Projecten
           <span className="ml-2 text-sm font-normal text-gray-400">({projects.length})</span>
         </h2>
-        <button onClick={() => setAdding((v) => !v)} className={ghostBtn}>{adding ? 'Annuleren' : '+ Project'}</button>
+        <button onClick={() => setAdding((v) => !v)} className={ghostBtn} aria-expanded={adding}>{adding ? 'Annuleren' : '+ Project'}</button>
       </div>
 
       {adding && (
         <form onSubmit={add} className="mb-4 space-y-2 p-3 bg-gray-50 rounded-lg">
-          <input className={input} placeholder="Naam van het project" value={name} onChange={(e) => setName(e.target.value)} maxLength={200} autoFocus />
-          <textarea className={input} rows={2} placeholder="Korte omschrijving (optioneel)" value={description} onChange={(e) => setDescription(e.target.value)} maxLength={4000} />
+          <input className={input} placeholder="Naam van het project" aria-label="Projectnaam" value={name} onChange={(e) => setName(e.target.value)} maxLength={200} autoFocus />
+          <textarea className={input} rows={2} placeholder="Korte omschrijving (optioneel)" aria-label="Omschrijving" value={description} onChange={(e) => setDescription(e.target.value)} maxLength={4000} />
           <div className="flex justify-end">
             <button type="submit" disabled={busy || !name.trim()} className={primaryBtn}>Project toevoegen</button>
           </div>
@@ -213,6 +221,7 @@ export default function ProjectsSection({
                     value={p.status}
                     onChange={(e) => setStatus(p, e.target.value)}
                     aria-label="Status"
+                    disabled={statusBusy}
                     className={`text-xs font-medium border rounded-full px-2 py-0.5 ${STATUS_CLS[p.status] ?? 'bg-gray-50 text-gray-700 border-gray-200'}`}
                   >
                     {STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
@@ -220,7 +229,7 @@ export default function ProjectsSection({
                   <button onClick={() => remove(p)} className={ghostBtn} aria-label={`Verwijder ${p.name}`}>✕</button>
                 </div>
               </div>
-              {open === p.id && <ProjectHistory clientId={clientId} project={p} />}
+              {open === p.id && <ProjectHistory clientId={clientId} project={p} onLogged={onHistoryChanged} />}
             </div>
           ))}
         </div>
