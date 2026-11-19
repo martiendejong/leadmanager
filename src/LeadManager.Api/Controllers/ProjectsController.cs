@@ -82,6 +82,7 @@ public class ProjectsController : ControllerBase
 
     // DELETE /api/projects/{id}  (its history stays on the client, without the project link)
     [HttpDelete("api/projects/{id:guid}")]
+    [DenyApiKey]
     public async Task<IActionResult> Delete(Guid id)
     {
         var project = await FindOwned(id);

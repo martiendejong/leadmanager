@@ -173,6 +173,11 @@ public class CrmReviewFixTests : IDisposable
             Assert.True(allowed == isCrm, $"{type.Name}: AllowApiKey={allowed} but isCrm={isCrm}");
         }
 
+        // Destructive actions stay closed to keys even inside a controller that allows them.
+        foreach (var (controller, action) in new[] { (typeof(ClientsController), nameof(ClientsController.DeleteClient)),
+                                                     (typeof(ProjectsController), nameof(ProjectsController.Delete)) })
+            Assert.NotNull(controller.GetMethod(action)!.GetCustomAttribute<DenyApiKeyAttribute>());
+
         // Spot-check the ones that must stay closed.
         foreach (var name in new[] { nameof(LeadsController), nameof(IntakeController),
                                      nameof(EnrichmentController), nameof(ProfileController), nameof(SalesSettingsController),

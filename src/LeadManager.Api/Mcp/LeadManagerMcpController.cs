@@ -208,10 +208,12 @@ public class LeadManagerMcpController : McpControllerBase
                     var parent = ParentArgs(args, out var error);
                     if (parent == null) return (error!, true);
                     if (!TryDate(args, "occurred_at", out var at, out error)) return (error!, true);
+                    if (!TryOptionalGuid(args, "project_id", out var projectId, out error) || !TryOptionalGuid(args, "contact_id", out var contactId, out error))
+                        return (error!, true);
                     return Present(await As(new InteractionsController(_db, _access), userId).Create(
                         parent.Value.type, parent.Value.id,
                         new CreateInteractionDto(ArgStr(args, "kind") ?? "", ArgStr(args, "direction"), at,
-                            ArgStr(args, "summary") ?? "", ArgStr(args, "outcome"), ArgGuid(args, "contact_id"), ArgStr(args, "source_ref"), ArgGuid(args, "project_id"))));
+                            ArgStr(args, "summary") ?? "", ArgStr(args, "outcome"), contactId, ArgStr(args, "source_ref"), projectId)));
                 }
 
                 case "add_next_action":
@@ -254,6 +256,7 @@ public class LeadManagerMcpController : McpControllerBase
                         var rows = clients
                             .Where(c => string.IsNullOrWhiteSpace(query) || c.Name.Contains(query.Trim(), StringComparison.OrdinalIgnoreCase))
                             .OrderByDescending(c => c.Score).ThenBy(c => c.Name)
+                            .Take(500)
                             .Select(c => new
                             {
                                 c.Id, c.Name, c.Score, c.PriorityValue, c.PriorityUrgency, c.PriorityEffort, c.EngagementCategory,
@@ -275,8 +278,11 @@ public class LeadManagerMcpController : McpControllerBase
                 {
                     var id = ArgGuid(args, "client_id");
                     if (id == null) return ("client_id is required and must be a GUID", true);
+                    if (!TryInt(args, "value", out var value, out var intError) || !TryInt(args, "urgency", out var urgency, out intError)
+                        || !TryInt(args, "effort", out var effort, out intError))
+                        return (intError!, true);
                     return Present(await As(new ClientsController(_db), userId).UpdatePriority(id.Value,
-                        new UpdatePriorityDto(ArgInt(args, "value"), ArgInt(args, "urgency"), ArgInt(args, "effort"))));
+                        new UpdatePriorityDto(value, urgency, effort)));
                 }
 
                 case "create_project":
@@ -392,9 +398,31 @@ public class LeadManagerMcpController : McpControllerBase
         return (type, id.Value);
     }
 
-    private static int? ArgInt(JsonElement args, string name) =>
-        args.ValueKind == JsonValueKind.Object && args.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number && v.TryGetInt32(out var i)
-            ? i : null;
+    /// <summary>
+    /// Optional integer argument. Absent or null is fine (null); present but not a whole number is an error, so
+    /// "value": "8" can never be mistaken for "clear the score".
+    /// </summary>
+    private static bool TryInt(JsonElement args, string name, out int? value, out string? error)
+    {
+        value = null;
+        error = null;
+        if (args.ValueKind != JsonValueKind.Object || !args.TryGetProperty(name, out var v) || v.ValueKind == JsonValueKind.Null) return true;
+        if (v.ValueKind == JsonValueKind.Number && v.TryGetInt32(out var i)) { value = i; return true; }
+        error = $"{name} must be a whole number";
+        return false;
+    }
+
+    /// <summary>Optional GUID argument: absent or empty is fine, a value that is not a GUID is an error.</summary>
+    private static bool TryOptionalGuid(JsonElement args, string name, out Guid? value, out string? error)
+    {
+        value = null;
+        error = null;
+        var text = ArgStr(args, name);
+        if (string.IsNullOrWhiteSpace(text)) return true;
+        if (Guid.TryParse(text, out var g)) { value = g; return true; }
+        error = $"{name} must be a GUID";
+        return false;
+    }
 
     private static Guid? ArgGuid(JsonElement args, string name) =>
         Guid.TryParse(ArgStr(args, name), out var g) ? g : null;

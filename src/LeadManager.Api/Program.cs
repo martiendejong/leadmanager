@@ -375,7 +375,7 @@ app.Use(async (context, next) =>
     {
         var metadata = context.GetEndpoint()?.Metadata;
         var requiresAuth = metadata?.GetMetadata<Microsoft.AspNetCore.Authorization.IAuthorizeData>() != null;
-        var allowed = metadata?.GetMetadata<AllowApiKeyAttribute>() != null
+        var allowed = (metadata?.GetMetadata<AllowApiKeyAttribute>() != null && metadata.GetMetadata<DenyApiKeyAttribute>() == null)
                       || metadata?.GetMetadata<Microsoft.AspNetCore.Authorization.IAllowAnonymous>() != null
                       || !requiresAuth; // open endpoints (health, static files) stay open
         if (!allowed)

@@ -12,8 +12,12 @@ gekopieerd, ongewijzigd) met een tokenbron op de API-key-tabel van de app.
 2. Gebruik die sleutel als Bearer-token:
 
 ```
-claude mcp add --transport http jengo-clients https://clients-test.martiendejong.nl/mcp --header "Authorization: Bearer lm_..."
+claude mcp add --transport http jengo-clients https://clients.prospergenics.com/mcp --header "Authorization: Bearer lm_..."
 ```
+
+Dezelfde sleutel werkt ook op de REST-API voor klanten, projecten, leads (CRM-deel), gesprekken en acties; verwijderen
+(klant of project) kan alleen vanuit de app. Let op: `claude mcp add --header` zet de sleutel in je shell-geschiedenis en
+in de Claude-configuratie.
 
 De sleutel handelt als de gebruiker die hem maakte: dezelfde leads en klanten, dezelfde regels. Een
 ingetrokken sleutel of een gedeactiveerde gebruiker wordt geweigerd. Een JWT van de inlogpagina is geen

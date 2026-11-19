@@ -151,7 +151,7 @@ export default function IntegrationsPage() {
           </ul>
         )}
         <p className="text-xs text-gray-400 mt-3">
-          Een sleutel doet alles wat jij kunt in klanten, projecten, contacten en acties, en niets daarbuiten. Hij verloopt niet: trek hem in als hij lekt.
+          Een sleutel werkt op klanten, projecten, contacten, gesprekken en acties, en niets daarbuiten; verwijderen kan alleen hier in de app. Hij verloopt niet: trek hem in als hij lekt.
         </p>
       </section>
 
@@ -165,7 +165,7 @@ export default function IntegrationsPage() {
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mt-4 mb-1">Andere MCP-clients (JSON)</p>
         <CopyBlock text={jsonConfig} label="MCP JSON-configuratie" />
         <p className="text-xs text-gray-400 mt-3">
-          ChatGPT en de Claude.ai-connectors vragen inloggen via OAuth; dat is er nog niet. Claude Code, agents en andere tools werken met de sleutel.
+          ChatGPT en de Claude.ai-connectors vragen inloggen via OAuth; dat is er nog niet. Claude Code, agents en andere tools werken met de sleutel. Let op: de opdracht zet de sleutel in je shell-geschiedenis en in de Claude-configuratie.
         </p>
         <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mt-5 mb-2">Wat een agent kan</h3>
         <ul className="space-y-1">

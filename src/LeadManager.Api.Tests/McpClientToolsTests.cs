@@ -139,4 +139,38 @@ public class McpClientToolsTests : IDisposable
         Assert.Equal("bel Bas", Parse(list)[0].GetProperty("title").GetString());
         Assert.Equal("Acme", Parse(list)[0].GetProperty("parentName").GetString());
     }
+
+    [Theory]
+    [InlineData("\"8\"")]
+    [InlineData("8.5")]
+    [InlineData("true")]
+    public async Task SetPriority_RefusesAValueThatIsNotAWholeNumber_InsteadOfClearing(string raw)
+    {
+        var key = SeedKey("a@x.test");
+        var (created, _) = await Tool(key, "create_client", new { name = "Acme" });
+        var clientId = Parse(created).GetProperty("id").GetGuid();
+        await Tool(key, "set_client_priority", new { client_id = clientId, value = 8, urgency = 5, effort = 2 });
+
+        var http = new DefaultHttpContext();
+        http.Request.Headers.Authorization = $"Bearer {key}";
+        var controller = new LeadManagerMcpController(_options, new ApiKeyTokenValidator(_db), _db, _access, NullLogger<LeadManagerMcpController>.Instance)
+        { ControllerContext = new ControllerContext { HttpContext = http } };
+        var json = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"set_client_priority\",\"arguments\":{\"client_id\":\"" + clientId + "\",\"value\":" + raw + "}}}";
+        var reply = JsonSerializer.SerializeToElement(Assert.IsType<OkObjectResult>(await controller.Post(JsonSerializer.Deserialize<JsonElement>(json))).Value);
+        Assert.True(reply.GetProperty("result").GetProperty("isError").GetBoolean());
+
+        var stored = await _db.Clients.AsNoTracking().SingleAsync();
+        Assert.Equal(8, stored.PriorityValue);
+    }
+
+    [Fact]
+    public async Task LogInteraction_WithABadProjectId_IsAnError_NotASilentUnlink()
+    {
+        var key = SeedKey("a@x.test");
+        var (created, _) = await Tool(key, "create_client", new { name = "Acme" });
+        var clientId = Parse(created).GetProperty("id").GetGuid();
+        var (text, isError) = await Tool(key, "log_interaction", new { parent_type = "clients", parent_id = clientId, kind = "Note", summary = "x", project_id = "geen-guid" });
+        Assert.True(isError, text);
+        Assert.Empty(await _db.Interactions.ToListAsync());
+    }
 }
