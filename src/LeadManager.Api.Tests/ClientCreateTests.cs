@@ -106,4 +106,23 @@ public class ClientCreateTests : IDisposable
         Assert.Null(dto.Website);
         Assert.Null(dto.EngagementCategory);
     }
+
+    [Fact]
+    public async Task Create_WithProjects_StoresThemOnTheClient()
+    {
+        var dto = Dto("Acme") with { Projects = new() { new("Site", "nieuwe site", "Active"), new("Beheer", null, null) } };
+        var created = Assert.IsType<CreatedAtActionResult>(await As("me").CreateClient(dto));
+        var res = Assert.IsType<ClientDto>(created.Value);
+        Assert.Equal(2, res.Projects.Count);
+        Assert.Equal(2, await _db.Projects.CountAsync());
+        Assert.Contains(res.Projects, p => p.Name == "Beheer" && p.Status == "Active");
+    }
+
+    [Fact]
+    public async Task Create_WithBadProject_StoresNothing()
+    {
+        var dto = Dto("Acme") with { Projects = new() { new("ok", null, null), new("slecht", null, "Bogus") } };
+        Assert.IsType<BadRequestObjectResult>(await As("me").CreateClient(dto));
+        Assert.Empty(await _db.Clients.ToListAsync());
+    }
 }

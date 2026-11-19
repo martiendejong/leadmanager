@@ -51,13 +51,19 @@ function NewClientDialog({ onClose, onCreated }: { onClose: () => void; onCreate
     }
   }
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !saving) onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [saving, onClose])
+
   const input = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500'
   const label = 'block text-xs font-medium text-gray-600 mb-1'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-label="Nieuwe klant">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="nc-title">
       <form onSubmit={submit} className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 space-y-4">
-        <h2 className="text-lg font-semibold text-gray-900">Nieuwe klant</h2>
+        <h2 id="nc-title" className="text-lg font-semibold text-gray-900">Nieuwe klant</h2>
         <div>
           <label className={label} htmlFor="nc-name">Naam *</label>
           <input id="nc-name" className={input} value={form.name} onChange={set('name')} autoFocus maxLength={200} required />
@@ -103,7 +109,7 @@ function NewClientDialog({ onClose, onCreated }: { onClose: () => void; onCreate
         </div>
         {error && <p className="text-sm text-red-600" role="alert">{error}</p>}
         <div className="flex justify-end gap-2 pt-2">
-          <button type="button" onClick={onClose} className="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">Annuleren</button>
+          <button type="button" onClick={onClose} disabled={saving} className="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">Annuleren</button>
           <button type="submit" disabled={saving} className="px-4 py-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">
             {saving ? 'Opslaan...' : 'Klant toevoegen'}
           </button>

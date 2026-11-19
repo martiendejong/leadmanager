@@ -47,6 +47,7 @@ export interface CreateClientData {
   website?: string | null
   notes?: string | null
   engagementCategory?: string | null
+  projects?: { name: string; description?: string | null; status?: string | null }[]
 }
 
 export async function createClient(data: CreateClientData): Promise<Client> {

@@ -45,6 +45,8 @@ public record UpdateClientDto(
     string? Notes,
     string? EngagementCategory);
 
+public record CreateClientProjectDto(string Name, string? Description, string? Status);
+
 public record CreateClientDto(
     string Name,
     string? Plan,
@@ -55,4 +57,5 @@ public record CreateClientDto(
     string? Sector,
     string? Website,
     string? Notes,
-    string? EngagementCategory);
+    string? EngagementCategory,
+    List<CreateClientProjectDto>? Projects = null);

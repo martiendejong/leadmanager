@@ -72,11 +72,11 @@ public class ClientsController : ControllerBase
             return BadRequest(new { error = "Onbekende omgangscategorie." });
 
         var email = CrmRules.Clean(dto.PrimaryContactEmail);
-        if (email != null && (!email.Contains('@') || email.Length > 320))
+        if (email != null && (email.Length > 320 || !System.Net.Mail.MailAddress.TryCreate(email, out _)))
             return BadRequest(new { error = "E-mailadres is niet geldig." });
 
         var notes = CrmRules.Clean(dto.Notes);
-        var fields = new[] { dto.Plan, dto.PrimaryContactName, dto.PrimaryContactPhone, dto.City, dto.Sector };
+        var fields = new[] { dto.Plan, dto.PrimaryContactName, dto.PrimaryContactPhone, dto.City, dto.Sector }.Select(CrmRules.Clean);
         if (fields.Any(f => CrmRules.TooLong(f, CrmRules.MaxName)) || CrmRules.TooLong(notes, CrmRules.MaxNotes))
             return BadRequest(new { error = "Een veld is te lang." });
 
@@ -84,8 +84,21 @@ public class ClientsController : ControllerBase
         var exists = await _db.Clients.AnyAsync(c => c.CreatedByUserId == userId && c.Name.ToLower() == name.ToLower());
         if (exists) return Conflict(new { error = "Je hebt al een klant met deze naam." });
 
+        var projects = new List<Project>();
+        foreach (var p in dto.Projects ?? new List<CreateClientProjectDto>())
+        {
+            var pn = CrmRules.Clean(p.Name);
+            if (pn == null || CrmRules.TooLong(pn, CrmRules.MaxName)) return BadRequest(new { error = "Projectnaam ontbreekt of is te lang." });
+            var pd = CrmRules.Clean(p.Description);
+            if (CrmRules.TooLong(pd, CrmRules.MaxNotes)) return BadRequest(new { error = "Projectomschrijving is te lang." });
+            var ps = CrmRules.Clean(p.Status) ?? "Active";
+            if (!new[] { "Active", "Completed", "On Hold" }.Contains(ps)) return BadRequest(new { error = "Onbekende projectstatus." });
+            projects.Add(new Project { Name = pn, Description = pd, Status = ps });
+        }
+
         var client = new Client
         {
+            Projects = projects,
             Name = name,
             Plan = CrmRules.Clean(dto.Plan),
             PrimaryContactName = CrmRules.Clean(dto.PrimaryContactName),
