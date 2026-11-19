@@ -78,6 +78,8 @@ public class EntityLink
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid? LeadId { get; set; }
     public Guid? ClientId { get; set; }
+    /// <summary>Optional: the link belongs to one project of the client (a repo, a board of that project).</summary>
+    public Guid? ProjectId { get; set; }
     public EntityLinkKind Kind { get; set; } = EntityLinkKind.Web;
     public string Label { get; set; } = "";
     public string? Url { get; set; }

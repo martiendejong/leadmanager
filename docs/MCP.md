@@ -1,64 +1,63 @@
-# Jengo Clients · MCP-server
+# Jengo Clients · MCP server
 
-`POST /mcp` laat agents en andere Jengo-tools leads en klanten lezen en schrijven. De endpoint is de
-gedeelde connector uit `jengo-components` (`dotnet/mcp-connector`, in `src/LeadManager.Api/Mcp/Connector/`
-gekopieerd, ongewijzigd) met een tokenbron op de API-key-tabel van de app.
+`POST /mcp` lets agents and other Jengo tools read and write leads and clients. The endpoint is the shared
+connector from `jengo-components` (`dotnet/mcp-connector`, copied unchanged into `src/LeadManager.Api/Mcp/Connector/`)
+with a token source backed by the app's API key table.
 
-## Aansluiten
+## Connecting
 
-1. Maak een API-key aan in de app onder **Koppelingen** (of `POST /api/api-keys` met `{"name": "..."}`; de sleutel
-   begint met `lm_` en wordt maar één keer getoond). Dat scherm geeft ook de kant-en-klare opdracht voor Claude Code
-   en een JSON-configuratie voor andere MCP-clients.
-2. Gebruik die sleutel als Bearer-token:
+1. Create an API key in the app under **Integrations** (or `POST /api/api-keys` with `{"name": "..."}`; the key
+   starts with `lm_` and is shown only once). That screen also gives the ready-made command for Claude Code
+   and a JSON configuration for other MCP clients.
+2. Use that key as a Bearer token:
 
 ```
 claude mcp add --transport http jengo-clients https://clients.prospergenics.com/mcp --header "Authorization: Bearer lm_..."
 ```
 
-Dezelfde sleutel werkt ook op de REST-API voor klanten, projecten, leads (CRM-deel), gesprekken en acties; verwijderen
-(klant of project) kan alleen vanuit de app. Let op: `claude mcp add --header` zet de sleutel in je shell-geschiedenis en
-in de Claude-configuratie.
+The same key also works on the REST API for clients, projects, leads (CRM part), interactions and actions; deleting
+(a client or project) is only possible from the app. Note: `claude mcp add --header` puts the key in your shell history and
+in the Claude configuration.
 
-De sleutel handelt als de gebruiker die hem maakte: dezelfde leads en klanten, dezelfde regels. Een
-ingetrokken sleutel of een gedeactiveerde gebruiker wordt geweigerd. Een JWT van de inlogpagina is geen
-geldig MCP-token.
+The key acts as the user who created it: the same leads and clients, the same rules. A revoked key or a
+deactivated user is rejected. A JWT from the login page is not a valid MCP token.
 
 ## Tools
 
-| Tool | Doet |
+| Tool | Does |
 |---|---|
-| `search_leads` | Zoek leads en klanten op naam, e-mailadres of domein |
-| `find_by_email_or_domain` | Wie is dit? E-mailadres of domein naar lead of klant (vindt ook contactpersonen) |
-| `get_lead` | Alles over één lead of klant: gegevens, contacten, open acties, links, laatste geschiedenis |
-| `create_lead` | Lead aanmaken, of de bestaande teruggeven als het websitedomein al bekend is (veilig te herhalen) |
-| `log_interaction` | Gesprek vastleggen (bellen, mail, WhatsApp, meeting, notitie); `source_ref` maakt het idempotent |
-| `add_next_action` | Volgende stap plannen; komt op de Vandaag-lijst als hij aan de beurt is |
-| `complete_next_action` | Actie afvinken |
-| `next_actions_today` | De belijst: vandaag (Nederlandse tijd) of achterstallig, met naam en telefoonnummer |
-| `list_clients` | Alle klanten, hoogste prioriteit eerst, met score, projecten, volgende actie en laatste contact |
-| `create_client` | Klant handmatig toevoegen (weigert dezelfde naam twee keer) |
-| `set_client_priority` | Waarde, urgentie en inspanning zetten: score = waarde × urgentie ÷ inspanning² |
-| `create_project` | Project toevoegen aan een klant; `log_interaction` accepteert daarbij `project_id` |
-| `list_documents` | Het dossier van een klant: offertes, opdrachten, overeenkomsten, verwerkersovereenkomsten, NDA's met status, bedrag, datums, voorgaand document en bestandsnamen |
-| `add_document` | Document vastleggen in het dossier (gegevens en eventueel een link); bestanden uploaden doe je in de app. Koppel met `predecessor_id`: offerte, opdracht, overeenkomst |
-| `list_actions` | Alle open acties over leads en klanten in een periode, met naam |
-| `add_contact` | Persoon toevoegen aan een lead of klant |
-| `link_item` | Koppelen aan iets in een andere tool: JengoWork-bord of -taak, JengoKnowledge-project, mailthread, Meet-sessie |
+| `search_leads` | Search leads and clients by name, email address or domain |
+| `find_by_email_or_domain` | Who is this? Email address or domain to lead or client (also finds contacts) |
+| `get_lead` | Everything about one lead or client: details, contacts, open actions, links, recent history |
+| `create_lead` | Create a lead, or return the existing one if the website domain is already known (safe to repeat) |
+| `log_interaction` | Record an interaction (call, email, WhatsApp, meeting, note); `source_ref` makes it idempotent |
+| `add_next_action` | Plan a next step; appears on the Today list when it is due |
+| `complete_next_action` | Tick off an action |
+| `next_actions_today` | The call list: due today (Dutch time) or overdue, with name and phone number |
+| `list_clients` | All clients, highest priority first, with score, projects, next action and last contact |
+| `create_client` | Add a client manually (refuses the same name twice) |
+| `set_client_priority` | Set value, urgency and effort: score = value × urgency ÷ effort² |
+| `create_project` | Add a project to a client; `log_interaction` then accepts `project_id` |
+| `list_documents` | A client's file: quotes, assignments, agreements, data processing agreements, NDAs with status, amount, dates, previous document and file names |
+| `add_document` | Record a document in the file (details and optionally a link); uploading files is done in the app. Chain with `predecessor_id`: quote, assignment, agreement |
+| `list_actions` | All open actions across leads and clients in a period, with name |
+| `add_contact` | Add a person to a lead or client |
+| `link_item` | Link to something in another tool: JengoWork board or task, JengoKnowledge project, mail thread, Meet session |
 
-Voor `get_lead`, `log_interaction`, `add_next_action`, `add_contact` en `link_item` is `parent_type`
-`leads` (standaard) of `clients`, met het bijbehorende `parent_id`. Tijden zijn ISO 8601; zonder zone geldt UTC.
+For `get_lead`, `log_interaction`, `add_next_action`, `add_contact` and `link_item`, `parent_type` is
+`leads` (default) or `clients`, with the matching `parent_id`. Times are ISO 8601; without a zone, UTC applies.
 
-## Eén set regels
+## One set of rules
 
-Elke tool roept dezelfde controller aan als de REST-API, als de gebruiker achter de sleutel. Eigenaarschap,
-validatie, limieten, `SourceRef`-idempotentie en UTC-tijden zijn dus overal gelijk, en een tool kan nooit meer
-dan het REST-endpoint dat hij omhult. Fouten komen terug als toolfout (`isError: true`) met de reden, niet als
-serverfout.
+Every tool calls the same controller as the REST API, as the user behind the key. Ownership,
+validation, limits, `SourceRef` idempotency and UTC times are therefore the same everywhere, and a tool can never do more
+than the REST endpoint it wraps. Errors come back as a tool error (`isError: true`) with the reason, not as a
+server error.
 
-## Nog niet
+## Not yet
 
-- **Geen OAuth.** ChatGPT- en Claude.ai-connectors vragen OAuth (autorisatiecode met PKCE). De connector heeft
-  daar een basis voor (`OAuthControllerBase`), maar LeadManager heeft nog geen toestemmingsscherm.
-  Claude Code, agents en andere tools werken nu al met de sleutel. De 401 wijst al naar
-  `/.well-known/oauth-protected-resource`, dat nu nog niet bestaat.
-- Elke tool werkt voor één eigenaar tegelijk; delen van leads tussen gebruikers bestaat in de app nog niet.
+- **No OAuth.** ChatGPT and Claude.ai connectors require OAuth (authorization code with PKCE). The connector
+  has a base for it (`OAuthControllerBase`), but LeadManager has no consent screen yet.
+  Claude Code, agents and other tools already work with the key. The 401 already points to
+  `/.well-known/oauth-protected-resource`, which does not exist yet.
+- Each tool works for one owner at a time; sharing leads between users does not exist in the app yet.

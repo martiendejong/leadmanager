@@ -1,6 +1,6 @@
 #!/bin/sh
-# Start van de Jengo Clients-container. Maakt de mappen op het datavolume aan en start de API.
-# Een datamap die al data bevat blijft onaangeroerd: een deploy overschrijft nooit bestaande data.
+# Start of the Jengo Clients container. Creates the folders on the data volume and starts the API.
+# A data folder that already contains data is left untouched: a deploy never overwrites existing data.
 set -e
 
 mkdir -p /data/dp-keys

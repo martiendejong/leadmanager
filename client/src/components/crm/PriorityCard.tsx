@@ -20,8 +20,8 @@ export function ScoreBadge({ score }: { score: number | undefined | null }) {
         : 'bg-blue-50 text-blue-700 border-blue-200'
   return (
     <span
-      title="Prioriteit = waarde × urgentie ÷ inspanning²"
-      aria-label={score ? `Prioriteit ${formatScore(score)}` : 'Prioriteit nog niet bepaald'}
+      title="Priority = value × urgency ÷ effort²"
+      aria-label={score ? `Priority ${formatScore(score)}` : 'Priority not set yet'}
       className={`inline-flex items-center text-xs font-semibold border rounded-full px-2 py-0.5 ${cls}`}
     >
       {formatScore(score)}
@@ -55,9 +55,9 @@ export default function PriorityCard({ client, onSaved }: { client: Client; onSa
     try {
       const saved = await updatePriority(client.id, { value: num(value), urgency: num(urgency), effort: num(effort) })
       onSaved(saved)
-      showToast('Prioriteit opgeslagen', 'success')
+      showToast('Priority saved', 'success')
     } catch (err) {
-      showToast(errorMessage(err, 'Opslaan mislukt'), 'error')
+      showToast(errorMessage(err, 'Could not save'), 'error')
     } finally {
       setBusy(false)
     }
@@ -65,7 +65,7 @@ export default function PriorityCard({ client, onSaved }: { client: Client; onSa
 
   const options = (
     <>
-      <option value="">Nog niet bepaald</option>
+      <option value="">Not set yet</option>
       {FIB.map((n) => <option key={n} value={n}>{n}</option>)}
     </>
   )
@@ -73,33 +73,33 @@ export default function PriorityCard({ client, onSaved }: { client: Client; onSa
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-base font-semibold text-gray-900">Prioriteit</h2>
+        <h2 className="text-base font-semibold text-gray-900">Priority</h2>
         <div className="flex items-center gap-2 text-sm text-gray-500">
           Score <ScoreBadge score={client.score} />
         </div>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div>
-          <label className={label} htmlFor="pr-value">Waarde (omzet, strategisch belang)</label>
+          <label className={label} htmlFor="pr-value">Value (revenue, strategic importance)</label>
           <select id="pr-value" className={select} value={value} onChange={(e) => setValue(e.target.value)}>{options}</select>
         </div>
         <div>
-          <label className={label} htmlFor="pr-urgency">Urgentie (hoe snel moet het)</label>
+          <label className={label} htmlFor="pr-urgency">Urgency (how soon)</label>
           <select id="pr-urgency" className={select} value={urgency} onChange={(e) => setUrgency(e.target.value)}>{options}</select>
         </div>
         <div>
-          <label className={label} htmlFor="pr-effort">Inspanning (hoeveel werk)</label>
+          <label className={label} htmlFor="pr-effort">Effort (how much work)</label>
           <select id="pr-effort" className={select} value={effort} onChange={(e) => setEffort(e.target.value)}>{options}</select>
         </div>
       </div>
       <div className="flex items-center justify-between mt-3">
-        <p className="text-xs text-gray-400">Prioriteit = waarde × urgentie ÷ inspanning², zoals bij JengoWork. Zonder alle drie blijft de score leeg.</p>
+        <p className="text-xs text-gray-400">Priority = value × urgency ÷ effort², as in JengoWork. Without all three the score stays empty.</p>
         <button
           onClick={save}
           disabled={busy || !dirty}
           className="text-sm px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
         >
-          Opslaan
+          Save
         </button>
       </div>
     </div>

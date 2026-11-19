@@ -7,6 +7,6 @@ public class Project
     public Client Client { get; set; } = null!;
     public string Name { get; set; } = "";
     public string? Description { get; set; }
-    public string Status { get; set; } = "Active";   // Active, Completed, On Hold
+    public string Status { get; set; } = "Active";   // Concept, Pilot, Active, Maintenance, On Hold, Completed, Archived (see ProjectStatuses)
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

@@ -21,43 +21,43 @@ export default function Layout() {
   // Close menu on navigation
   const closeMenu = () => setMenuOpen(false)
 
-  // Nav items in correct order: Leads | Klanten | Profiel | Leads zoeken | Gebruikers
+  // Nav items in correct order: Leads | Clients | Profile | Find leads | Users
   const navItems = (
     <>
-      <NavLink to="/vandaag" className={linkClass} onClick={closeMenu}>Vandaag</NavLink>
-      <NavLink to="/acties" className={linkClass} onClick={closeMenu}>Acties</NavLink>
+      <NavLink to="/today" className={linkClass} onClick={closeMenu}>Today</NavLink>
+      <NavLink to="/actions" className={linkClass} onClick={closeMenu}>Actions</NavLink>
       <NavLink to="/leads" className={linkClass} end onClick={closeMenu}>Leads</NavLink>
-      <NavLink to="/clients" className={linkClass} onClick={closeMenu}>Klanten</NavLink>
-      <NavLink to="/profile" className={linkClass} onClick={closeMenu}>Profiel</NavLink>
-      <NavLink to="/leads/zoeken" className={linkClass} onClick={closeMenu}>Leads zoeken</NavLink>
-      <NavLink to="/leads/analytics" className={linkClass} onClick={closeMenu}>Analyse</NavLink>
-      <NavLink to="/settings" className={linkClass} onClick={closeMenu}>Instellingen</NavLink>
-      <NavLink to="/koppelingen" className={linkClass} onClick={closeMenu}>Koppelingen</NavLink>
+      <NavLink to="/clients" className={linkClass} onClick={closeMenu}>Clients</NavLink>
+      <NavLink to="/profile" className={linkClass} onClick={closeMenu}>Profile</NavLink>
+      <NavLink to="/leads/search" className={linkClass} onClick={closeMenu}>Find leads</NavLink>
+      <NavLink to="/leads/analytics" className={linkClass} onClick={closeMenu}>Analytics</NavLink>
+      <NavLink to="/settings" className={linkClass} onClick={closeMenu}>Settings</NavLink>
+      <NavLink to="/integrations" className={linkClass} onClick={closeMenu}>Integrations</NavLink>
       {user?.role === 'Admin' && (
-        <NavLink to="/admin/users" className={linkClass} onClick={closeMenu}>Gebruikers</NavLink>
+        <NavLink to="/admin/users" className={linkClass} onClick={closeMenu}>Users</NavLink>
       )}
     </>
   )
 
   const mobileNavItems = (
     <>
-      <NavLink to="/vandaag" className={mobileLinkClass} onClick={closeMenu}>Vandaag</NavLink>
-      <NavLink to="/acties" className={mobileLinkClass} onClick={closeMenu}>Acties</NavLink>
+      <NavLink to="/today" className={mobileLinkClass} onClick={closeMenu}>Today</NavLink>
+      <NavLink to="/actions" className={mobileLinkClass} onClick={closeMenu}>Actions</NavLink>
       <NavLink to="/leads" className={mobileLinkClass} end onClick={closeMenu}>Leads</NavLink>
-      <NavLink to="/clients" className={mobileLinkClass} onClick={closeMenu}>Klanten</NavLink>
-      <NavLink to="/profile" className={mobileLinkClass} onClick={closeMenu}>Profiel</NavLink>
-      <NavLink to="/leads/zoeken" className={mobileLinkClass} onClick={closeMenu}>Leads zoeken</NavLink>
-      <NavLink to="/leads/analytics" className={mobileLinkClass} onClick={closeMenu}>Analyse</NavLink>
-      <NavLink to="/settings" className={mobileLinkClass} onClick={closeMenu}>Instellingen</NavLink>
-      <NavLink to="/koppelingen" className={mobileLinkClass} onClick={closeMenu}>Koppelingen</NavLink>
+      <NavLink to="/clients" className={mobileLinkClass} onClick={closeMenu}>Clients</NavLink>
+      <NavLink to="/profile" className={mobileLinkClass} onClick={closeMenu}>Profile</NavLink>
+      <NavLink to="/leads/search" className={mobileLinkClass} onClick={closeMenu}>Find leads</NavLink>
+      <NavLink to="/leads/analytics" className={mobileLinkClass} onClick={closeMenu}>Analytics</NavLink>
+      <NavLink to="/settings" className={mobileLinkClass} onClick={closeMenu}>Settings</NavLink>
+      <NavLink to="/integrations" className={mobileLinkClass} onClick={closeMenu}>Integrations</NavLink>
       {user?.role === 'Admin' && (
-        <NavLink to="/admin/users" className={mobileLinkClass} onClick={closeMenu}>Gebruikers</NavLink>
+        <NavLink to="/admin/users" className={mobileLinkClass} onClick={closeMenu}>Users</NavLink>
       )}
     </>
   )
 
   // Close menu when route changes
-  if (!menuOpen && location) { /* intentional — location dependency keeps menu closed on nav */ }
+  if (!menuOpen && location) { /* intentional: location dependency keeps menu closed on nav */ }
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -67,7 +67,7 @@ export default function Layout() {
           {/* Logo */}
           <div className="flex-shrink-0">
             <span className="text-xl font-bold text-indigo-700 tracking-tight">
-              LeadManager
+              Clients
             </span>
           </div>
 
@@ -84,14 +84,14 @@ export default function Layout() {
               onClick={logout}
               className="hidden sm:block text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg transition-colors"
             >
-              Uitloggen
+              Log out
             </button>
 
             {/* Hamburger (mobile only) */}
             <button
               onClick={() => setMenuOpen(!menuOpen)}
               className="sm:hidden p-2 rounded-lg text-gray-600 hover:text-indigo-600 hover:bg-gray-100 transition-colors"
-              aria-label={menuOpen ? 'Menu sluiten' : 'Menu openen'}
+              aria-label={menuOpen ? 'Close menu' : 'Open menu'}
             >
               {menuOpen ? (
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -118,7 +118,7 @@ export default function Layout() {
                 onClick={() => { logout(); closeMenu() }}
                 className="text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg transition-colors"
               >
-                Uitloggen
+                Log out
               </button>
             </div>
           </div>

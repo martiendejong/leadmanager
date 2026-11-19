@@ -57,7 +57,7 @@ public class StaleLeadJobService
                     {
                         UserId = userId,
                         Type = NotificationType.StaleLeadWarning,
-                        Message = $"Lead '{lead.Name}' is al meer dan 7 dagen niet bijgewerkt.",
+                        Message = $"Lead '{lead.Name}' has not been updated for more than 7 days.",
                         LinkedLeadId = lead.Id,
                         IsRead = false,
                         CreatedAt = now
@@ -87,7 +87,7 @@ public class StaleLeadJobService
                     {
                         UserId = userId,
                         Type = NotificationType.ReminderDue,
-                        Message = $"Herinnering voor lead '{lead.Name}' is verlopen.",
+                        Message = $"Reminder for lead '{lead.Name}' is overdue.",
                         LinkedLeadId = lead.Id,
                         IsRead = false,
                         CreatedAt = now

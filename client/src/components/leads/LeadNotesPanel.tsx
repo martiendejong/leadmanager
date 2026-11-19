@@ -23,7 +23,7 @@ export default function LeadNotesPanel({ leadId }: Props) {
       const data = await fetchLeadNotes(leadId)
       setNotes(data)
     } catch (err: any) {
-      showToast(err.response?.data || 'Notities laden mislukt', 'error')
+      showToast(err.response?.data || 'Could not load notes', 'error')
     } finally {
       setIsLoading(false)
     }
@@ -34,7 +34,7 @@ export default function LeadNotesPanel({ leadId }: Props) {
     if (!newNoteContent.trim()) return
 
     if (newNoteContent.length > 5000) {
-      showToast('Notitie mag maximaal 5000 tekens bevatten', 'error')
+      showToast('Note can contain at most 5000 characters', 'error')
       return
     }
 
@@ -43,23 +43,23 @@ export default function LeadNotesPanel({ leadId }: Props) {
       const created = await createLeadNote(leadId, { content: newNoteContent.trim() })
       setNotes([created, ...notes])
       setNewNoteContent('')
-      showToast('Notitie toegevoegd', 'success')
+      showToast('Note added', 'success')
     } catch (err: any) {
-      showToast(err.response?.data || 'Notitie toevoegen mislukt', 'error')
+      showToast(err.response?.data || 'Could not add note', 'error')
     } finally {
       setIsSubmitting(false)
     }
   }
 
   const handleDelete = async (noteId: string) => {
-    if (!confirm('Weet je zeker dat je deze notitie wilt verwijderen?')) return
+    if (!confirm('Are you sure you want to delete this note?')) return
 
     try {
       await deleteLeadNote(leadId, noteId)
       setNotes(notes.filter(n => n.id !== noteId))
-      showToast('Notitie verwijderd', 'success')
+      showToast('Note deleted', 'success')
     } catch (err: any) {
-      showToast(err.response?.data || 'Notitie verwijderen mislukt', 'error')
+      showToast(err.response?.data || 'Could not delete note', 'error')
     }
   }
 
@@ -71,12 +71,12 @@ export default function LeadNotesPanel({ leadId }: Props) {
     const diffHours = Math.floor(diffMs / 3600000)
     const diffDays = Math.floor(diffMs / 86400000)
 
-    if (diffMins < 1) return 'Zojuist'
-    if (diffMins < 60) return `${diffMins} min geleden`
-    if (diffHours < 24) return `${diffHours} uur geleden`
-    if (diffDays < 7) return `${diffDays} dag${diffDays > 1 ? 'en' : ''} geleden`
+    if (diffMins < 1) return 'Just now'
+    if (diffMins < 60) return `${diffMins} min ago`
+    if (diffHours < 24) return `${diffHours} h ago`
+    if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`
 
-    return date.toLocaleDateString('nl-NL', {
+    return date.toLocaleDateString('en-GB', {
       day: 'numeric',
       month: 'short',
       year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
@@ -88,7 +88,7 @@ export default function LeadNotesPanel({ leadId }: Props) {
       {/* Add Note Form */}
       <form onSubmit={handleSubmit} className="bg-gray-50 border rounded-lg p-4">
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Nieuwe notitie
+          New note
         </label>
         <textarea
           value={newNoteContent}
@@ -96,19 +96,19 @@ export default function LeadNotesPanel({ leadId }: Props) {
           rows={3}
           maxLength={5000}
           className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2"
-          placeholder="Voeg een gesprek of notitie toe..."
+          placeholder="Add a conversation or note..."
           disabled={isSubmitting}
         />
         <div className="flex items-center justify-between">
           <span className="text-xs text-gray-500">
-            {newNoteContent.length} / 5000 tekens
+            {newNoteContent.length} / 5000 characters
           </span>
           <button
             type="submit"
             disabled={isSubmitting || !newNoteContent.trim()}
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
           >
-            {isSubmitting ? 'Toevoegen...' : 'Toevoegen'}
+            {isSubmitting ? 'Adding...' : 'Add'}
           </button>
         </div>
       </form>
@@ -116,14 +116,14 @@ export default function LeadNotesPanel({ leadId }: Props) {
       {/* Notes Feed */}
       <div>
         <h3 className="text-sm font-semibold text-gray-700 mb-3">
-          Notities ({notes.length})
+          Notes ({notes.length})
         </h3>
 
         {isLoading ? (
-          <div className="text-center py-8 text-gray-500">Laden...</div>
+          <div className="text-center py-8 text-gray-500">Loading...</div>
         ) : notes.length === 0 ? (
           <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg border">
-            Nog geen notities. Voeg de eerste toe!
+            No notes yet. Add the first one!
           </div>
         ) : (
           <div className="space-y-3">
@@ -148,7 +148,7 @@ export default function LeadNotesPanel({ leadId }: Props) {
                   <button
                     onClick={() => handleDelete(note.id)}
                     className="text-red-600 hover:text-red-800 p-1"
-                    title="Verwijder notitie"
+                    title="Delete note"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

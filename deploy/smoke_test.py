@@ -126,7 +126,7 @@ def main() -> int:
 
         if lead_id:
             r = s.post(f"{base}/api/leads/{lead_id}/interactions", headers=k, timeout=30,
-                       json={"kind": "Call", "summary": "smoke call", "outcome": "geen gehoor"})
+                       json={"kind": "Call", "summary": "smoke call", "outcome": "no answer"})
             check(r.status_code == 201, "API key logs a call")
             r = s.get(f"{base}/api/leads/{lead_id}/timeline", headers=k, timeout=30)
             check(r.status_code == 200 and any(i["summary"] == "smoke call" for i in r.json()), "the call is in the timeline")

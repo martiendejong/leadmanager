@@ -260,7 +260,7 @@ public class LeadsController : ControllerBase
 
         if (!hasWebsite && !hasManualInput)
         {
-            return BadRequest("Vul minimaal een veld in: Website URL of vrije tekst invoer.");
+            return BadRequest("Fill in at least one field: Website URL or free-text input.");
         }
 
         // Validate ManualInput length (Task #3)
@@ -355,10 +355,10 @@ public class LeadsController : ControllerBase
         var userId = GetCurrentUserId();
 
         var target = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == userId);
-        if (target == null) return NotFound("Target lead niet gevonden.");
+        if (target == null) return NotFound("Target lead not found.");
 
         var source = await _db.Leads.FirstOrDefaultAsync(l => l.Id == dto.SourceLeadId && l.ImportedByUserId == userId);
-        if (source == null) return NotFound("Source lead niet gevonden.");
+        if (source == null) return NotFound("Source lead not found.");
 
         // Merge: prefer non-null/non-empty existing value, else use source value
         static string MergeStr(string existing, string source) =>
@@ -532,7 +532,7 @@ public class LeadsController : ControllerBase
 
         if (result == null)
         {
-            return BadRequest("Sales approach kon niet worden gegenereerd. Controleer of de eigenaarsnaam en contactgegevens bekend zijn.");
+            return BadRequest("Sales approach could not be generated. Check that the owner name and contact details are known.");
         }
 
         // Save to lead
@@ -730,9 +730,9 @@ public class LeadsController : ControllerBase
             // Header row
             var columns = new[]
             {
-                "Naam", "Email", "Telefoon", "Contactpersoon", "Stad", "Sector",
-                "KvK", "Medewerkers", "Google Rating", "Sales Score",
-                "Verrijkt", "Aangemaakt"
+                "Name", "Email", "Phone", "Contact person", "City", "Sector",
+                "KvK", "Employees", "Google Rating", "Sales Score",
+                "Enriched", "Created"
             };
             for (int i = 0; i < columns.Length; i++)
                 ws.Cells[1, i + 1].Value = columns[i];
@@ -752,7 +752,7 @@ public class LeadsController : ControllerBase
                 ws.Cells[row, 8].Value  = l.EmployeeCount;
                 ws.Cells[row, 9].Value  = l.GoogleRating.HasValue ? (object)l.GoogleRating.Value : "";
                 ws.Cells[row, 10].Value = l.SalesPriorityScore.HasValue ? (object)l.SalesPriorityScore.Value : "";
-                ws.Cells[row, 11].Value = l.IsEnriched ? "Ja" : "Nee";
+                ws.Cells[row, 11].Value = l.IsEnriched ? "Yes" : "No";
                 ws.Cells[row, 12].Value = l.CreatedAt.ToString("yyyy-MM-dd");
             }
 
@@ -770,9 +770,9 @@ public class LeadsController : ControllerBase
 
             // Write header
             foreach (var col in new[] {
-                "naam", "email", "telefoon", "contactpersoon", "stad", "sector",
-                "kvk", "medewerkers", "google_rating", "google_reviews",
-                "sales_score", "verrijkt", "verrijkingsstatus", "aangemaakt"
+                "name", "email", "phone", "contact_person", "city", "sector",
+                "kvk", "employees", "google_rating", "google_reviews",
+                "sales_score", "enriched", "enrichment_status", "created"
             })
                 csvWriter.WriteField(col);
             csvWriter.NextRecord();
@@ -791,8 +791,8 @@ public class LeadsController : ControllerBase
                 csvWriter.WriteField(l.GoogleRating.HasValue ? l.GoogleRating.Value.ToString("F1") : "");
                 csvWriter.WriteField(l.GoogleReviewCount.HasValue ? l.GoogleReviewCount.Value.ToString() : "");
                 csvWriter.WriteField(l.SalesPriorityScore.HasValue ? l.SalesPriorityScore.Value.ToString() : "");
-                csvWriter.WriteField(l.IsEnriched ? "ja" : "nee");
-                csvWriter.WriteField(l.IsEnriched ? "verrijkt" : "niet verrijkt");
+                csvWriter.WriteField(l.IsEnriched ? "yes" : "no");
+                csvWriter.WriteField(l.IsEnriched ? "enriched" : "not enriched");
                 csvWriter.WriteField(l.CreatedAt.ToString("yyyy-MM-dd"));
                 csvWriter.NextRecord();
             }
@@ -819,7 +819,7 @@ public class LeadsController : ControllerBase
 
         if (result == null)
         {
-            return BadRequest("Outreach e-mail kon niet worden gegenereerd. Probeer opnieuw.");
+            return BadRequest("Outreach email could not be generated. Try again.");
         }
 
         return Ok(result);
@@ -1051,7 +1051,7 @@ public class LeadsController : ControllerBase
         var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == userId);
         if (lead == null) return NotFound();
         if (lead.ConvertedToClientId.HasValue)
-            return Conflict("Lead is al geconverteerd naar een klant.");
+            return Conflict("Lead has already been converted to a client.");
 
         var client = new Client
         {
@@ -1072,7 +1072,7 @@ public class LeadsController : ControllerBase
         {
             ClientId = client.Id,
             Name = $"Project - {client.Name}",
-            Description = "Standaard project aangemaakt bij conversie"
+            Description = "Default project created on conversion"
         };
         client.Projects.Add(project);
 

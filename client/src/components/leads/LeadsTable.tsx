@@ -19,15 +19,15 @@ interface LeadsTableProps {
 }
 
 const COLUMNS: { key: string; label: string; sortable: boolean; hideOnMobile: boolean }[] = [
-  { key: 'name',                label: 'Bedrijf',      sortable: true,  hideOnMobile: false },
+  { key: 'name',                label: 'Company',     sortable: true,  hideOnMobile: false },
   { key: 'website',             label: 'Website',      sortable: true,  hideOnMobile: true  },
   { key: 'sector',              label: 'Sector',       sortable: true,  hideOnMobile: true  },
-  { key: 'city',                label: 'Stad',         sortable: true,  hideOnMobile: true  },
-  { key: 'ownerName',           label: 'Eigenaar',     sortable: true,  hideOnMobile: true  },
+  { key: 'city',                label: 'City',         sortable: true,  hideOnMobile: true  },
+  { key: 'ownerName',           label: 'Owner',       sortable: true,  hideOnMobile: true  },
   { key: 'companyEmail',        label: 'Email',        sortable: false, hideOnMobile: true  },
   { key: 'salesPriorityScore',  label: 'Score',        sortable: true,  hideOnMobile: false },
   { key: 'isEnriched',          label: 'Status',       sortable: true,  hideOnMobile: false },
-  { key: 'enrichedAt',          label: 'Verrijkt op',  sortable: true,  hideOnMobile: true  },
+  { key: 'enrichedAt',          label: 'Enriched on',  sortable: true,  hideOnMobile: true  },
 ]
 
 function SortIcon({ active, desc }: { active: boolean; desc: boolean }) {
@@ -79,8 +79,8 @@ function EmptyState({ onImport }: { onImport?: () => void }) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
           </svg>
           <div>
-            <p className="text-sm font-medium text-gray-700">Nog geen leads</p>
-            <p className="text-xs text-gray-400 mt-1">Importeer je bestaande leads of laat AI nieuwe leads zoeken</p>
+            <p className="text-sm font-medium text-gray-700">No leads yet</p>
+            <p className="text-xs text-gray-400 mt-1">Import your existing leads or let AI find new ones</p>
           </div>
           <div className="flex items-center gap-3 flex-wrap justify-center">
             {onImport && (
@@ -88,14 +88,14 @@ function EmptyState({ onImport }: { onImport?: () => void }) {
                 onClick={onImport}
                 className="px-4 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium transition-colors"
               >
-                Importeer leads via Excel
+                Import leads from Excel
               </button>
             )}
             <Link
-              to="/leads/zoeken"
+              to="/leads/search"
               className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium transition-colors"
             >
-              Zoek leads met AI
+              Find leads with AI
             </Link>
           </div>
         </div>
@@ -140,7 +140,7 @@ export default function LeadsTable({
     () => (iso: string | null) => {
       if (!iso) return '—'
       try {
-        return new Date(iso).toLocaleDateString('nl-NL', {
+        return new Date(iso).toLocaleDateString('en-GB', {
           day: '2-digit',
           month: '2-digit',
           year: 'numeric',
@@ -230,7 +230,7 @@ export default function LeadsTable({
                     <LeadStatusBadge status={lead.status} />
                     {isStale(lead) && (
                       <span
-                        title="Lead niet bijgewerkt in 7+ dagen"
+                        title="Lead not updated in 7+ days"
                         className="flex-shrink-0 text-orange-400"
                       >
                         <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
@@ -273,11 +273,11 @@ export default function LeadsTable({
                 <td className="px-4 py-3 text-sm">
                   {lead.isEnriched ? (
                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                      Verrijkt
+                      Enriched
                     </span>
                   ) : (
                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-                      Niet verrijkt
+                      Not enriched
                     </span>
                   )}
                 </td>
@@ -288,7 +288,7 @@ export default function LeadsTable({
                   <button
                     onClick={() => onRowOpen(lead)}
                     className="p-1 text-gray-400 hover:text-indigo-600 rounded transition-colors"
-                    title="Details bekijken"
+                    title="View details"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />

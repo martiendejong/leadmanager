@@ -125,7 +125,7 @@ function KanbanColumn({ status, leads, onDragStart, onDrop }: ColumnProps) {
         ))}
         {leads.length === 0 && (
           <div className="flex items-center justify-center h-16 text-xs text-gray-400 italic">
-            Sleep hier naartoe
+            Drag here
           </div>
         )}
       </div>
@@ -146,7 +146,7 @@ export default function PipelinePage() {
       const data = await fetchLeadsByPipeline()
       setLeads(data)
     } catch {
-      showToast('Leads laden mislukt', 'error')
+      showToast('Could not load leads', 'error')
     } finally {
       setIsLoading(false)
     }
@@ -178,7 +178,7 @@ export default function PipelinePage() {
     try {
       await updateLeadPipelineStatus(leadId, targetStatus)
     } catch {
-      showToast('Status bijwerken mislukt', 'error')
+      showToast('Could not update status', 'error')
       // Revert
       setLeads((prev) =>
         prev.map((l) => l.id === leadId ? { ...l, pipelineStatus: lead.pipelineStatus } : l)
@@ -200,7 +200,7 @@ export default function PipelinePage() {
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Pipeline</h2>
           <p className="text-sm text-gray-500 mt-0.5">
-            {leads.length.toLocaleString('nl-NL')} leads in de pipeline
+            {leads.length.toLocaleString('en-GB')} leads in the pipeline
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -209,7 +209,7 @@ export default function PipelinePage() {
             <button
               onClick={() => navigate('/leads')}
               className="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100"
-              title="Lijstweergave"
+              title="List view"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
@@ -217,7 +217,7 @@ export default function PipelinePage() {
             </button>
             <button
               className="px-3 py-2 text-sm bg-indigo-600 text-white font-medium border-l border-gray-300"
-              title="Pipeline weergave"
+              title="Pipeline view"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
@@ -232,7 +232,7 @@ export default function PipelinePage() {
             <svg className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
-            Vernieuwen
+            Refresh
           </button>
         </div>
       </div>
@@ -245,7 +245,7 @@ export default function PipelinePage() {
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
-            <span className="text-sm">Laden…</span>
+            <span className="text-sm">Loading…</span>
           </div>
         </div>
       ) : (

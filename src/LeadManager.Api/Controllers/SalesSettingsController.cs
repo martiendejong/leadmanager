@@ -82,7 +82,7 @@ public class SalesSettingsController : ControllerBase
     {
         var userId = GetUserId();
         var lead = await _db.Leads.FindAsync(req.LeadId);
-        if (lead == null) return NotFound("Lead niet gevonden");
+        if (lead == null) return NotFound("Lead not found");
 
         var settings = await GetOrCreateSettings(userId);
         var script = await _scriptGenerator.GenerateAsync(lead, settings, req.ExtraContext);

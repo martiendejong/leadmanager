@@ -38,11 +38,11 @@ export default function ConvertToClientWizard({ lead, onClose }: Props) {
         primaryContactPhone: contactPhone || null,
         notes: notes || null,
       })
-      showToast(`${client.name} is succesvol geconverteerd naar klant!`, 'success')
+      showToast(`${client.name} was successfully converted to a client!`, 'success')
       onClose()
       navigate(`/clients/${client.id}`)
     } catch (err: any) {
-      showToast(err.response?.data || 'Conversie mislukt', 'error')
+      showToast(err.response?.data || 'Could not convert lead', 'error')
     } finally {
       setSubmitting(false)
     }
@@ -54,7 +54,7 @@ export default function ConvertToClientWizard({ lead, onClose }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div>
-            <h2 className="text-lg font-bold text-gray-900">Converteer naar klant</h2>
+            <h2 className="text-lg font-bold text-gray-900">Convert to client</h2>
             <p className="text-sm text-gray-500 mt-0.5">{lead.name}</p>
           </div>
           <button
@@ -81,7 +81,7 @@ export default function ConvertToClientWizard({ lead, onClose }: Props) {
               </div>
               <span className={`ml-2 text-xs font-medium hidden sm:block
                 ${step === s ? 'text-indigo-600' : step > s ? 'text-green-600' : 'text-gray-400'}`}>
-                {s === 1 ? 'Bedrijfsinfo' : s === 2 ? 'Contactpersoon' : 'Bevestigen'}
+                {s === 1 ? 'Company info' : s === 2 ? 'Contact person' : 'Confirm'}
               </span>
               {s < 3 && <div className="mx-3 h-px w-8 bg-gray-200 flex-shrink-0" />}
             </div>
@@ -94,14 +94,14 @@ export default function ConvertToClientWizard({ lead, onClose }: Props) {
             <>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Bedrijfsnaam <span className="text-red-500">*</span>
+                  Company name <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  placeholder="Naam van het bedrijf"
+                  placeholder="Company name"
                 />
               </div>
               <div>
@@ -112,20 +112,20 @@ export default function ConvertToClientWizard({ lead, onClose }: Props) {
                   onChange={(e) => setPlan(e.target.value)}
                   list="plan-suggestions"
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  placeholder="Bijv. Starter, Pro, Enterprise"
+                  placeholder="E.g. Starter, Pro, Enterprise"
                 />
                 <datalist id="plan-suggestions">
                   {PLAN_SUGGESTIONS.map((p) => <option key={p} value={p} />)}
                 </datalist>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Notities</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
                 <textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   rows={3}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
-                  placeholder="Optionele notities..."
+                  placeholder="Optional notes..."
                 />
               </div>
             </>
@@ -133,29 +133,29 @@ export default function ConvertToClientWizard({ lead, onClose }: Props) {
 
           {step === 2 && (
             <>
-              <p className="text-sm text-gray-500">Contactgegevens zijn pre-ingevuld vanuit de lead. Pas aan indien nodig.</p>
+              <p className="text-sm text-gray-500">Contact details are pre-filled from the lead. Edit them if needed.</p>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Naam contactpersoon</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Contact name</label>
                 <input
                   type="text"
                   value={contactName}
                   onChange={(e) => setContactName(e.target.value)}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  placeholder="Naam"
+                  placeholder="Name"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">E-mailadres</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email address</label>
                 <input
                   type="email"
                   value={contactEmail}
                   onChange={(e) => setContactEmail(e.target.value)}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  placeholder="email@bedrijf.nl"
+                  placeholder="email@company.com"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Telefoonnummer</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Phone number</label>
                 <input
                   type="tel"
                   value={contactPhone}
@@ -169,10 +169,10 @@ export default function ConvertToClientWizard({ lead, onClose }: Props) {
 
           {step === 3 && (
             <div className="space-y-3">
-              <p className="text-sm text-gray-600 font-medium">Controleer de gegevens voor conversie:</p>
+              <p className="text-sm text-gray-600 font-medium">Review the details before converting:</p>
               <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-gray-500">Bedrijfsnaam</span>
+                  <span className="text-gray-500">Company name</span>
                   <span className="font-medium text-gray-900">{name}</span>
                 </div>
                 {plan && (
@@ -183,29 +183,29 @@ export default function ConvertToClientWizard({ lead, onClose }: Props) {
                 )}
                 {contactName && (
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Contactpersoon</span>
+                    <span className="text-gray-500">Contact person</span>
                     <span className="font-medium text-gray-900">{contactName}</span>
                   </div>
                 )}
                 {contactEmail && (
                   <div className="flex justify-between">
-                    <span className="text-gray-500">E-mail</span>
+                    <span className="text-gray-500">Email</span>
                     <span className="font-medium text-gray-900 break-all">{contactEmail}</span>
                   </div>
                 )}
                 {contactPhone && (
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Telefoon</span>
+                    <span className="text-gray-500">Phone</span>
                     <span className="font-medium text-gray-900">{contactPhone}</span>
                   </div>
                 )}
                 <div className="flex justify-between pt-1 border-t border-gray-200">
-                  <span className="text-gray-500">Standaard project</span>
+                  <span className="text-gray-500">Default project</span>
                   <span className="font-medium text-gray-900">Project - {name}</span>
                 </div>
               </div>
               <p className="text-xs text-gray-400">
-                Er wordt een klantrecord en een standaard project aangemaakt. De lead wordt gemarkeerd als geconverteerd.
+                A client record and a default project will be created. The lead will be marked as converted.
               </p>
             </div>
           )}
@@ -217,7 +217,7 @@ export default function ConvertToClientWizard({ lead, onClose }: Props) {
             onClick={step === 1 ? onClose : () => setStep(step - 1)}
             className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
           >
-            {step === 1 ? 'Annuleren' : 'Terug'}
+            {step === 1 ? 'Cancel' : 'Back'}
           </button>
           {step < 3 ? (
             <button
@@ -225,7 +225,7 @@ export default function ConvertToClientWizard({ lead, onClose }: Props) {
               disabled={step === 1 && !name.trim()}
               className="px-5 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
             >
-              Volgende
+              Next
             </button>
           ) : (
             <button
@@ -239,9 +239,9 @@ export default function ConvertToClientWizard({ lead, onClose }: Props) {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
-                  Bezig...
+                  Working...
                 </>
-              ) : 'Converteer naar klant'}
+              ) : 'Convert to client'}
             </button>
           )}
         </div>

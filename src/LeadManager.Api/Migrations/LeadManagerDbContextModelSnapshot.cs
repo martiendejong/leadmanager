@@ -644,6 +644,9 @@ namespace LeadManager.Api.Migrations
                     b.Property<Guid?>("LeadId")
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid?>("ProjectId")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Url")
                         .HasColumnType("TEXT");
 
@@ -652,6 +655,8 @@ namespace LeadManager.Api.Migrations
                     b.HasIndex("ClientId");
 
                     b.HasIndex("LeadId");
+
+                    b.HasIndex("ProjectId");
 
                     b.ToTable("EntityLinks", t =>
                         {
@@ -1536,6 +1541,11 @@ namespace LeadManager.Api.Migrations
                     b.HasOne("LeadManager.Api.Models.Lead", null)
                         .WithMany()
                         .HasForeignKey("LeadId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("LeadManager.Api.Models.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Cascade);
                 });
 

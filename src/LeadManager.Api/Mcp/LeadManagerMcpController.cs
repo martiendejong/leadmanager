@@ -98,7 +98,7 @@ public class LeadManagerMcpController : McpControllerBase
             },
             "parent_id", "kind", "summary"),
         Tool("add_next_action",
-            "Plan the next step for a lead or client. It shows up on the Vandaag list when it is due.",
+            "Plan the next step for a lead or client. It shows up on the Today list when it is due.",
             new
             {
                 parent_type = ParentTypeSchema, parent_id = ParentIdSchema,
@@ -128,7 +128,7 @@ public class LeadManagerMcpController : McpControllerBase
             {
                 name = Str("Client name"), contact_name = Str("Main contact"), email = Str("Contact e-mail"), phone = Str("Contact phone"),
                 city = Str("City"), sector = Str("Sector"), website = Str("Website"), notes = Str("Notes"),
-                engagement_category = new { type = "string", @enum = new[] { "Actief", "Beheercontract", "Reactief" } },
+                engagement_category = new { type = "string", @enum = new[] { "Active", "Maintenance", "Reactive" } },
             },
             "name"),
         Tool("set_client_priority",
@@ -146,7 +146,7 @@ public class LeadManagerMcpController : McpControllerBase
             new
             {
                 client_id = Str("Id of the client"), name = Str("Project name"), description = Str("Short description"),
-                status = new { type = "string", @enum = new[] { "Active", "On Hold", "Completed" } },
+                status = new { type = "string", @enum = ProjectStatuses.All, description = "Concept = internal draft, Pilot, Active, Maintenance = beheer, On Hold, Completed" },
             },
             "client_id", "name"),
         Tool("list_documents",
@@ -184,6 +184,7 @@ public class LeadManagerMcpController : McpControllerBase
                 label = Str("Name shown to the user"),
                 url = Str("http(s) URL"),
                 external_id = Str("Id in the other system"),
+                project_id = Str("Optional: link it to one project of this client instead of the client itself (e.g. the GitHub repo of that project)"),
             },
             "parent_id", "kind", "label"),
     ];
@@ -359,9 +360,10 @@ public class LeadManagerMcpController : McpControllerBase
                 {
                     var parent = ParentArgs(args, out var error);
                     if (parent == null) return (error!, true);
+                    if (!TryOptionalGuid(args, "project_id", out var linkProjectId, out error)) return (error!, true);
                     return Present(await As(new EntityLinksController(_db, _access), userId).Create(
                         parent.Value.type, parent.Value.id,
-                        new CreateEntityLinkDto(ArgStr(args, "kind") ?? "", ArgStr(args, "label") ?? "", ArgStr(args, "url"), ArgStr(args, "external_id"))));
+                        new CreateEntityLinkDto(ArgStr(args, "kind") ?? "", ArgStr(args, "label") ?? "", ArgStr(args, "url"), ArgStr(args, "external_id"), linkProjectId)));
                 }
 
                 default:

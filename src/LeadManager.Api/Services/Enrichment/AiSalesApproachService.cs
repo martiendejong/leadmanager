@@ -64,8 +64,8 @@ public class AiSalesApproachService
         var channelPriority = hasLinkedIn ? "linkedin" : hasPhone ? "phone" : "email";
 
         var warnings = new List<string>();
-        if (!hasPhone) warnings.Add("Geen mobiel nummer gevonden");
-        if (!hasEmail) warnings.Add("Geen persoonlijk email gevonden");
+        if (!hasPhone) warnings.Add("No mobile number found");
+        if (!hasEmail) warnings.Add("No personal email found");
         if (!ownerKnown) warnings.Add("Eigenaar onbekend — gebruik receptionist/office script");
 
         return $@"Genereer een gepersonaliseerde sales approach voor dit bedrijf in {language}.

@@ -43,7 +43,7 @@ const primaryBtn = 'text-sm px-3 py-1.5 rounded-lg bg-indigo-600 text-white hove
 const ghostBtn = 'text-xs px-2 py-1 rounded-md text-gray-500 hover:bg-gray-100'
 
 function fmtDateTime(iso: string) {
-  return new Date(iso).toLocaleString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  return new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
 function toLocalInput(d: Date) {
@@ -96,7 +96,7 @@ export default function CrmPanel({ parentType, parentId }: Props) {
       setTrack(tr)
     } catch (err) {
       if (request !== latest.current) return
-      showToast(errorMessage(err, 'Gespreksgegevens laden mislukt'), 'error')
+      showToast(errorMessage(err, 'Could not load conversation data'), 'error')
     } finally {
       if (request === latest.current) setLoading(false)
     }
@@ -107,7 +107,7 @@ export default function CrmPanel({ parentType, parentId }: Props) {
     load()
   }, [load])
 
-  if (loading) return <p className="text-sm text-gray-400">Gespreksgegevens laden…</p>
+  if (loading) return <p className="text-sm text-gray-400">Loading conversation data…</p>
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -141,7 +141,7 @@ function NextActionsCard({ parentType, parentId, actions, onChanged }: Props & {
       setDue(atNine(1))
       onChanged()
     } catch (err) {
-      showToast(errorMessage(err, 'Actie toevoegen mislukt'), 'error')
+      showToast(errorMessage(err, 'Could not add action'), 'error')
     } finally {
       setBusy(false)
     }
@@ -152,22 +152,22 @@ function NextActionsCard({ parentType, parentId, actions, onChanged }: Props & {
       await completeNextAction(id)
       onChanged()
     } catch (err) {
-      showToast(errorMessage(err, 'Afronden mislukt'), 'error')
+      showToast(errorMessage(err, 'Could not complete action'), 'error')
     }
   }
 
   return (
     <div className={card}>
-      <h3 className={heading}>Volgende actie</h3>
+      <h3 className={heading}>Next action</h3>
       {actions.length === 0 ? (
-        <p className="text-sm text-gray-400 mb-3">Geen open acties. Plan de volgende stap zodat niets blijft liggen.</p>
+        <p className="text-sm text-gray-400 mb-3">No open actions. Plan the next step so nothing slips.</p>
       ) : (
         <ul className="space-y-2 mb-3">
           {actions.map((a) => {
             const overdue = new Date(a.dueAt) < new Date()
             return (
               <li key={a.id} className="flex items-center gap-2 text-sm">
-                <button onClick={() => done(a.id)} className={ghostBtn} title="Markeer als gedaan">✓ Klaar</button>
+                <button onClick={() => done(a.id)} className={ghostBtn} title="Mark as done">✓ Done</button>
                 <span className="flex-1 text-gray-800">{a.title}</span>
                 <span className={`text-xs px-2 py-0.5 rounded-full ${overdue ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}`}>
                   {fmtDateTime(a.dueAt)}
@@ -178,12 +178,12 @@ function NextActionsCard({ parentType, parentId, actions, onChanged }: Props & {
         </ul>
       )}
       <form onSubmit={add} className="space-y-2">
-        <input className={input} placeholder="Bijvoorbeeld: terugbellen over de offerte" value={title} onChange={(e) => setTitle(e.target.value)} />
+        <input className={input} placeholder="For example: call back about the quote" value={title} onChange={(e) => setTitle(e.target.value)} />
         <div className="flex gap-2 items-center flex-wrap">
           <input type="datetime-local" className={`${input} !w-auto`} value={due} onChange={(e) => setDue(e.target.value)} />
-          <button type="button" className={ghostBtn} onClick={() => setDue(atNine(1))}>Morgen</button>
-          <button type="button" className={ghostBtn} onClick={() => setDue(atNine(7))}>Over een week</button>
-          <button type="submit" disabled={busy || !title.trim()} className={`${primaryBtn} ml-auto`}>Plannen</button>
+          <button type="button" className={ghostBtn} onClick={() => setDue(atNine(1))}>Tomorrow</button>
+          <button type="button" className={ghostBtn} onClick={() => setDue(atNine(7))}>In a week</button>
+          <button type="submit" disabled={busy || !title.trim()} className={`${primaryBtn} ml-auto`}>Schedule</button>
         </div>
       </form>
     </div>
@@ -213,10 +213,10 @@ function LogInteractionCard({ parentType, parentId, contacts, onChanged }: Props
       })
       setSummary('')
       setOutcome('')
-      showToast('Gesprek vastgelegd', 'success')
+      showToast('Conversation logged', 'success')
       onChanged()
     } catch (err) {
-      showToast(errorMessage(err, 'Vastleggen mislukt'), 'error')
+      showToast(errorMessage(err, 'Could not log conversation'), 'error')
     } finally {
       setBusy(false)
     }
@@ -224,7 +224,7 @@ function LogInteractionCard({ parentType, parentId, contacts, onChanged }: Props
 
   return (
     <div className={card}>
-      <h3 className={heading}>Gesprek vastleggen</h3>
+      <h3 className={heading}>Log a conversation</h3>
       <form onSubmit={submit} className="space-y-2">
         <div className="flex gap-2 flex-wrap">
           <select className={`${input} !w-auto`} value={kind} onChange={(e) => setKind(e.target.value as InteractionKind)}>
@@ -234,13 +234,13 @@ function LogInteractionCard({ parentType, parentId, contacts, onChanged }: Props
           </select>
           {kind !== 'Note' && (
             <select className={`${input} !w-auto`} value={direction} onChange={(e) => setDirection(e.target.value as InteractionDirection)}>
-              <option value="Outbound">Uitgaand</option>
-              <option value="Inbound">Inkomend</option>
+              <option value="Outbound">Outbound</option>
+              <option value="Inbound">Inbound</option>
             </select>
           )}
           {contacts.length > 0 && (
             <select className={`${input} !w-auto`} value={contactId} onChange={(e) => setContactId(e.target.value)}>
-              <option value="">Met wie? (optioneel)</option>
+              <option value="">With whom? (optional)</option>
               {contacts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           )}
@@ -259,9 +259,9 @@ function LogInteractionCard({ parentType, parentId, contacts, onChanged }: Props
             ))}
           </div>
         )}
-        <textarea className={input} rows={3} placeholder="Wat is er besproken of afgesproken?" value={summary} onChange={(e) => setSummary(e.target.value)} />
+        <textarea className={input} rows={3} placeholder="What was discussed or agreed?" value={summary} onChange={(e) => setSummary(e.target.value)} />
         <div className="flex justify-end">
-          <button type="submit" disabled={busy || !summary.trim()} className={primaryBtn}>Vastleggen</button>
+          <button type="submit" disabled={busy || !summary.trim()} className={primaryBtn}>Log</button>
         </div>
       </form>
     </div>
@@ -276,9 +276,9 @@ const KIND_ICON: Record<string, string> = {
 function TimelineCard({ items }: { items: TimelineItem[] }) {
   return (
     <div className={card}>
-      <h3 className={heading}>Geschiedenis <span className="font-normal normal-case text-gray-400">({items.length})</span></h3>
+      <h3 className={heading}>History <span className="font-normal normal-case text-gray-400">({items.length})</span></h3>
       {items.length === 0 ? (
-        <p className="text-sm text-gray-400">Nog geen contact vastgelegd.</p>
+        <p className="text-sm text-gray-400">No contact logged yet.</p>
       ) : (
         <ol className="space-y-3">
           {items.map((i) => (
@@ -290,7 +290,7 @@ function TimelineCard({ items }: { items: TimelineItem[] }) {
                     {i.source === 'activity' ? i.kind : INTERACTION_LABELS[i.kind as InteractionKind] ?? i.kind}
                   </span>
                   {i.direction && i.direction !== 'Internal' && (
-                    <span className="text-xs text-gray-400">{i.direction === 'Inbound' ? 'inkomend' : 'uitgaand'}</span>
+                    <span className="text-xs text-gray-400">{i.direction === 'Inbound' ? 'inbound' : 'outbound'}</span>
                   )}
                   {i.outcome && <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700">{i.outcome}</span>}
                   {i.projectName && <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{i.projectName}</span>}
@@ -322,36 +322,36 @@ function ContactsCard({ parentType, parentId, contacts, onChanged }: Props & { c
       setAdding(false)
       onChanged()
     } catch (err) {
-      showToast(errorMessage(err, 'Contact toevoegen mislukt'), 'error')
+      showToast(errorMessage(err, 'Could not add contact'), 'error')
     } finally {
       setBusy(false)
     }
   }
 
   const remove = async (c: Contact) => {
-    if (!confirm(`${c.name} verwijderen?`)) return
+    if (!confirm(`Delete ${c.name}?`)) return
     try {
       await deleteContact(c.id)
       onChanged()
     } catch (err) {
-      showToast(errorMessage(err, 'Verwijderen mislukt'), 'error')
+      showToast(errorMessage(err, 'Could not delete'), 'error')
     }
   }
 
   return (
     <div className={card}>
       <div className="flex items-center justify-between">
-        <h3 className={heading}>Contacten <span className="font-normal normal-case text-gray-400">({contacts.length})</span></h3>
-        <button className={ghostBtn} onClick={() => setAdding(!adding)}>{adding ? 'Annuleren' : '+ Toevoegen'}</button>
+        <h3 className={heading}>Contacts <span className="font-normal normal-case text-gray-400">({contacts.length})</span></h3>
+        <button className={ghostBtn} onClick={() => setAdding(!adding)}>{adding ? 'Cancel' : '+ Add'}</button>
       </div>
-      {contacts.length === 0 && !adding && <p className="text-sm text-gray-400">Nog geen contactpersonen.</p>}
+      {contacts.length === 0 && !adding && <p className="text-sm text-gray-400">No contacts yet.</p>}
       <ul className="space-y-3">
         {contacts.map((c) => (
           <li key={c.id} className="text-sm">
             <div className="flex items-center gap-2">
               <span className="font-medium text-gray-800">{c.name}</span>
               {c.role && <span className="text-xs text-gray-400">{c.role}</span>}
-              <button className={`${ghostBtn} ml-auto`} onClick={() => remove(c)}>Verwijderen</button>
+              <button className={`${ghostBtn} ml-auto`} onClick={() => remove(c)}>Delete</button>
             </div>
             <div className="flex gap-3 flex-wrap text-xs mt-0.5">
               {c.mobile && <a className="text-indigo-600 hover:underline" href={`tel:${c.mobile.replace(/\s/g, '')}`}>{c.mobile}</a>}
@@ -363,15 +363,15 @@ function ContactsCard({ parentType, parentId, contacts, onChanged }: Props & { c
       </ul>
       {adding && (
         <form onSubmit={save} className="space-y-2 mt-3 border-t border-gray-100 pt-3">
-          <input className={input} placeholder="Naam" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          <input className={input} placeholder="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           <div className="grid grid-cols-2 gap-2">
-            <input className={input} placeholder="Functie" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} />
-            <input className={input} placeholder="E-mail" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-            <input className={input} placeholder="Telefoon" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-            <input className={input} placeholder="Mobiel" value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} />
+            <input className={input} placeholder="Role" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} />
+            <input className={input} placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+            <input className={input} placeholder="Phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+            <input className={input} placeholder="Mobile" value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} />
           </div>
           <div className="flex justify-end">
-            <button type="submit" disabled={busy || !form.name.trim()} className={primaryBtn}>Opslaan</button>
+            <button type="submit" disabled={busy || !form.name.trim()} className={primaryBtn}>Save</button>
           </div>
         </form>
       )}
@@ -398,7 +398,7 @@ function LinksCard({ parentType, parentId, links, onChanged }: Props & { links: 
       setAdding(false)
       onChanged()
     } catch (err) {
-      showToast(errorMessage(err, 'Koppeling toevoegen mislukt'), 'error')
+      showToast(errorMessage(err, 'Could not add link'), 'error')
     } finally {
       setBusy(false)
     }
@@ -409,18 +409,18 @@ function LinksCard({ parentType, parentId, links, onChanged }: Props & { links: 
       await deleteLink(l.id)
       onChanged()
     } catch (err) {
-      showToast(errorMessage(err, 'Verwijderen mislukt'), 'error')
+      showToast(errorMessage(err, 'Could not delete'), 'error')
     }
   }
 
   return (
     <div className={card}>
       <div className="flex items-center justify-between">
-        <h3 className={heading}>Koppelingen <span className="font-normal normal-case text-gray-400">({links.length})</span></h3>
-        <button className={ghostBtn} onClick={() => setAdding(!adding)}>{adding ? 'Annuleren' : '+ Toevoegen'}</button>
+        <h3 className={heading}>Links <span className="font-normal normal-case text-gray-400">({links.length})</span></h3>
+        <button className={ghostBtn} onClick={() => setAdding(!adding)}>{adding ? 'Cancel' : '+ Add'}</button>
       </div>
       {links.length === 0 && !adding && (
-        <p className="text-sm text-gray-400">Koppel het JengoWork-bord, het JengoKnowledge-project of een mailthread.</p>
+        <p className="text-sm text-gray-400">Link the JengoWork board, the Knowledge project or a mail thread.</p>
       )}
       <ul className="space-y-2">
         {links.map((l) => {
@@ -433,7 +433,7 @@ function LinksCard({ parentType, parentId, links, onChanged }: Props & { links: 
               ) : (
                 <span className="text-gray-700 truncate">{l.label}</span>
               )}
-              <button className={`${ghostBtn} ml-auto`} onClick={() => remove(l)}>Verwijderen</button>
+              <button className={`${ghostBtn} ml-auto`} onClick={() => remove(l)}>Delete</button>
             </li>
           )
         })}
@@ -443,10 +443,10 @@ function LinksCard({ parentType, parentId, links, onChanged }: Props & { links: 
           <select className={input} value={kind} onChange={(e) => setKind(e.target.value as EntityLinkKind)}>
             {(Object.keys(LINK_LABELS) as EntityLinkKind[]).map((k) => <option key={k} value={k}>{LINK_LABELS[k]}</option>)}
           </select>
-          <input className={input} placeholder="Naam, bijvoorbeeld Bord Hogenkamp" value={label} onChange={(e) => setLabel(e.target.value)} />
+          <input className={input} placeholder="Name, for example Hogenkamp board" value={label} onChange={(e) => setLabel(e.target.value)} />
           <input className={input} placeholder="https://…" value={url} onChange={(e) => setUrl(e.target.value)} />
           <div className="flex justify-end">
-            <button type="submit" disabled={busy || !label.trim() || !url.trim()} className={primaryBtn}>Opslaan</button>
+            <button type="submit" disabled={busy || !label.trim() || !url.trim()} className={primaryBtn}>Save</button>
           </div>
         </form>
       )}
@@ -469,19 +469,19 @@ function ClicksCard({ parentType, parentId, track }: Props & { track: TrackTimel
   const [busy, setBusy] = useState(false)
 
   const copyLink = async () => {
-    const url = window.prompt('Naar welke pagina moet de link wijzen?', 'https://')
+    const url = window.prompt('Which page should the link point to?', 'https://')
     if (!url || !url.trim()) return
     setBusy(true)
     try {
       const link = await createTrackedLink(parentType, parentId, { url: url.trim() })
       try {
         await navigator.clipboard.writeText(link.shortUrl)
-        showToast('Link met tracking gekopieerd', 'success')
+        showToast('Tracked link copied', 'success')
       } catch {
-        window.prompt('Kopieer deze link met tracking:', link.shortUrl)
+        window.prompt('Copy this tracked link:', link.shortUrl)
       }
     } catch (err) {
-      showToast(errorMessage(err, 'Link met tracking maken mislukt'), 'error')
+      showToast(errorMessage(err, 'Could not create tracked link'), 'error')
     } finally {
       setBusy(false)
     }
@@ -490,12 +490,12 @@ function ClicksCard({ parentType, parentId, track }: Props & { track: TrackTimel
   return (
     <div className={card}>
       <div className="flex items-center justify-between">
-        <h3 className={heading}>Klikken <span className="font-normal normal-case text-gray-400">({track.humanClickCount})</span></h3>
-        <button className={ghostBtn} disabled={busy} onClick={copyLink}>Link kopiëren met tracking</button>
+        <h3 className={heading}>Clicks <span className="font-normal normal-case text-gray-400">({track.humanClickCount})</span></h3>
+        <button className={ghostBtn} disabled={busy} onClick={copyLink}>Copy tracked link</button>
       </div>
-      {!track.available && <p className="text-sm text-gray-400">Klikgegevens zijn nu niet beschikbaar.</p>}
+      {!track.available && <p className="text-sm text-gray-400">Click data is not available right now.</p>}
       {track.available && track.human.length === 0 && (
-        <p className="text-sm text-gray-400">Nog niemand heeft op een link geklikt.</p>
+        <p className="text-sm text-gray-400">Nobody has clicked a link yet.</p>
       )}
       <ul className="space-y-2">
         {track.human.map((c, i) => (
@@ -509,7 +509,7 @@ function ClicksCard({ parentType, parentId, track }: Props & { track: TrackTimel
       {track.machine.length > 0 && (
         <div className="mt-3 border-t border-gray-100 pt-2">
           <button className={ghostBtn} onClick={() => setShowMachine(!showMachine)}>
-            {showMachine ? 'Verberg' : 'Toon'} automatische klikken ({track.machine.length})
+            {showMachine ? 'Hide' : 'Show'} automatic clicks ({track.machine.length})
           </button>
           {showMachine && (
             <ul className="space-y-1 mt-2">

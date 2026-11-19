@@ -95,31 +95,31 @@ public class DocumentsController : ControllerBase
         if (!string.IsNullOrWhiteSpace(dto.Status) && !TryParseName(dto.Status, out status)) return "Onbekende status.";
 
         var title = Clean(dto.Title);
-        if (title == null) return "Titel is verplicht.";
-        if (TooLong(title, MaxTitle)) return "Titel is te lang.";
+        if (title == null) return "Title is required.";
+        if (TooLong(title, MaxTitle)) return "Title is too long.";
         var reference = Clean(dto.Reference);
-        if (TooLong(reference, MaxReference)) return "Kenmerk is te lang.";
+        if (TooLong(reference, MaxReference)) return "Reference is too long.";
         var notes = Clean(dto.Notes);
-        if (TooLong(notes, MaxNotes)) return "Notities zijn te lang.";
+        if (TooLong(notes, MaxNotes)) return "Notes are too long.";
         var url = Clean(dto.Url);
         if (url != null && !url.Contains("://")) url = "https://" + url;
-        if (url != null && !IsSafeHttpUrl(url)) return "Link moet een geldig http(s)-adres zijn.";
-        if (dto.Amount is < 0 or > 1_000_000_000m) return "Bedrag is niet geldig.";
+        if (url != null && !IsSafeHttpUrl(url)) return "Link must be a valid http(s) address.";
+        if (dto.Amount is < 0 or > 1_000_000_000m) return "Amount is not valid.";
 
         if (dto.ProjectId.HasValue && !await _db.Projects.AnyAsync(p => p.Id == dto.ProjectId && p.ClientId == doc.ClientId))
-            return "Project hoort niet bij deze klant.";
+            return "Project does not belong to this client.";
 
         if (dto.PredecessorId.HasValue)
         {
-            if (dto.PredecessorId == doc.Id) return "Een document kan niet op zichzelf volgen.";
+            if (dto.PredecessorId == doc.Id) return "A document cannot follow itself.";
             // Same client, and walking back up the chain must never meet this document (no loops).
             var current = dto.PredecessorId;
             for (var i = 0; current.HasValue; i++)
             {
-                if (i > 50) return "De keten van documenten is te lang.";
+                if (i > 50) return "The document chain is too long.";
                 var prev = await _db.ClientDocuments.Where(d => d.Id == current).Select(d => new { d.ClientId, d.PredecessorId }).FirstOrDefaultAsync();
-                if (prev == null || prev.ClientId != doc.ClientId) return "Voorgaand document hoort niet bij deze klant.";
-                if (prev.PredecessorId == doc.Id) return "Dit zou een kringverwijzing maken.";
+                if (prev == null || prev.ClientId != doc.ClientId) return "Previous document does not belong to this client.";
+                if (prev.PredecessorId == doc.Id) return "This would create a circular reference.";
                 current = prev.PredecessorId;
             }
         }
@@ -188,15 +188,15 @@ public class DocumentsController : ControllerBase
     {
         var doc = await FindOwned(id);
         if (doc == null) return NotFound();
-        if (file == null || file.Length == 0) return BadRequest(new { error = "Kies een bestand." });
-        if (file.Length > DocumentStorage.MaxFileBytes) return BadRequest(new { error = "Bestand is groter dan 25 MB." });
-        if (doc.Files.Count >= DocumentStorage.MaxFilesPerDocument) return BadRequest(new { error = "Er passen maximaal 20 bestanden bij één document." });
+        if (file == null || file.Length == 0) return BadRequest(new { error = "Choose a file." });
+        if (file.Length > DocumentStorage.MaxFileBytes) return BadRequest(new { error = "File is larger than 25 MB." });
+        if (doc.Files.Count >= DocumentStorage.MaxFilesPerDocument) return BadRequest(new { error = "A document can hold at most 20 files." });
 
         var name = DocumentStorage.CleanName(file.FileName);
         var contentType = DocumentStorage.ContentTypeFor(name);
-        if (contentType == null) return BadRequest(new { error = $"Dit bestandstype mag niet. Toegestaan: {DocumentStorage.AllowedExtensions}." });
+        if (contentType == null) return BadRequest(new { error = $"This file type is not allowed. Allowed: {DocumentStorage.AllowedExtensions}." });
         var cleanLabel = Clean(label);
-        if (TooLong(cleanLabel, MaxLabel)) return BadRequest(new { error = "Label is te lang." });
+        if (TooLong(cleanLabel, MaxLabel)) return BadRequest(new { error = "Label is too long." });
 
         string storagePath;
         long size;
@@ -208,7 +208,7 @@ public class DocumentsController : ControllerBase
         }
         catch (InvalidDataException)
         {
-            return BadRequest(new { error = "Bestand is groter dan 25 MB." });
+            return BadRequest(new { error = "File is larger than 25 MB." });
         }
 
         var row = new ClientDocumentFile
@@ -247,7 +247,7 @@ public class DocumentsController : ControllerBase
         var row = await FindOwnedFile(fileId);
         if (row == null) return NotFound();
         var stream = _storage.Open(row.StoragePath);
-        if (stream == null) return NotFound(new { error = "Het bestand ontbreekt op de server." });
+        if (stream == null) return NotFound(new { error = "The file is missing on the server." });
 
         Response.Headers["X-Content-Type-Options"] = "nosniff";
         Response.Headers.CacheControl = "private, no-store";

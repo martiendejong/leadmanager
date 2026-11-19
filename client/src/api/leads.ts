@@ -82,7 +82,7 @@ export interface Lead {
   convertedToClientId?: string | null
   // Stale-lead reminder (869ck3j52/869ck3j58)
   reminderDate?: string | null
-  // Workflow automation (stap 1-10)
+  // Workflow automation (steps 1-10)
   workflowStep?: number
   workflowDataJson?: string | null
 }
@@ -473,12 +473,12 @@ export const PIPELINE_STATUSES = ['New', 'Contacted', 'Qualified', 'ProposalSent
 export type PipelineStatus = typeof PIPELINE_STATUSES[number]
 
 export const PIPELINE_STATUS_LABELS: Record<PipelineStatus, string> = {
-  New: 'Nieuw',
-  Contacted: 'Gecontacteerd',
-  Qualified: 'Gekwalificeerd',
-  ProposalSent: 'Offerte verstuurd',
-  Won: 'Gewonnen',
-  Lost: 'Verloren',
+  New: 'New',
+  Contacted: 'Contacted',
+  Qualified: 'Qualified',
+  ProposalSent: 'Quote sent',
+  Won: 'Won',
+  Lost: 'Lost',
 }
 
 export async function updateLeadPipelineStatus(leadId: string, status: string): Promise<Lead> {

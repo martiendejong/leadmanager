@@ -43,7 +43,7 @@ public class ClientCreateTests : IDisposable
     [Fact]
     public async Task Create_StoresClientForCaller_AndNormalisesWebsite()
     {
-        var result = await As("me").CreateClient(Dto(website: "hogenkamp.nl", category: "Actief"));
+        var result = await As("me").CreateClient(Dto(website: "hogenkamp.nl", category: "Active"));
         var created = Assert.IsType<CreatedAtActionResult>(result);
         var dto = Assert.IsType<ClientDto>(created.Value);
         Assert.Equal("https://hogenkamp.nl", dto.Website);
@@ -133,7 +133,7 @@ public class ClientCreateTests : IDisposable
         var id = Assert.IsType<ClientDto>(created.Value).Id;
         Assert.IsType<BadRequestObjectResult>(await As("me").UpdateClient(id, new UpdateClientDto("  ", null, null, null, null, null, null, null, null, null)));
         Assert.IsType<BadRequestObjectResult>(await As("me").UpdateClient(id, new UpdateClientDto("Acme", null, null, null, null, null, null, "javascript:alert(1)", null, null)));
-        var ok = Assert.IsType<OkObjectResult>(await As("me").UpdateClient(id, new UpdateClientDto(" Acme 2 ", null, null, null, null, null, null, "acme.nl", null, "Actief")));
+        var ok = Assert.IsType<OkObjectResult>(await As("me").UpdateClient(id, new UpdateClientDto(" Acme 2 ", null, null, null, null, null, null, "acme.nl", null, "Active")));
         var dto = Assert.IsType<ClientDto>(ok.Value);
         Assert.Equal("Acme 2", dto.Name);
         Assert.Equal("https://acme.nl", dto.Website);

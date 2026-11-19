@@ -1,19 +1,25 @@
-// Omgangscategorie voor klanten: bepaalt hoeveel (gratis) moeite we in een klant steken.
-// De bijbehorende regels zijn te beheren onder Instellingen → Klantregels.
+// Engagement category of a client: how much (free) effort we put into the client.
+// The matching rules can be edited under Settings → Client rules.
 
-export const ENGAGEMENT_CATEGORIES = ['Actief', 'Beheercontract', 'Reactief'] as const
+export const ENGAGEMENT_CATEGORIES = ['Active', 'Maintenance', 'Reactive'] as const
 export type EngagementCategory = (typeof ENGAGEMENT_CATEGORIES)[number]
 
+export const CATEGORY_LABELS: Record<string, string> = {
+  Active: 'Active',
+  Maintenance: 'Maintenance contract',
+  Reactive: 'Reactive',
+}
+
 const CATEGORY_STYLES: Record<string, string> = {
-  Actief: 'bg-green-50 text-green-700 border-green-200',
-  Beheercontract: 'bg-blue-50 text-blue-700 border-blue-200',
-  Reactief: 'bg-amber-50 text-amber-800 border-amber-300',
+  Active: 'bg-green-50 text-green-700 border-green-200',
+  Maintenance: 'bg-blue-50 text-blue-700 border-blue-200',
+  Reactive: 'bg-amber-50 text-amber-800 border-amber-300',
 }
 
 export const CATEGORY_DESCRIPTIONS: Record<string, string> = {
-  Actief: 'Lopende samenwerking · normale opvolging.',
-  Beheercontract: 'Beheercontract actief · onderhoud en wijzigingen vallen onder het contract.',
-  Reactief: 'Alleen op betaalde aanvraag · geen gratis onderzoek, geen reminders.',
+  Active: 'Ongoing collaboration · normal follow-up.',
+  Maintenance: 'Maintenance contract in place · upkeep and changes fall under the contract.',
+  Reactive: 'Paid requests only · no free research, no reminders.',
 }
 
 export function EngagementCategoryBadge({ category }: { category?: string | null }) {
@@ -24,24 +30,24 @@ export function EngagementCategoryBadge({ category }: { category?: string | null
       className={`inline-flex items-center text-xs font-medium border rounded-full px-2 py-0.5 ${cls}`}
       title={CATEGORY_DESCRIPTIONS[category]}
     >
-      {category}
+      {CATEGORY_LABELS[category] ?? category}
     </span>
   )
 }
 
-export function ReactiefBanner() {
+export function ReactiveBanner() {
   return (
     <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4">
       <p className="text-sm font-semibold text-amber-900 mb-1.5">
-        Reactieve klant · alleen op betaalde aanvraag
+        Reactive client · paid requests only
       </p>
       <ul className="text-sm text-amber-900 space-y-1 list-disc list-inside">
-        <li>Geen onderzoek, scan of herstel zonder beheercontract of betaalde opdracht vooraf.</li>
-        <li>Eén bericht per onderwerp, geen reminders achteraan sturen.</li>
-        <li>Bij interesse begint het gesprek bij het contract, niet bij het werk.</li>
+        <li>No research, scan or repair without a maintenance contract or a paid order up front.</li>
+        <li>One message per topic, no chasing with reminders.</li>
+        <li>If they are interested, the conversation starts with the contract, not with the work.</li>
       </ul>
       <p className="text-xs text-amber-700 mt-2">
-        Volledige klantregels: Instellingen → Klantregels.
+        Full client rules: Settings → Client rules.
       </p>
     </div>
   )

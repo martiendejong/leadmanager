@@ -5,13 +5,13 @@ import { salesSettingsApi } from '../api/salesSettings';
 type Tab = 'company' | 'pricing' | 'quote' | 'script' | 'email' | 'rules' | 'fedha';
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'company', label: 'Bedrijfsgegevens' },
-  { id: 'pricing', label: 'Prijzen' },
-  { id: 'quote', label: 'Offerte' },
-  { id: 'script', label: 'Belscript template' },
-  { id: 'email', label: 'E-mail template' },
-  { id: 'rules', label: 'Klantregels' },
-  { id: 'fedha', label: 'Fedha koppeling' },
+  { id: 'company', label: 'Company details' },
+  { id: 'pricing', label: 'Pricing' },
+  { id: 'quote', label: 'Quote' },
+  { id: 'script', label: 'Call script template' },
+  { id: 'email', label: 'Email template' },
+  { id: 'rules', label: 'Client rules' },
+  { id: 'fedha', label: 'Fedha integration' },
 ];
 
 function Field({
@@ -59,7 +59,7 @@ export default function SalesSettingsPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    salesSettingsApi.get().then(setSettings).catch(() => setError('Instellingen laden mislukt'));
+    salesSettingsApi.get().then(setSettings).catch(() => setError('Could not load settings'));
   }, []);
 
   const update = (patch: Partial<SalesSettings>) =>
@@ -75,7 +75,7 @@ export default function SalesSettingsPage() {
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch {
-      setError('Opslaan mislukt');
+      setError('Could not save');
     } finally {
       setSaving(false);
     }
@@ -92,8 +92,8 @@ export default function SalesSettingsPage() {
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Instellingen</h1>
-        <p className="text-gray-500 text-sm mt-1">Configureer bedrijfsgegevens, prijzen, templates en koppelingen.</p>
+        <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
+        <p className="text-gray-500 text-sm mt-1">Configure company details, pricing, templates and integrations.</p>
       </div>
 
       {/* Tabs */}
@@ -117,20 +117,20 @@ export default function SalesSettingsPage() {
       <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
         {activeTab === 'company' && (
           <>
-            <Field label="Bedrijfsnaam" value={settings.companyName} onChange={v => update({ companyName: v })} />
-            <Field label="Adres" value={settings.companyAddress ?? ''} onChange={v => update({ companyAddress: v })} />
+            <Field label="Company name" value={settings.companyName} onChange={v => update({ companyName: v })} />
+            <Field label="Address" value={settings.companyAddress ?? ''} onChange={v => update({ companyAddress: v })} />
             <div className="grid grid-cols-2 gap-4">
-              <Field label="Postcode" value={settings.companyZipCode ?? ''} onChange={v => update({ companyZipCode: v })} />
-              <Field label="Stad" value={settings.companyCity ?? ''} onChange={v => update({ companyCity: v })} />
+              <Field label="Postal code" value={settings.companyZipCode ?? ''} onChange={v => update({ companyZipCode: v })} />
+              <Field label="City" value={settings.companyCity ?? ''} onChange={v => update({ companyCity: v })} />
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <Field label="KvK-nummer" value={settings.companyKvk ?? ''} onChange={v => update({ companyKvk: v })} />
-              <Field label="BTW-nummer" value={settings.companyVat ?? ''} onChange={v => update({ companyVat: v })} />
+              <Field label="Chamber of Commerce number" value={settings.companyKvk ?? ''} onChange={v => update({ companyKvk: v })} />
+              <Field label="VAT number" value={settings.companyVat ?? ''} onChange={v => update({ companyVat: v })} />
             </div>
             <Field label="IBAN" value={settings.companyIban ?? ''} onChange={v => update({ companyIban: v })} />
             <div className="grid grid-cols-2 gap-4">
-              <Field label="E-mailadres" value={settings.companyEmail ?? ''} onChange={v => update({ companyEmail: v })} type="email" />
-              <Field label="Telefoonnummer" value={settings.companyPhone ?? ''} onChange={v => update({ companyPhone: v })} />
+              <Field label="Email address" value={settings.companyEmail ?? ''} onChange={v => update({ companyEmail: v })} type="email" />
+              <Field label="Phone number" value={settings.companyPhone ?? ''} onChange={v => update({ companyPhone: v })} />
             </div>
             <Field label="Website" value={settings.companyWebsite ?? ''} onChange={v => update({ companyWebsite: v })} />
           </>
@@ -138,19 +138,19 @@ export default function SalesSettingsPage() {
 
         {activeTab === 'pricing' && (
           <>
-            <p className="text-sm text-gray-500">Bundelprijzen die standaard worden gebruikt in offertes en intakes.</p>
+            <p className="text-sm text-gray-500">Bundle prices used by default in quotes and intakes.</p>
             <div className="grid grid-cols-2 gap-4">
-              <Field label="Starter uren/maand" value={settings.starterHours} type="number" onChange={v => update({ starterHours: Number(v) })} />
-              <Field label="Starter prijs/maand" value={settings.starterMonthlyPrice} type="number" prefix="€" onChange={v => update({ starterMonthlyPrice: Number(v) })} />
+              <Field label="Starter hours/month" value={settings.starterHours} type="number" onChange={v => update({ starterHours: Number(v) })} />
+              <Field label="Starter price/month" value={settings.starterMonthlyPrice} type="number" prefix="€" onChange={v => update({ starterMonthlyPrice: Number(v) })} />
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <Field label="Team uren/maand" value={settings.teamHours} type="number" onChange={v => update({ teamHours: Number(v) })} />
-              <Field label="Team prijs/maand" value={settings.teamMonthlyPrice} type="number" prefix="€" onChange={v => update({ teamMonthlyPrice: Number(v) })} />
+              <Field label="Team hours/month" value={settings.teamHours} type="number" onChange={v => update({ teamHours: Number(v) })} />
+              <Field label="Team price/month" value={settings.teamMonthlyPrice} type="number" prefix="€" onChange={v => update({ teamMonthlyPrice: Number(v) })} />
             </div>
             <div className="grid grid-cols-3 gap-4">
-              <Field label="Bundel uurtarief" value={settings.bundleHourlyRate} type="number" prefix="€" onChange={v => update({ bundleHourlyRate: Number(v) })} />
-              <Field label="Los uurtarief" value={settings.looseHourlyRate} type="number" prefix="€" onChange={v => update({ looseHourlyRate: Number(v) })} />
-              <Field label="Overage uurtarief" value={settings.overageHourlyRate} type="number" prefix="€" onChange={v => update({ overageHourlyRate: Number(v) })} />
+              <Field label="Bundle hourly rate" value={settings.bundleHourlyRate} type="number" prefix="€" onChange={v => update({ bundleHourlyRate: Number(v) })} />
+              <Field label="Loose hourly rate" value={settings.looseHourlyRate} type="number" prefix="€" onChange={v => update({ looseHourlyRate: Number(v) })} />
+              <Field label="Overage hourly rate" value={settings.overageHourlyRate} type="number" prefix="€" onChange={v => update({ overageHourlyRate: Number(v) })} />
             </div>
           </>
         )}
@@ -158,21 +158,21 @@ export default function SalesSettingsPage() {
         {activeTab === 'quote' && (
           <>
             <div className="grid grid-cols-3 gap-4">
-              <Field label="Offertenummer prefix" value={settings.quoteNumberPrefix} onChange={v => update({ quoteNumberPrefix: v })} />
-              <Field label="Huidig nummer" value={settings.quoteNumberCurrent} type="number" onChange={v => update({ quoteNumberCurrent: Number(v) })} />
-              <Field label="Geldigheid (dagen)" value={settings.quoteValidityDays} type="number" onChange={v => update({ quoteValidityDays: Number(v) })} />
+              <Field label="Quote number prefix" value={settings.quoteNumberPrefix} onChange={v => update({ quoteNumberPrefix: v })} />
+              <Field label="Current number" value={settings.quoteNumberCurrent} type="number" onChange={v => update({ quoteNumberCurrent: Number(v) })} />
+              <Field label="Validity (days)" value={settings.quoteValidityDays} type="number" onChange={v => update({ quoteValidityDays: Number(v) })} />
             </div>
-            <Field label="Introductietekst" value={settings.quoteIntroText ?? ''} onChange={v => update({ quoteIntroText: v })} rows={3} />
-            <Field label="Betalingsvoorwaarden" value={settings.quoteTerms ?? ''} onChange={v => update({ quoteTerms: v })} rows={3} />
-            <Field label="Voettekst" value={settings.quoteFooterText ?? ''} onChange={v => update({ quoteFooterText: v })} rows={2} />
+            <Field label="Introduction text" value={settings.quoteIntroText ?? ''} onChange={v => update({ quoteIntroText: v })} rows={3} />
+            <Field label="Payment terms" value={settings.quoteTerms ?? ''} onChange={v => update({ quoteTerms: v })} rows={3} />
+            <Field label="Footer text" value={settings.quoteFooterText ?? ''} onChange={v => update({ quoteFooterText: v })} rows={2} />
           </>
         )}
 
         {activeTab === 'script' && (
           <>
             <p className="text-sm text-gray-500 mb-2">
-              Belscript-secties als JSON-array. Elke sectie heeft: <code>id</code>, <code>title</code>, <code>prompt</code>.
-              De AI gebruikt deze prompts om per sectie een gepersonaliseerde tekst te schrijven.
+              Call script sections as a JSON array. Each section has: <code>id</code>, <code>title</code>, <code>prompt</code>.
+              The AI uses these prompts to write personalised text for each section.
             </p>
             <textarea
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -186,21 +186,21 @@ export default function SalesSettingsPage() {
 
         {activeTab === 'email' && (
           <>
-            <Field label="Onderwerp template" value={settings.emailSubjectTemplate ?? ''} onChange={v => update({ emailSubjectTemplate: v })} />
-            <p className="text-xs text-gray-400">Gebruik {'{{naam}}'}, {'{{bedrijf}}'}, {'{{offerte}}'} als variabelen.</p>
-            <Field label="Berichttekst template" value={settings.emailBodyTemplate ?? ''} onChange={v => update({ emailBodyTemplate: v })} rows={10} />
+            <Field label="Subject template" value={settings.emailSubjectTemplate ?? ''} onChange={v => update({ emailSubjectTemplate: v })} />
+            <p className="text-xs text-gray-400">Use {'{{naam}}'}, {'{{bedrijf}}'}, {'{{offerte}}'} as variables.</p>
+            <Field label="Message body template" value={settings.emailBodyTemplate ?? ''} onChange={v => update({ emailBodyTemplate: v })} rows={10} />
           </>
         )}
 
         {activeTab === 'rules' && (
           <>
             <p className="text-sm text-gray-500">
-              Omgangsregels voor klanten en prospects: wanneer doen we (g)een gratis werk, hoe vaak volgen we op,
-              en wat is de volgorde contract → werk. Zet een klant op categorie <strong>Reactief</strong> op de
-              klantpagina om de bijbehorende waarschuwing te tonen.
+              Rules of engagement for clients and prospects: when we do (or do not) do free work, how often we follow up,
+              and the order contract → work. Set a client to the <strong>Reactive</strong> category on the
+              client page to show the related warning.
             </p>
             <Field
-              label="Klantregels"
+              label="Client rules"
               value={settings.clientEngagementRules ?? ''}
               onChange={v => update({ clientEngagementRules: v })}
               rows={10}
@@ -210,10 +210,10 @@ export default function SalesSettingsPage() {
 
         {activeTab === 'fedha' && (
           <>
-            <p className="text-sm text-gray-500">Koppel het Fedha facturatiesysteem om direct facturen aan te maken vanuit de app.</p>
+            <p className="text-sm text-gray-500">Connect the Fedha invoicing system to create invoices directly from the app.</p>
             <Field label="Fedha base URL" value={settings.fedhaBaseUrl ?? ''} onChange={v => update({ fedhaBaseUrl: v })} />
-            <Field label="API sleutel" value={settings.fedhaApiKey ?? ''} onChange={v => update({ fedhaApiKey: v })} type="password" />
-            <Field label="Standaard project-ID" value={settings.fedhaDefaultProjectId ?? ''} onChange={v => update({ fedhaDefaultProjectId: v })} />
+            <Field label="API key" value={settings.fedhaApiKey ?? ''} onChange={v => update({ fedhaApiKey: v })} type="password" />
+            <Field label="Default project ID" value={settings.fedhaDefaultProjectId ?? ''} onChange={v => update({ fedhaDefaultProjectId: v })} />
           </>
         )}
       </div>
@@ -225,9 +225,9 @@ export default function SalesSettingsPage() {
           disabled={saving}
           className="px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-60 transition-colors"
         >
-          {saving ? 'Opslaan...' : 'Opslaan'}
+          {saving ? 'Saving...' : 'Save'}
         </button>
-        {saved && <span className="text-green-600 text-sm">Opgeslagen!</span>}
+        {saved && <span className="text-green-600 text-sm">Saved!</span>}
         {error && <span className="text-red-600 text-sm">{error}</span>}
       </div>
     </div>

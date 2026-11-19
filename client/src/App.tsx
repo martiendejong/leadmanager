@@ -28,7 +28,7 @@ function SsoTokenHandler() {
     const ssoError = new URLSearchParams(hash.slice(1)).get('sso_error')
     if (ssoToken) {
       localStorage.setItem('lm_token', ssoToken)
-      window.location.replace('/leads')
+      window.location.replace('/today')
     } else if (ssoError) {
       window.location.replace(`/login?sso_error=${encodeURIComponent(ssoError)}`)
     }
@@ -47,7 +47,12 @@ function App() {
             <Route path="/login" element={<LoginPage />} />
 
             {/* Root redirect */}
-            <Route path="/" element={<Navigate to="/leads" replace />} />
+            <Route path="/" element={<Navigate to="/today" replace />} />
+            {/* Old Dutch paths keep working for bookmarks */}
+            <Route path="/vandaag" element={<Navigate to="/today" replace />} />
+            <Route path="/acties" element={<Navigate to="/actions" replace />} />
+            <Route path="/koppelingen" element={<Navigate to="/integrations" replace />} />
+            <Route path="/leads/zoeken" element={<Navigate to="/leads/search" replace />} />
 
             {/* Protected: regular users */}
             <Route
@@ -73,7 +78,7 @@ function App() {
             </Route>
 
             <Route
-              path="/leads/zoeken"
+              path="/leads/search"
               element={
                 <ProtectedRoute>
                   <Layout />
@@ -163,9 +168,9 @@ function App() {
               <Route index element={<SalesSettingsPage />} />
             </Route>
 
-            {/* Daily call list */}
+            {/* Front page: today's actions and the dashboard */}
             <Route
-              path="/vandaag"
+              path="/today"
               element={
                 <ProtectedRoute>
                   <Layout />
@@ -177,7 +182,7 @@ function App() {
 
             {/* All next actions: list and calendar */}
             <Route
-              path="/acties"
+              path="/actions"
               element={
                 <ProtectedRoute>
                   <Layout />
@@ -189,7 +194,7 @@ function App() {
 
             {/* API keys and MCP connection */}
             <Route
-              path="/koppelingen"
+              path="/integrations"
               element={
                 <ProtectedRoute>
                   <Layout />
@@ -212,7 +217,7 @@ function App() {
             </Route>
 
             {/* Catch-all */}
-            <Route path="*" element={<Navigate to="/leads" replace />} />
+            <Route path="*" element={<Navigate to="/today" replace />} />
           </Routes>
         </AuthProvider>
       </ToastProvider>

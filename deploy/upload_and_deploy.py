@@ -514,13 +514,14 @@ update "OpenIddictApplications"
 update "OpenIddictApplications"
    set "PostLogoutRedirectUris" = ("PostLogoutRedirectUris"::jsonb || to_jsonb('{home}'::text))::text
  where "ClientId"='{SSO_CLIENT_ID}' and not ("PostLogoutRedirectUris"::jsonb ? '{home}');
+update "OpenIddictApplications" set "DisplayName"='Clients' where "ClientId"='{SSO_CLIENT_ID}' and "DisplayName" <> 'Clients';
 """)
     else:
         print(f"[sso] no '{SSO_CLIENT_ID}' client at {iam['issuer']} yet: creating it")
         sql(f"""
 insert into "OpenIddictApplications"
   ("Id","ClientId","ClientType","ConsentType","DisplayName","Permissions","PostLogoutRedirectUris","RedirectUris","Requirements","ConcurrencyToken")
-select gen_random_uuid()::text, '{SSO_CLIENT_ID}', 'public', 'implicit', 'LeadManager (Jengo Clients)',
+select gen_random_uuid()::text, '{SSO_CLIENT_ID}', 'public', 'implicit', 'Clients',
        '{SSO_PERMISSIONS}', '["{home}"]', '["{callback}"]', '["ft:pkce"]', gen_random_uuid()::text
  where not exists (select 1 from "OpenIddictApplications" where "ClientId"='{SSO_CLIENT_ID}');
 """)

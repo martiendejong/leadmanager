@@ -75,26 +75,26 @@ export const intakeApi = {
 }
 
 export const BUNDLE_LABELS: Record<IntakeBundleType, string> = {
-  Starter: 'Starter — 50 uur / €125 p/m',
-  Team: 'Team — 200 uur / €500 p/m',
-  PayPerHour: 'Losse uren — €3/uur',
+  Starter: 'Starter: 50 hours / €125 per month',
+  Team: 'Team: 200 hours / €500 per month',
+  PayPerHour: 'Pay per hour: €3/hour',
 }
 
 export const PRODUCT_LABELS: Record<IntakeProductType, string> = {
-  Website: 'Website + AI assistent',
-  AIEmployee: 'AI Medewerker',
-  AITeam: 'AI Programmeerteam',
-  Custom: 'Maatwerk',
+  Website: 'Website + AI assistant',
+  AIEmployee: 'AI Employee',
+  AITeam: 'AI Development Team',
+  Custom: 'Custom',
 }
 
 export const STATUS_LABELS: Record<IntakeStatus, string> = {
-  Draft: 'Concept',
-  Estimated: 'Geschat',
-  AwaitingApproval: 'Wacht op akkoord',
-  Approved: 'Akkoord',
-  InProgress: 'In uitvoering',
-  Complete: 'Afgerond',
-  Cancelled: 'Geannuleerd',
+  Draft: 'Draft',
+  Estimated: 'Estimated',
+  AwaitingApproval: 'Awaiting approval',
+  Approved: 'Approved',
+  InProgress: 'In progress',
+  Complete: 'Complete',
+  Cancelled: 'Cancelled',
 }
 
 export const STATUS_COLORS: Record<IntakeStatus, string> = {

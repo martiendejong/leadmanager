@@ -8,12 +8,12 @@ interface CsvImportDropzoneProps {
 }
 
 const COLUMN_ALIASES: Record<string, string[]> = {
-  Naam: ['Name', 'Naam', 'Bedrijfsnaam', 'Company', 'company_name'],
+  Name: ['Name', 'Naam', 'Bedrijfsnaam', 'Company', 'company_name'],
   Website: ['Website', 'website', 'url', 'URL'],
   Email: ['Email', 'CompanyEmail', 'Bedrijfsemail', 'email'],
   Sector: ['Sector', 'Industry', 'Industrie', 'sector', 'industry'],
-  Stad: ['City', 'Stad', 'Gemeente', 'city', 'plaats'],
-  Telefoon: ['Phone', 'Telefoon', 'Tel', 'phone', 'telefoon'],
+  City: ['City', 'Stad', 'Gemeente', 'city', 'plaats'],
+  Phone: ['Phone', 'Telefoon', 'Tel', 'phone', 'telefoon'],
 }
 
 type ImportState = 'idle' | 'preview' | 'importing' | 'done' | 'error'
@@ -67,7 +67,7 @@ export default function CsvImportDropzone({ onSuccess, onCancel }: CsvImportDrop
   const handleFile = useCallback(
     (file: File) => {
       if (!file.name.endsWith('.csv')) {
-        setErrorMessage('Alleen .csv bestanden worden ondersteund.')
+        setErrorMessage('Only .csv files are supported.')
         setState('error')
         return
       }
@@ -118,7 +118,7 @@ export default function CsvImportDropzone({ onSuccess, onCancel }: CsvImportDrop
       }
     } catch (err: unknown) {
       const msg =
-        err instanceof Error ? err.message : 'Import mislukt. Controleer het CSV bestand.'
+        err instanceof Error ? err.message : 'Import failed. Check the CSV file.'
       setErrorMessage(msg)
       setState('error')
     }
@@ -146,13 +146,13 @@ export default function CsvImportDropzone({ onSuccess, onCancel }: CsvImportDrop
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-gray-200">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Leads importeren via CSV</h2>
-            <p className="text-sm text-gray-500 mt-0.5">Maximaal 500 rijen per import</p>
+            <h2 className="text-lg font-semibold text-gray-900">Import leads from CSV</h2>
+            <p className="text-sm text-gray-500 mt-0.5">Maximum 500 rows per import</p>
           </div>
           <button
             onClick={onCancel}
             className="text-gray-400 hover:text-gray-600 transition-colors"
-            aria-label="Sluiten"
+            aria-label="Close"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -195,13 +195,13 @@ export default function CsvImportDropzone({ onSuccess, onCancel }: CsvImportDrop
                     d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                   />
                 </svg>
-                <p className="text-gray-700 font-medium">Sleep een CSV bestand hierheen</p>
-                <p className="text-gray-400 text-sm mt-1">of klik om te bladeren</p>
+                <p className="text-gray-700 font-medium">Drag a CSV file here</p>
+                <p className="text-gray-400 text-sm mt-1">or click to browse</p>
               </div>
 
               {/* Column mapping info */}
               <div className="mt-4 bg-gray-50 rounded-lg p-4">
-                <p className="text-xs font-medium text-gray-600 mb-2">Ondersteunde kolomnamen:</p>
+                <p className="text-xs font-medium text-gray-600 mb-2">Supported column names:</p>
                 <div className="grid grid-cols-2 gap-1.5 text-xs text-gray-500">
                   {Object.entries(COLUMN_ALIASES).map(([label, aliases]) => (
                     <div key={label}>
@@ -212,7 +212,7 @@ export default function CsvImportDropzone({ onSuccess, onCancel }: CsvImportDrop
                   ))}
                 </div>
                 <p className="text-xs text-gray-400 mt-2">
-                  Verplicht: naam-kolom. Optioneel: alle andere kolommen.
+                  Required: name column. Optional: all other columns.
                 </p>
               </div>
             </>
@@ -235,7 +235,7 @@ export default function CsvImportDropzone({ onSuccess, onCancel }: CsvImportDrop
 
                 {/* Column recognition */}
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm mb-4">
-                  <p className="font-medium text-blue-800 mb-1">Herkende kolommen:</p>
+                  <p className="font-medium text-blue-800 mb-1">Recognised columns:</p>
                   <div className="flex flex-wrap gap-1.5">
                     {recognizedColumns.map((col) => (
                       <span
@@ -252,7 +252,7 @@ export default function CsvImportDropzone({ onSuccess, onCancel }: CsvImportDrop
                           key={col}
                           className="bg-gray-100 text-gray-500 px-2 py-0.5 rounded text-xs"
                         >
-                          {col} (overgeslagen)
+                          {col} (skipped)
                         </span>
                       ))}
                   </div>
@@ -290,7 +290,7 @@ export default function CsvImportDropzone({ onSuccess, onCancel }: CsvImportDrop
                     </tbody>
                   </table>
                 </div>
-                <p className="text-xs text-gray-400 mt-1.5">Voorvertoning van de eerste 3 rijen</p>
+                <p className="text-xs text-gray-400 mt-1.5">Preview of the first 3 rows</p>
               </div>
 
               <div className="flex gap-3 justify-end">
@@ -298,13 +298,13 @@ export default function CsvImportDropzone({ onSuccess, onCancel }: CsvImportDrop
                   onClick={handleReset}
                   className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
                 >
-                  Ander bestand
+                  Choose another file
                 </button>
                 <button
                   onClick={handleImport}
                   className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium"
                 >
-                  Importeren starten
+                  Start import
                 </button>
               </div>
             </>
@@ -332,7 +332,7 @@ export default function CsvImportDropzone({ onSuccess, onCancel }: CsvImportDrop
                   d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
                 />
               </svg>
-              <p className="text-gray-600 text-sm">Leads worden geïmporteerd…</p>
+              <p className="text-gray-600 text-sm">Importing leads…</p>
             </div>
           )}
 
@@ -347,30 +347,30 @@ export default function CsvImportDropzone({ onSuccess, onCancel }: CsvImportDrop
                     clipRule="evenodd"
                   />
                 </svg>
-                <h3 className="font-semibold text-gray-900">Import voltooid</h3>
+                <h3 className="font-semibold text-gray-900">Import complete</h3>
               </div>
 
               <div className="grid grid-cols-3 gap-3 mb-4">
                 <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
                   <div className="text-2xl font-bold text-green-700">{result.created}</div>
-                  <div className="text-xs text-green-600 mt-0.5">Aangemaakt</div>
+                  <div className="text-xs text-green-600 mt-0.5">Created</div>
                 </div>
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-center">
                   <div className="text-2xl font-bold text-yellow-700">{result.skipped}</div>
-                  <div className="text-xs text-yellow-600 mt-0.5">Overgeslagen</div>
+                  <div className="text-xs text-yellow-600 mt-0.5">Skipped</div>
                 </div>
                 <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-center">
                   <div className="text-2xl font-bold text-red-700">{result.errors.length}</div>
-                  <div className="text-xs text-red-600 mt-0.5">Fouten</div>
+                  <div className="text-xs text-red-600 mt-0.5">Errors</div>
                 </div>
               </div>
 
               {result.errors.length > 0 && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 max-h-36 overflow-y-auto">
-                  <p className="text-xs font-medium text-red-700 mb-1.5">Fouten:</p>
+                  <p className="text-xs font-medium text-red-700 mb-1.5">Errors:</p>
                   {result.errors.map((e, i) => (
                     <p key={i} className="text-xs text-red-600">
-                      Rij {e.row}: {e.message}
+                      Row {e.row}: {e.message}
                     </p>
                   ))}
                 </div>
@@ -378,7 +378,7 @@ export default function CsvImportDropzone({ onSuccess, onCancel }: CsvImportDrop
 
               {result.enrichmentJobId && (
                 <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 mb-4 text-xs text-indigo-700">
-                  Verrijking gestart op de achtergrond voor leads met een website.
+                  Enrichment started in the background for leads with a website.
                 </div>
               )}
 
@@ -387,13 +387,13 @@ export default function CsvImportDropzone({ onSuccess, onCancel }: CsvImportDrop
                   onClick={handleReset}
                   className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
                 >
-                  Nog een bestand
+                  Import another file
                 </button>
                 <button
                   onClick={onCancel}
                   className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium"
                 >
-                  Sluiten
+                  Close
                 </button>
               </div>
             </div>
@@ -403,7 +403,7 @@ export default function CsvImportDropzone({ onSuccess, onCancel }: CsvImportDrop
           {state === 'error' && (
             <div>
               <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-                <p className="text-sm text-red-700 font-medium">Import mislukt</p>
+                <p className="text-sm text-red-700 font-medium">Import failed</p>
                 {errorMessage && <p className="text-sm text-red-600 mt-1">{errorMessage}</p>}
               </div>
               <div className="flex gap-3 justify-end">
@@ -411,13 +411,13 @@ export default function CsvImportDropzone({ onSuccess, onCancel }: CsvImportDrop
                   onClick={onCancel}
                   className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
                 >
-                  Annuleren
+                  Cancel
                 </button>
                 <button
                   onClick={handleReset}
                   className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium"
                 >
-                  Opnieuw proberen
+                  Try again
                 </button>
               </div>
             </div>

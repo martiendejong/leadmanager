@@ -78,7 +78,7 @@ public class McpClientToolsTests : IDisposable
     {
         var key = SeedKey("a@x.test");
 
-        var (created, err) = await Tool(key, "create_client", new { name = "ThuisNotaris", contact_name = "Bas", email = "bas@thuisnotaris.nl", engagement_category = "Actief" });
+        var (created, err) = await Tool(key, "create_client", new { name = "ThuisNotaris", contact_name = "Bas", email = "bas@thuisnotaris.nl", engagement_category = "Active" });
         Assert.False(err, created);
         var clientId = Parse(created).GetProperty("id").GetGuid();
 

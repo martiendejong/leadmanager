@@ -4,22 +4,22 @@ export type DocumentKind = 'Quote' | 'Order' | 'Agreement' | 'Dpa' | 'Nda' | 'In
 export type DocumentStatus = 'Draft' | 'Sent' | 'Signed' | 'Rejected' | 'Expired' | 'Cancelled'
 
 export const KIND_LABELS: Record<DocumentKind, string> = {
-  Quote: 'Offerte',
-  Order: 'Opdracht',
-  Agreement: 'Overeenkomst',
-  Dpa: 'Verwerkersovereenkomst',
-  Nda: 'Geheimhouding (NDA)',
-  Invoice: 'Factuur',
-  Other: 'Overig',
+  Quote: 'Quote',
+  Order: 'Order',
+  Agreement: 'Agreement',
+  Dpa: 'Data processing agreement',
+  Nda: 'NDA',
+  Invoice: 'Invoice',
+  Other: 'Other',
 }
 
 export const STATUS_LABELS: Record<DocumentStatus, string> = {
-  Draft: 'Concept',
-  Sent: 'Verstuurd',
-  Signed: 'Getekend',
-  Rejected: 'Afgewezen',
-  Expired: 'Verlopen',
-  Cancelled: 'Ingetrokken',
+  Draft: 'Draft',
+  Sent: 'Sent',
+  Signed: 'Signed',
+  Rejected: 'Rejected',
+  Expired: 'Expired',
+  Cancelled: 'Withdrawn',
 }
 
 /** The usual next step in the chain: a quote becomes an order, an order an agreement. */

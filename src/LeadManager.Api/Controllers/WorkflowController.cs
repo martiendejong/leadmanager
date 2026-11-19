@@ -42,7 +42,7 @@ public class WorkflowController : ControllerBase
         var context = BuildLeadContext(lead);
         var apiKey = _config["OpenAI:ApiKey"];
         if (string.IsNullOrEmpty(apiKey))
-            return BadRequest("OpenAI niet geconfigureerd");
+            return BadRequest("OpenAI not configured");
 
         var systemPrompt =
             "Je bent een senior business analyst en software architect. " +
@@ -78,7 +78,7 @@ public class WorkflowController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Intake generation failed for lead {Id}", id);
-            return StatusCode(500, "Intake kon niet worden gegenereerd");
+            return StatusCode(500, "Intake could not be generated");
         }
     }
 
@@ -100,7 +100,7 @@ public class WorkflowController : ControllerBase
 
         var apiKey = _config["OpenAI:ApiKey"];
         if (string.IsNullOrEmpty(apiKey))
-            return BadRequest("OpenAI niet geconfigureerd");
+            return BadRequest("OpenAI not configured");
 
         var systemPrompt =
             "Je bent een software architect bij een AI-bureau. " +
@@ -134,7 +134,7 @@ public class WorkflowController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Proposal generation failed for lead {Id}", id);
-            return StatusCode(500, "Voorstel kon niet worden gegenereerd");
+            return StatusCode(500, "Proposal could not be generated");
         }
     }
 
@@ -148,7 +148,7 @@ public class WorkflowController : ControllerBase
         var tasksBaseUrl = _config["JengoWork:BaseUrl"] ?? "https://tasks.prospergenics.com";
         var tasksApiKey = _config["JengoWork:ApiKey"];
         if (string.IsNullOrEmpty(tasksApiKey))
-            return BadRequest("JengoWork API niet geconfigureerd");
+            return BadRequest("JengoWork API not configured");
 
         // Get proposal from workflowData if available
         string boardName = $"PoC — {lead.Name}";
@@ -234,7 +234,7 @@ public class WorkflowController : ControllerBase
                 repoName = $"poc-{slug}";
                 var ghHttp = _httpFactory.CreateClient();
                 ghHttp.DefaultRequestHeaders.Add("Authorization", $"Bearer {githubToken}");
-                ghHttp.DefaultRequestHeaders.Add("User-Agent", "LeadManager/1.0");
+                ghHttp.DefaultRequestHeaders.Add("User-Agent", "JengoClients/1.0");
                 ghHttp.DefaultRequestHeaders.Add("X-GitHub-Api-Version", "2022-11-28");
 
                 var readme = $"# {boardName}\n\n{boardDescription}\n\n" +
@@ -328,7 +328,7 @@ public class WorkflowController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "PoC creation failed for lead {Id}", id);
-            return StatusCode(500, "PoC board kon niet worden aangemaakt");
+            return StatusCode(500, "PoC board could not be created");
         }
     }
 

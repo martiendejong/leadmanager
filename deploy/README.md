@@ -1,175 +1,175 @@
-# Jengo Clients op Docker · test, acc en prod
+# Jengo Clients on Docker · test, acc and prod
 
-Eén image (`jengo-clients:<omgeving>`) bevat de API, SignalR en de React-frontend. De stack volgt het
-voorbeeld van CoachOS: een map per omgeving op de server, een eigen `.env`, geen gepubliceerde poorten.
-De gedeelde Caddy-gateway van de server bereikt de container via een Docker-netwerk-alias.
+One image (`jengo-clients:<environment>`) contains the API, SignalR and the React frontend. The stack follows
+the CoachOS example: one folder per environment on the server, its own `.env`, no published ports.
+The server's shared Caddy gateway reaches the container through a Docker network alias.
 
-| Omgeving | URL | Server | Stack | Gateway | Alias |
+| Environment | URL | Server | Stack | Gateway | Alias |
 |---|---|---|---|---|---|
 | test | https://clients-test.martiendejong.nl | 46.224.114.149 | `/opt/clients-test` | `/opt/jengo-gateway` (`proxy_net`) | `test-clients` |
-| acc | https://clients-acc.martiendejong.nl | 46.224.114.149 | `/opt/clients-acc` | idem | `acc-clients` |
-| prod | https://clients.prospergenics.com (`leads.prospergenics.com` verwijst door, `api.leads...` bedient dezelfde app) | 46.62.219.14 | `/opt/clients-prod` | `/opt/maaride-gateway` (`maaride_net`) | `prod-clients` |
+| acc | https://clients-acc.martiendejong.nl | 46.224.114.149 | `/opt/clients-acc` | same | `acc-clients` |
+| prod | https://clients.prospergenics.com (`leads.prospergenics.com` redirects, `api.leads...` serves the same app) | 46.62.219.14 | `/opt/clients-prod` | `/opt/maaride-gateway` (`maaride_net`) | `prod-clients` |
 
-Test en acc starten leeg, zonder AI-sleutels en zonder koppelingen. Prod draait sinds 19-11-2026 op de data van de
-oude Windows-installatie (zie "Overstap" onderaan).
+Test and acc start empty, without AI keys and without integrations. Prod has run on the data of the old Windows
+installation since 19-11-2026 (see "Migration" below).
 
-## Eerste keer per omgeving
+## First time per environment
 
-Vanaf een machine met de SSH-sleutel en de Jengo-vaulttools:
-
-```
-python deploy/upload_and_deploy.py init-env test    # .env met nieuwe geheimen; geheimen ook in de vault (project 12)
-python deploy/upload_and_deploy.py dns test         # A-record in Cloudflare (alleen DNS)
-python deploy/upload_and_deploy.py gateway test     # Caddy-blok toevoegen (met backup en validatie)
-python deploy/upload_and_deploy.py deploy test      # broncode uploaden, image bouwen, starten
-python deploy/upload_and_deploy.py smoke test       # 31 controles tegen de publieke URL
-```
-
-Het tool verbindt alleen met servers die al in `~/.ssh/known_hosts` staan (strikte hostsleutelcontrole): een
-onbekende of gewijzigde sleutel is een harde stop. Controleer de vingerafdruk eenmalig met `ssh root@<ip>`.
-`init-env --force` maakt nieuwe geheimen aan (iedereen wordt uitgelogd) en zet voor de eerstvolgende start
-`SEED_RESET_PASSWORDS=true`, zodat het beheerderswachtwoord in de database meeverandert; `deploy.sh` haalt die
-schakelaar daarna zelf weer uit `.env`.
-
-Dezelfde stappen voor `acc`. De eerste beheerder is `info@martiendejong.nl` met een gegenereerd wachtwoord
-(vault 12, "Jengo Clients <env> admin login"). Zonder `ADMIN_EMAIL` en `ADMIN_PASSWORD` wordt er geen account
-aangemaakt: er is geen standaardwachtwoord.
-
-## Elke volgende deploy
-
-Altijd vanaf `develop` (zie de werkafspraak): feature-werk eerst mergen.
+From a machine with the SSH key and the Jengo vault tools:
 
 ```
-python deploy/upload_and_deploy.py deploy test       # of acc; --ref om een andere branch te testen
+python deploy/upload_and_deploy.py init-env test    # .env with new secrets; secrets also go in the vault (project 12)
+python deploy/upload_and_deploy.py dns test         # A record in Cloudflare (DNS only)
+python deploy/upload_and_deploy.py gateway test     # add Caddy block (with backup and validation)
+python deploy/upload_and_deploy.py deploy test      # upload source, build image, start
+python deploy/upload_and_deploy.py smoke test       # 31 checks against the public URL
+```
+
+The tool only connects to servers that are already in `~/.ssh/known_hosts` (strict host key checking): an
+unknown or changed key is a hard stop. Verify the fingerprint once with `ssh root@<ip>`.
+`init-env --force` creates new secrets (everyone is logged out) and sets `SEED_RESET_PASSWORDS=true` for the next
+start, so the administrator password in the database changes along with it; `deploy.sh` removes that
+switch from `.env` again afterwards.
+
+Same steps for `acc`. The first administrator is `info@martiendejong.nl` with a generated password
+(vault 12, "Jengo Clients <env> admin login"). Without `ADMIN_EMAIL` and `ADMIN_PASSWORD` no account is
+created: there is no default password.
+
+## Every subsequent deploy
+
+Always from `develop` (see the working agreement): merge feature work first.
+
+```
+python deploy/upload_and_deploy.py deploy test       # or acc; --ref to test another branch
 python deploy/upload_and_deploy.py smoke test
 ```
 
-`deploy.sh` maakt eerst een WAL-veilige backup (`backups/<tijdstempel>/`, de laatste 14 blijven), bouwt, start
-en wacht tot de container gezond is. Een mislukte deploy laat de oude container staan tot de nieuwe gezond is
-niet gegarandeerd: herstel desnoods uit de backup (hieronder).
+`deploy.sh` first makes a WAL-safe backup (`backups/<timestamp>/`, the last 14 are kept), builds, starts
+and waits until the container is healthy. It is not guaranteed that a failed deploy leaves the old container
+running until the new one is healthy: restore from the backup if needed (below).
 
-## Productie: promoveren, niet bouwen
+## Production: promote, do not build
 
-De productieserver is klein en draait ook MaaRide, IAM en CoachOS. Daarom wordt het image op acc gebouwd en
-getest, en daarna overgezet:
+The production server is small and also runs MaaRide, IAM and CoachOS. So the image is built and tested on
+acc, and then transferred:
 
 ```
-python deploy/upload_and_deploy.py init-env prod     # eenmalig
+python deploy/upload_and_deploy.py init-env prod     # once
 python deploy/upload_and_deploy.py dns prod
 python deploy/upload_and_deploy.py gateway prod
 python deploy/upload_and_deploy.py promote --confirm-prod
 python deploy/upload_and_deploy.py smoke prod
 ```
 
-`promote` streamt `jengo-clients:acc` naar prod (`docker save | gunzip | docker load`), controleert dat het
-image-id aan beide kanten identiek is (anders start er niets), tagt het als `jengo-clients:prod`, zet exact
-dezelfde broncode-revisies als acc neer (leadmanager én websearch, uit `REVISION` op acc) en start met
+`promote` streams `jengo-clients:acc` to prod (`docker save | gunzip | docker load`), checks that the
+image id is identical on both sides (otherwise nothing starts), tags it as `jengo-clients:prod`, puts exactly
+the same source revisions as acc in place (leadmanager and websearch, from `REVISION` on acc) and starts with
 `--no-build`.
 
-## Configuratie
+## Configuration
 
-Alles staat in `.env` (zie `.env.example`); `docker-compose.yml` vertaalt het naar de instellingen van de app.
+Everything is in `.env` (see `.env.example`); `docker-compose.yml` translates it to the app's settings.
 
-| Instelling | Betekenis |
+| Setting | Meaning |
 |---|---|
-| `JWT_KEY` | Ondertekent logins. Minimaal 32 tekens, per omgeving uniek. Wijzigen = iedereen opnieuw inloggen. |
-| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Eerste beheerder (`Seed:Admins`). Bestaande accounts behouden hun wachtwoord. |
-| `PUBLIC_URL` | CORS en SSO-callback (`<PUBLIC_URL>/api/auth/sso/callback`). |
-| `SSO_ISSUER`, `SSO_CLIENT_ID` | Jengo IAM, zie "Inloggen met Jengo-IAM". |
-| `SEED_RESET_PASSWORDS` | Herstelschakelaar, alleen via `init-env --force`; geldt voor één start. |
+| `JWT_KEY` | Signs logins. At least 32 characters, unique per environment. Changing it = everyone logs in again. |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | First administrator (`Seed:Admins`). Existing accounts keep their password. |
+| `PUBLIC_URL` | CORS and SSO callback (`<PUBLIC_URL>/api/auth/sso/callback`). |
+| `SSO_ISSUER`, `SSO_CLIENT_ID` | Jengo IAM, see "Signing in with Jengo IAM". |
+| `SEED_RESET_PASSWORDS` | Recovery switch, only via `init-env --force`; applies to one start. |
+| `OPENAI_API_KEY` etc. | Optional; empty = that feature is off. Deliberately empty on test. |
+| `MEM_LIMIT` | Hard memory limit of the container (default 768 MB). |
 
-De container start niet als `Jwt:Key` leeg, korter dan 32 tekens of de openbare sleutel uit `appsettings.json` is.
-Het Hangfire-dashboard staat in de container uit.
+The container does not start if `Jwt:Key` is empty, shorter than 32 characters or the public key from `appsettings.json`.
+The Hangfire dashboard is off in the container.
 
-## Inloggen met Jengo-IAM
+The app runs as user `app` (uid 1654); `deploy.sh` fixes the owner of `data/`. The data volume
+(`./data`) contains `leadmanager.db` and `dp-keys/` (Data Protection keys). The image contains no secrets.
 
-Op de inlogpagina staat "Inloggen met IAM". De app stuurt naar de IAM (autorisatiecode met PKCE), krijgt de
-gebruiker terug op `<PUBLIC_URL>/api/auth/sso/callback`, haalt het e-mailadres op en logt in als de lokale
-gebruiker met dat adres. Bestaat die nog niet, dan wordt hij aangemaakt met de rol `User`; een bestaande
-beheerder (zoals de eerste beheerder uit `ADMIN_EMAIL`) logt dus als beheerder in.
+## Health and checks
 
-| Omgeving | IAM (`SSO_ISSUER`) |
+- `GET /api/health` (open): status and version. The container has a healthcheck on it.
+- `python deploy/upload_and_deploy.py status <env>`: revision, container status, memory and health.
+- `python deploy/smoke_test.py --base <url> --admin-email <email>` (password in `LM_ADMIN_PASSWORD`):
+  frontend, routing, login, a complete CRM walkthrough and cleanup.
+
+## Restoring
+
+A backup contains the database and `dp-keys`:
+
+```
+cd /opt/clients-<env>/deploy
+docker compose down
+cp backups/<timestamp>/db/leadmanager.db data/leadmanager.db
+docker compose up -d
+```
+
+## Signing in with Jengo IAM
+
+The login page has "Sign in with IAM". The app redirects to the IAM (authorization code with PKCE), gets the
+user back on `<PUBLIC_URL>/api/auth/sso/callback`, fetches the email address and logs in as the local
+user with that address. If that user does not exist yet, it is created with the role `User`; an existing
+administrator (such as the first administrator from `ADMIN_EMAIL`) therefore logs in as administrator.
+
+| Environment | IAM (`SSO_ISSUER`) |
 |---|---|
 | prod | https://maendeleo.martiendejong.nl |
 | acc | https://iam-acc.martiendejong.nl |
-| test | https://iam-acc.martiendejong.nl (de aparte test-IAM heeft maar 3 gebruikers, niet de eigenaar) |
+| test | https://iam-acc.martiendejong.nl (the separate test IAM has only 3 users, not the owner) |
 
-De IAM-client `leadmanager` moet het callback-adres van de omgeving kennen. Dat regelt, herhaalbaar en
-alleen toevoegend (de oude rij wordt eerst op de IAM-server bewaard):
+The IAM client `leadmanager` must know the environment's callback address. This is handled, repeatably and
+add-only (the old row is first kept on the IAM server), by:
 
 ```
 python deploy/upload_and_deploy.py sso <env>
 ```
 
-`init-env` zet `SSO_ISSUER` per omgeving goed. De oude installatie (`leads.prospergenics.com`) blijft in de client
-staan. **Let op:** iedereen met een account in de gekozen IAM kan inloggen en krijgt dan een eigen, lege
-omgeving (elke gebruiker ziet alleen zijn eigen leads). Wie dat niet wil, haalt de knop weg of beperkt de IAM-client.
+`init-env` sets `SSO_ISSUER` correctly per environment. The old installation (`leads.prospergenics.com`) stays
+in the client. **Note:** everyone with an account in the chosen IAM can sign in and then gets their own, empty
+environment (each user only sees their own leads). If you do not want that, remove the button or restrict the IAM client.
 
 ## MCP
 
-`POST https://<omgeving>/mcp` is de MCP-server (zie `docs/MCP.md`). Een API-key van de gebruiker is het
-Bearer-token. De smoke-test controleert initialize, de toollijst, een `create_lead` en de batchgrens.
-| `OPENAI_API_KEY` e.a. | Optioneel; leeg = die functie staat uit. Op test bewust leeg. |
-| `MEM_LIMIT` | Harde geheugengrens van de container (standaard 768 MB). |
+`POST https://<environment>/mcp` is the MCP server (see `docs/MCP.md`). A user's API key is the
+Bearer token. The smoke test checks initialize, the tool list, a `create_lead` and the batch limit.
 
-De app draait als gebruiker `app` (uid 1654); `deploy.sh` zet de eigenaar van `data/` goed. Het datavolume
-(`./data`) bevat `leadmanager.db` en `dp-keys/` (Data Protection-sleutels). Het image bevat geen geheimen.
+## Migration from the Windows installation (done 19-11-2026)
 
-## Gezondheid en controle
+`leads.prospergenics.com` was LeadManager as a Windows service behind IIS on 85.215.217.154. Since 19-11-2026 it is
+the same app as a Docker stack on the prod server.
 
-- `GET /api/health` (open): status en versie. De container heeft hier een healthcheck op.
-- `python deploy/upload_and_deploy.py status <env>`: revisie, containerstatus, geheugen en health.
-- `python deploy/smoke_test.py --base <url> --admin-email <e-mail>` (wachtwoord in `LM_ADMIN_PASSWORD`):
-  frontend, routing, login, een complete CRM-doorloop en opruimen.
+- **Data:** the database (101 leads, 1 client, 2 users, indexed pages and notifications) was copied after a clean
+  stop of the old service (integrity checked, checksum identical) and brought through the new migrations at
+  startup. Everything belonged to `info@martiendejong.nl`; so that user sees their own leads, also via IAM login.
+- **Passwords:** the old admin passwords were in git. Both admin accounts were set to new, random passwords during
+  the migration with the one-time reset (vault project 12). Other users did not exist.
+- **DNS:** `leads.prospergenics.com` and `api.leads.prospergenics.com` point to 46.62.219.14 (DNS only);
+  `clients.prospergenics.com` keeps working. Since the host switch (19-11-2026, see below) the main name (`PUBLIC_URL`,
+  SSO callback) is `clients.prospergenics.com`.
+- **Old installation:** archived, not deleted, in `C:\archive\leadmanager-20261119` on 85.215.217.154 (878 MB):
+  the whole folder, the database as it was, the watchdog, and the exported IIS sites, app pools, scheduled task and
+  service (`config\`), with a README with restore steps. IIS sites `leads` and `LeadManagerAPI`, their app pools, the
+  service `LeadManagerApi` and the task `LeadManagerMemWatch` have been removed. The other IIS sites are untouched.
+- **Rolling back** is only possible together with DNS back to 85.215.217.154; see the README in the archive.
+- Sessions: the JWT key is new, so everyone logs in once more (with IAM or with their password).
+- Note: the win-acme certificate renewal on the old server for `leads` and `api.leads` no longer has a purpose.
 
-## Terugzetten
+## Host switch: clients.prospergenics.com is the main name (19-11-2026)
 
-Een backup bevat de database en `dp-keys`:
-
-```
-cd /opt/clients-<env>/deploy
-docker compose down
-cp backups/<tijdstempel>/db/leadmanager.db data/leadmanager.db
-docker compose up -d
-```
-
-## Overstap van de Windows-installatie (gedaan 19-11-2026)
-
-`leads.prospergenics.com` was LeadManager als Windows-service achter IIS op 85.215.217.154. Sinds 19-11-2026 is dat
-dezelfde app als Docker-stack op de prodserver.
-
-- **Data:** de database (101 leads, 1 klant, 2 gebruikers, geïndexeerde pagina's en meldingen) is na een schone
-  stop van de oude service gekopieerd (integriteit gecontroleerd, checksum identiek) en bij de start door de nieuwe
-  migraties heen gehaald. Alles was van `info@martiendejong.nl`; die ziet dus zijn eigen leads, ook via IAM-login.
-- **Wachtwoorden:** de oude admin-wachtwoorden stonden in git. Beide admin-accounts zijn bij de overstap met de
-  eenmalige reset op nieuwe, willekeurige wachtwoorden gezet (vault project 12). Andere gebruikers bestonden niet.
-- **DNS:** `leads.prospergenics.com` en `api.leads.prospergenics.com` wijzen naar 46.62.219.14 (alleen DNS);
-  `clients.prospergenics.com` blijft werken. Sinds de hostwissel (19-11-2026, zie onder) is de hoofdnaam (`PUBLIC_URL`,
-  SSO-callback) `clients.prospergenics.com`.
-- **Oude installatie:** gearchiveerd, niet verwijderd, in `C:\archive\leadmanager-20261119` op 85.215.217.154 (878 MB):
-  de hele map, de database zoals ze was, de watchdog, en de geëxporteerde IIS-sites, app pools, geplande taak en
-  service (`config\`), met een README met herstelstappen. IIS-sites `leads` en `LeadManagerAPI`, hun app pools, de
-  service `LeadManagerApi` en de taak `LeadManagerMemWatch` zijn verwijderd. De overige IIS-sites zijn ongemoeid.
-- **Terugdraaien** kan alleen samen met DNS terug naar 85.215.217.154; zie de README in het archief.
-- Sessies: de JWT-sleutel is nieuw, dus iedereen logt één keer opnieuw in (met IAM of met zijn wachtwoord).
-- Let op: de certificaatverlenging van win-acme op de oude server voor `leads` en `api.leads` heeft geen doel meer.
-
-## Hostwissel: clients.prospergenics.com is de hoofdnaam (19-11-2026)
-
-`leads.prospergenics.com` was de naam van de oude installatie; de app heet Jengo Clients. De hoofdnaam is nu
+`leads.prospergenics.com` was the name of the old installation; the app is called Jengo Clients. The main name is now
 `clients.prospergenics.com`:
 
 ```
-python deploy/upload_and_deploy.py sso prod       # extra IAM-callback voor de nieuwe naam (de oude blijft staan)
-python deploy/upload_and_deploy.py rehost prod    # PUBLIC_URL in .env, herstart zonder build, gateway aanpassen
+python deploy/upload_and_deploy.py sso prod       # extra IAM callback for the new name (the old one stays)
+python deploy/upload_and_deploy.py rehost prod    # PUBLIC_URL in .env, restart without build, adjust gateway
 python deploy/upload_and_deploy.py smoke prod
 ```
 
-- `leads.prospergenics.com` geeft een permanente doorverwijzing (308, behoudt de methode en het pad) naar de nieuwe
-  naam. `api.leads.prospergenics.com` bedient de app nog steeds rechtstreeks, voor wie die naam nog gebruikt.
-- Browsers bewaren de login per adres: iedereen logt één keer opnieuw in op de nieuwe naam (IAM of wachtwoord).
-- API-sleutels, de MCP-sleutel en de agenda-feed werken op beide namen; nieuwe feed-links gebruiken de nieuwe naam
-  (bestaande links blijven werken via de doorverwijzing, maar Google Agenda volgt geen doorverwijzing altijd: koppel
-  opnieuw als een agenda stopt met verversen).
-- `rehost` maakt een back-up van `.env` en de Caddyfile, valideert Caddy en zet bij elke fout het oude bestand terug
-  over een verse verbinding.
+- `leads.prospergenics.com` gives a permanent redirect (308, keeps the method and path) to the new
+  name. `api.leads.prospergenics.com` still serves the app directly, for anyone still using that name.
+- Browsers store the login per address: everyone logs in once more on the new name (IAM or password).
+- API keys, the MCP key and the calendar feed work on both names; new feed links use the new name
+  (existing links keep working via the redirect, but Google Calendar does not always follow a redirect: reconnect
+  if a calendar stops refreshing).
+- `rehost` makes a backup of `.env` and the Caddyfile, validates Caddy and on any error puts the old file back
+  over a fresh connection.

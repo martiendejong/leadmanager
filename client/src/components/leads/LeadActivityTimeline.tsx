@@ -13,13 +13,13 @@ const ACTIVITY_TYPES = [
 ]
 
 const ACTIVITY_TYPE_LABELS: Record<string, string> = {
-  Created: 'Aangemaakt',
-  Enriched: 'Verrijkt',
-  StatusChanged: 'Status gewijzigd',
-  NoteAdded: 'Notitie toegevoegd',
-  EmailSent: 'E-mail verstuurd',
-  Called: 'Gebeld',
-  Converted: 'Geconverteerd',
+  Created: 'Created',
+  Enriched: 'Enriched',
+  StatusChanged: 'Status changed',
+  NoteAdded: 'Note added',
+  EmailSent: 'Email sent',
+  Called: 'Called',
+  Converted: 'Converted',
 }
 
 function ActivityIcon({ type }: { type: string }) {
@@ -125,10 +125,10 @@ export default function LeadActivityTimeline({ leadId }: Props) {
       await addLeadActivity(leadId, { activityType: newType, note: newNote || undefined })
       setNewNote('')
       setShowAddForm(false)
-      showToast('Activiteit toegevoegd', 'success')
+      showToast('Activity added', 'success')
       await load()
     } catch {
-      showToast('Activiteit toevoegen mislukt', 'error')
+      showToast('Could not add activity', 'error')
     } finally {
       setIsSubmitting(false)
     }
@@ -137,12 +137,12 @@ export default function LeadActivityTimeline({ leadId }: Props) {
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-gray-700">Activiteit tijdlijn</h3>
+        <h3 className="text-sm font-semibold text-gray-700">Activity timeline</h3>
         <button
           onClick={() => setShowAddForm((v) => !v)}
           className="text-xs px-2 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700"
         >
-          + Toevoegen
+          + Add
         </button>
       </div>
 
@@ -160,7 +160,7 @@ export default function LeadActivityTimeline({ leadId }: Props) {
           <textarea
             value={newNote}
             onChange={(e) => setNewNote(e.target.value)}
-            placeholder="Notitie (optioneel)"
+            placeholder="Note (optional)"
             rows={2}
             className="w-full text-sm border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-400 resize-none"
           />
@@ -170,23 +170,23 @@ export default function LeadActivityTimeline({ leadId }: Props) {
               disabled={isSubmitting}
               className="text-xs px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:bg-gray-400"
             >
-              {isSubmitting ? 'Opslaan...' : 'Opslaan'}
+              {isSubmitting ? 'Saving...' : 'Save'}
             </button>
             <button
               type="button"
               onClick={() => setShowAddForm(false)}
               className="text-xs px-3 py-1 border border-gray-300 rounded hover:bg-gray-100"
             >
-              Annuleren
+              Cancel
             </button>
           </div>
         </form>
       )}
 
       {isLoading ? (
-        <p className="text-xs text-gray-400 py-2">Laden...</p>
+        <p className="text-xs text-gray-400 py-2">Loading...</p>
       ) : activities.length === 0 ? (
-        <p className="text-xs text-gray-400 py-2 italic">Nog geen activiteiten geregistreerd.</p>
+        <p className="text-xs text-gray-400 py-2 italic">No activities recorded yet.</p>
       ) : (
         <ol className="relative border-l border-gray-200 ml-2 space-y-4">
           {activities.map((a) => (
@@ -204,7 +204,7 @@ export default function LeadActivityTimeline({ leadId }: Props) {
                   )}
                 </div>
                 <time className="text-xs text-gray-400 whitespace-nowrap flex-shrink-0">
-                  {new Date(a.createdAt).toLocaleDateString('nl-NL', {
+                  {new Date(a.createdAt).toLocaleDateString('en-GB', {
                     day: 'numeric',
                     month: 'short',
                     hour: '2-digit',
