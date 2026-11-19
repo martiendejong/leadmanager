@@ -30,10 +30,10 @@ function TagInput({ label, values, onChange }: { label: string; values: string[]
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), add())}
           className="flex-1 border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:ring-indigo-500 focus:border-indigo-500"
-          placeholder="Typ en druk Enter"
+          placeholder="Type and press Enter"
         />
         <button onClick={add} className="px-3 py-1.5 text-sm bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200">
-          Toevoegen
+          Add
         </button>
       </div>
     </div>
@@ -58,10 +58,10 @@ function TextArea({ label, value, onChange, rows = 3, placeholder }: {
 }
 
 const GENERATE_STEPS = [
-  'Website crawlen…',
-  'Pagina\'s analyseren…',
-  'Profiel genereren met AI…',
-  'Opslaan…',
+  'Crawling website…',
+  'Analysing pages…',
+  'Generating profile with AI…',
+  'Saving…',
 ]
 
 export default function ProfilePage() {
@@ -112,9 +112,9 @@ export default function ProfilePage() {
       const p = await generateProfile(websiteUrl.trim())
       setProfile(p)
       setEdited(p)
-      showToast('Profiel gegenereerd!', 'success')
+      showToast('Profile generated!', 'success')
     } catch (err: any) {
-      showToast(err.response?.data?.message || 'Genereren mislukt', 'error')
+      showToast(err.response?.data?.message || 'Could not generate profile', 'error')
     } finally {
       setIsGenerating(false)
     }
@@ -127,9 +127,9 @@ export default function ProfilePage() {
       const p = await updateProfile(edited)
       setProfile(p)
       setEdited(p)
-      showToast('Profiel opgeslagen', 'success')
+      showToast('Profile saved', 'success')
     } catch {
-      showToast('Opslaan mislukt', 'error')
+      showToast('Could not save', 'error')
     } finally {
       setIsSaving(false)
     }
@@ -141,7 +141,7 @@ export default function ProfilePage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-gray-400 text-sm">Laden…</div>
+        <div className="text-gray-400 text-sm">Loading…</div>
       </div>
     )
   }
@@ -153,13 +153,13 @@ export default function ProfilePage() {
           <svg className="w-10 h-10 text-red-400 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          <h3 className="text-sm font-semibold text-red-800 mb-1">Kon profiel niet laden</h3>
-          <p className="text-sm text-red-600">Controleer of de API server actief is en herstart indien nodig.</p>
+          <h3 className="text-sm font-semibold text-red-800 mb-1">Could not load profile</h3>
+          <p className="text-sm text-red-600">Check that the API server is running and restart it if needed.</p>
           <button
             onClick={() => { setLoadError(false); setIsLoading(true); getProfile().then((p) => { setProfile(p); setEdited(p); setIsLoading(false) }).catch(() => { setLoadError(true); setIsLoading(false) }) }}
             className="mt-4 px-4 py-2 bg-red-600 text-white rounded-md text-sm font-medium hover:bg-red-700"
           >
-            Opnieuw proberen
+            Try again
           </button>
         </div>
       </div>
@@ -169,21 +169,21 @@ export default function ProfilePage() {
   return (
     <div className="max-w-3xl mx-auto space-y-8">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900">Bedrijfsprofiel</h2>
+        <h2 className="text-2xl font-bold text-gray-900">Company profile</h2>
         <p className="text-sm text-gray-500 mt-1">
-          Voer jouw website in. Het systeem crawlt hem en maakt een profiel op basis waarvan slimme leads worden gevonden.
+          Enter your website. The system crawls it and builds a profile used to find relevant leads.
         </p>
       </div>
 
       {/* Website input + generate */}
       <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-4">
         <h3 className="font-semibold text-gray-800">
-          {profile ? 'Profiel hergenereren' : 'Profiel aanmaken'}
+          {profile ? 'Regenerate profile' : 'Create profile'}
         </h3>
         {profile && (
           <p className="text-sm text-gray-500">
-            Huidig profiel voor <strong>{profile.websiteUrl}</strong> — versie {profile.profileVersion},
-            bijgewerkt {new Date(profile.updatedAt).toLocaleDateString('nl-NL')}
+            Current profile for <strong>{profile.websiteUrl}</strong> (version {profile.profileVersion}),
+            updated {new Date(profile.updatedAt).toLocaleDateString('en-GB')}
           </p>
         )}
         <div className="flex gap-3">
@@ -191,7 +191,7 @@ export default function ProfilePage() {
             type="url"
             value={websiteUrl}
             onChange={(e) => setWebsiteUrl(e.target.value)}
-            placeholder={profile?.websiteUrl || 'https://jouwbedrijf.nl'}
+            placeholder={profile?.websiteUrl || 'https://yourcompany.com'}
             className="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"
             onKeyDown={(e) => e.key === 'Enter' && handleGenerate()}
           />
@@ -206,10 +206,10 @@ export default function ProfilePage() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
-                Genereren…
+                Generating…
               </>
             ) : (
-              'Genereer profiel'
+              'Generate profile'
             )}
           </button>
         </div>
@@ -232,7 +232,7 @@ export default function ProfilePage() {
                   <div className="w-4 h-4 rounded-full border-2 border-gray-200 flex-shrink-0" />
                 )}
                 <span className={i === generatingStep ? 'text-indigo-700 font-medium' : i < generatingStep ? 'text-green-600' : 'text-gray-400'}>
-                  Stap {i + 1}: {step}
+                  Step {i + 1}: {step}
                 </span>
               </div>
             ))}
@@ -243,11 +243,11 @@ export default function ProfilePage() {
       {/* Editable profile */}
       {edited && (
         <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-6">
-          <h3 className="font-semibold text-gray-800">Profiel bewerken</h3>
+          <h3 className="font-semibold text-gray-800">Edit profile</h3>
 
           <div className="grid grid-cols-1 gap-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Bedrijfsnaam</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Company name</label>
               <input
                 type="text"
                 value={edited.companyName}
@@ -256,19 +256,19 @@ export default function ProfilePage() {
               />
             </div>
 
-            <TextArea label="Omschrijving (2-3 zinnen)" value={edited.description} onChange={set('description')} />
-            <TextArea label="Wat jullie doen (gedetailleerd)" value={edited.whatTheyDo} onChange={set('whatTheyDo')} rows={4} />
+            <TextArea label="Description (2-3 sentences)" value={edited.description} onChange={set('description')} />
+            <TextArea label="What you do (detailed)" value={edited.whatTheyDo} onChange={set('whatTheyDo')} rows={4} />
             <TextArea
-              label="Ideale klantprofiel (ICP)"
+              label="Ideal customer profile (ICP)"
               value={edited.idealCustomerProfile}
               onChange={set('idealCustomerProfile')}
               rows={4}
-              placeholder="Beschrijf de ideale klant: sector, bedrijfsgrootte, uitdagingen, behoeften…"
+              placeholder="Describe the ideal customer: sector, company size, challenges, needs…"
             />
             <TextArea label="Tone of voice" value={edited.toneOfVoice} onChange={set('toneOfVoice')} />
 
-            <TagInput label="Doelsectoren" values={edited.targetSectors} onChange={set('targetSectors')} />
-            <TagInput label="Doelregio's" values={edited.targetRegions} onChange={set('targetRegions')} />
+            <TagInput label="Target sectors" values={edited.targetSectors} onChange={set('targetSectors')} />
+            <TagInput label="Target regions" values={edited.targetRegions} onChange={set('targetRegions')} />
             <TagInput label="Keywords" values={edited.keywords} onChange={set('keywords')} />
             <TagInput label="USPs" values={edited.usps} onChange={set('usps')} />
           </div>
@@ -279,7 +279,7 @@ export default function ProfilePage() {
               disabled={isSaving}
               className="px-5 py-2 bg-indigo-600 text-white rounded-md text-sm font-medium hover:bg-indigo-700 disabled:opacity-50"
             >
-              {isSaving ? 'Opslaan…' : 'Profiel opslaan'}
+              {isSaving ? 'Saving…' : 'Save profile'}
             </button>
           </div>
         </div>

@@ -117,7 +117,7 @@ public class ProfileController : ControllerBase
         var userId = GetUserId();
         var profile = await _db.CompanyProfiles.FirstOrDefaultAsync(p => p.UserId == userId);
         if (profile == null)
-            return BadRequest(new { message = "Maak eerst een bedrijfsprofiel aan." });
+            return BadRequest(new { message = "Create a company profile first." });
 
         // Build dedup set from existing user leads (name|domain)
         var existingLeads = await _db.Leads

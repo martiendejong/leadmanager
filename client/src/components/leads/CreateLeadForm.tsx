@@ -53,11 +53,11 @@ export default function CreateLeadForm({ onSuccess, onCancel }: CreateLeadFormPr
       const isValidSize = file.size <= maxSize
 
       if (!isValidType) {
-        showToast(`Ongeldig bestandstype: ${file.name}. Alleen PDF, DOCX en TXT zijn toegestaan.`, 'error')
+        showToast(`Invalid file type: ${file.name}. Only PDF, DOCX and TXT are allowed.`, 'error')
         return false
       }
       if (!isValidSize) {
-        showToast(`Bestand te groot: ${file.name}. Maximaal 10MB per bestand.`, 'error')
+        showToast(`File too large: ${file.name}. Maximum 10MB per file.`, 'error')
         return false
       }
       return true
@@ -66,7 +66,7 @@ export default function CreateLeadForm({ onSuccess, onCancel }: CreateLeadFormPr
     setSelectedFiles((prev) => {
       const combined = [...prev, ...validFiles]
       if (combined.length > 5) {
-        showToast('Maximaal 5 bestanden toegestaan.', 'error')
+        showToast('A maximum of 5 files is allowed.', 'error')
         return prev
       }
       return combined
@@ -101,13 +101,13 @@ export default function CreateLeadForm({ onSuccess, onCancel }: CreateLeadFormPr
     const hasDocuments = selectedFiles.length > 0
 
     if (!hasWebsite && !hasManualInput && !hasDocuments) {
-      showToast('Vul minimaal een veld in: Website URL, vrije tekst of upload een document.', 'error')
+      showToast('Fill in at least one field: website URL, free text or upload a document.', 'error')
       return
     }
 
     // Validate ManualInput length
     if (formData.manualInput && formData.manualInput.length > 5000) {
-      showToast('Vrije tekst mag maximaal 5000 tekens bevatten.', 'error')
+      showToast('Free text can contain at most 5000 characters.', 'error')
       return
     }
 
@@ -131,11 +131,11 @@ export default function CreateLeadForm({ onSuccess, onCancel }: CreateLeadFormPr
         await uploadLeadDocuments(lead.id, selectedFiles)
       }
 
-      showToast('Lead succesvol aangemaakt!', 'success')
+      showToast('Lead created successfully!', 'success')
       onSuccess()
     } catch (err: any) {
       console.error('Failed to create lead:', err)
-      showToast(err.response?.data || 'Fout bij aanmaken van lead.', 'error')
+      showToast(err.response?.data || 'Could not create lead.', 'error')
     } finally {
       setIsSubmitting(false)
     }
@@ -150,11 +150,11 @@ export default function CreateLeadForm({ onSuccess, onCancel }: CreateLeadFormPr
       const result = await createLeadWithDupCheck(pendingFormDataRef.current, true)
       if ('lead' in result) {
         await mergeLead(existingLeadId, result.lead.id)
-        showToast('Leads samengevoegd!', 'success')
+        showToast('Leads merged!', 'success')
         onSuccess()
       }
     } catch (err: any) {
-      showToast(err.response?.data || 'Samenvoegen mislukt.', 'error')
+      showToast(err.response?.data || 'Could not merge leads.', 'error')
     } finally {
       setIsSubmitting(false)
     }
@@ -170,11 +170,11 @@ export default function CreateLeadForm({ onSuccess, onCancel }: CreateLeadFormPr
         if (selectedFiles.length > 0) {
           await uploadLeadDocuments(result.lead.id, selectedFiles)
         }
-        showToast('Lead succesvol aangemaakt!', 'success')
+        showToast('Lead created successfully!', 'success')
         onSuccess()
       }
     } catch (err: any) {
-      showToast(err.response?.data || 'Fout bij aanmaken van lead.', 'error')
+      showToast(err.response?.data || 'Could not create lead.', 'error')
     } finally {
       setIsSubmitting(false)
     }
@@ -193,7 +193,7 @@ export default function CreateLeadForm({ onSuccess, onCancel }: CreateLeadFormPr
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
-          <h2 className="text-xl font-semibold">Nieuwe lead aanmaken</h2>
+          <h2 className="text-xl font-semibold">Create new lead</h2>
           <button
             onClick={onCancel}
             className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
@@ -206,11 +206,11 @@ export default function CreateLeadForm({ onSuccess, onCancel }: CreateLeadFormPr
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           {/* Basic Information */}
           <div>
-            <h3 className="font-medium mb-3">Basisinformatie</h3>
+            <h3 className="font-medium mb-3">Basic information</h3>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Bedrijfsnaam <span className="text-red-500">*</span>
+                  Company name <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -219,7 +219,7 @@ export default function CreateLeadForm({ onSuccess, onCancel }: CreateLeadFormPr
                   onChange={handleChange}
                   required
                   className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Bijvoorbeeld: ACME BV"
+                  placeholder="For example: ACME Ltd"
                 />
               </div>
 
@@ -231,12 +231,12 @@ export default function CreateLeadForm({ onSuccess, onCancel }: CreateLeadFormPr
                   value={formData.sector}
                   onChange={handleChange}
                   className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Bijvoorbeeld: IT / Marketing"
+                  placeholder="For example: IT / Marketing"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Stad</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
                 <input
                   type="text"
                   name="city"
@@ -248,7 +248,7 @@ export default function CreateLeadForm({ onSuccess, onCancel }: CreateLeadFormPr
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Telefoon</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
                 <input
                   type="text"
                   name="phone"
@@ -260,14 +260,14 @@ export default function CreateLeadForm({ onSuccess, onCancel }: CreateLeadFormPr
               </div>
 
               <div className="col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Bedrijf email</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Company email</label>
                 <input
                   type="email"
                   name="companyEmail"
                   value={formData.companyEmail}
                   onChange={handleChange}
                   className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="info@bedrijf.nl"
+                  placeholder="info@company.com"
                 />
               </div>
             </div>
@@ -275,9 +275,9 @@ export default function CreateLeadForm({ onSuccess, onCancel }: CreateLeadFormPr
 
           {/* Input Methods - Visually Grouped */}
           <div>
-            <h3 className="font-medium mb-2">Invoermethode</h3>
+            <h3 className="font-medium mb-2">Input method</h3>
             <p className="text-sm text-gray-600 mb-4">
-              Kies minimaal één methode om informatie over het bedrijf toe te voegen
+              Choose at least one method to add information about the company
             </p>
 
             <div className="space-y-4">
@@ -285,7 +285,7 @@ export default function CreateLeadForm({ onSuccess, onCancel }: CreateLeadFormPr
               <div className="border rounded-lg p-4 bg-gray-50">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   <span className="inline-block w-6 h-6 rounded-full bg-blue-100 text-blue-600 text-center mr-2">1</span>
-                  Website URL (optioneel)
+                  Website URL (optional)
                 </label>
                 <input
                   type="url"
@@ -293,7 +293,7 @@ export default function CreateLeadForm({ onSuccess, onCancel }: CreateLeadFormPr
                   value={formData.website ?? ''}
                   onChange={handleChange}
                   className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                  placeholder="https://www.bedrijf.nl"
+                  placeholder="https://www.company.com"
                 />
               </div>
 
@@ -301,10 +301,10 @@ export default function CreateLeadForm({ onSuccess, onCancel }: CreateLeadFormPr
               <div className="border rounded-lg p-4 bg-gray-50">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   <span className="inline-block w-6 h-6 rounded-full bg-green-100 text-green-600 text-center mr-2">2</span>
-                  Vrije tekst invoer (optioneel)
+                  Free text input (optional)
                 </label>
                 <p className="text-xs text-gray-500 mb-2">
-                  Plak een LinkedIn bio, visitekaartje of bedrijfsbeschrijving
+                  Paste a LinkedIn bio, business card or company description
                 </p>
                 <textarea
                   name="manualInput"
@@ -316,7 +316,7 @@ export default function CreateLeadForm({ onSuccess, onCancel }: CreateLeadFormPr
                   placeholder="Ramon Conijn, eigenaar, Amsterdam, 06-29809397..."
                 />
                 <div className="text-right text-xs text-gray-500 mt-1">
-                  {charCount} / 5000 tekens
+                  {charCount} / 5000 characters
                 </div>
               </div>
 
@@ -324,10 +324,10 @@ export default function CreateLeadForm({ onSuccess, onCancel }: CreateLeadFormPr
               <div className="border rounded-lg p-4 bg-gray-50">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   <span className="inline-block w-6 h-6 rounded-full bg-purple-100 text-purple-600 text-center mr-2">3</span>
-                  Documenten uploaden (optioneel)
+                  Upload documents (optional)
                 </label>
                 <p className="text-xs text-gray-500 mb-2">
-                  PDF, DOCX of TXT - max 5 bestanden, 10MB per bestand
+                  PDF, DOCX or TXT - max 5 files, 10MB per file
                 </p>
 
                 <div
@@ -364,8 +364,8 @@ export default function CreateLeadForm({ onSuccess, onCancel }: CreateLeadFormPr
                       />
                     </svg>
                     <p className="mt-2">
-                      <span className="font-medium text-purple-600">Klik om te uploaden</span> of
-                      sleep bestanden hierheen
+                      <span className="font-medium text-purple-600">Click to upload</span> or
+                      drag files here
                     </p>
                   </div>
                 </div>
@@ -426,14 +426,14 @@ export default function CreateLeadForm({ onSuccess, onCancel }: CreateLeadFormPr
               className="px-4 py-2 border rounded-md hover:bg-gray-50"
               disabled={isSubmitting}
             >
-              Annuleren
+              Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
               className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
-              {isSubmitting ? 'Aanmaken...' : 'Lead aanmaken'}
+              {isSubmitting ? 'Creating...' : 'Create lead'}
             </button>
           </div>
         </form>

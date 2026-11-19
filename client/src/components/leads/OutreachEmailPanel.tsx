@@ -21,9 +21,9 @@ export default function OutreachEmailPanel({ lead }: Props) {
       setVariants(result.variants)
       setEditedBodies({})
       setActiveTab(0)
-      showToast('Outreach e-mails gegenereerd!', 'success')
+      showToast('Outreach emails generated!', 'success')
     } catch (err: any) {
-      showToast(err.response?.data || 'Genereren mislukt', 'error')
+      showToast(err.response?.data || 'Could not generate emails', 'error')
     } finally {
       setIsGenerating(false)
     }
@@ -34,9 +34,9 @@ export default function OutreachEmailPanel({ lead }: Props) {
     const text = `Onderwerp: ${variant.subject}\n\n${body}`
     try {
       await navigator.clipboard.writeText(text)
-      showToast('E-mail gekopieerd naar klembord!', 'success')
+      showToast('Email copied to clipboard!', 'success')
     } catch {
-      showToast('Kopiëren mislukt', 'error')
+      showToast('Could not copy', 'error')
     }
   }
 
@@ -54,7 +54,7 @@ export default function OutreachEmailPanel({ lead }: Props) {
           <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
           </svg>
-          <span className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Outreach E-mail Generator</span>
+          <span className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Outreach email generator</span>
         </div>
         <button
           onClick={handleGenerate}
@@ -67,14 +67,14 @@ export default function OutreachEmailPanel({ lead }: Props) {
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
-              Genereren...
+              Generating...
             </>
           ) : (
             <>
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
-              {variants ? 'Hergenerer' : 'Genereer Outreach Email'}
+              {variants ? 'Regenerate' : 'Generate outreach email'}
             </>
           )}
         </button>
@@ -83,7 +83,7 @@ export default function OutreachEmailPanel({ lead }: Props) {
       {!variants && !isGenerating && (
         <div className="px-4 py-5 text-center">
           <p className="text-sm text-blue-600">
-            Klik op "Genereer Outreach Email" om 3 gepersonaliseerde e-mailvarianten te genereren voor <strong>{lead.name}</strong>.
+            Click "Generate outreach email" to generate 3 personalised email variants for <strong>{lead.name}</strong>.
           </p>
         </div>
       )}
@@ -95,7 +95,7 @@ export default function OutreachEmailPanel({ lead }: Props) {
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
-            AI schrijft 3 e-mailvarianten...
+            AI is writing 3 email variants...
           </div>
         </div>
       )}
@@ -123,7 +123,7 @@ export default function OutreachEmailPanel({ lead }: Props) {
               {/* Subject */}
               <div>
                 <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
-                  Onderwerp
+                  Subject
                 </label>
                 <div className="flex items-center gap-2">
                   <input
@@ -133,9 +133,9 @@ export default function OutreachEmailPanel({ lead }: Props) {
                     className="flex-1 text-sm border border-gray-200 rounded px-3 py-1.5 bg-gray-50 text-gray-900 focus:outline-none"
                   />
                   <button
-                    onClick={() => navigator.clipboard.writeText(variants[activeTab].subject).then(() => showToast('Onderwerp gekopieerd!', 'success'))}
+                    onClick={() => navigator.clipboard.writeText(variants[activeTab].subject).then(() => showToast('Subject copied!', 'success'))}
                     className="text-xs px-2 py-1.5 bg-gray-100 text-gray-600 rounded hover:bg-gray-200 flex-shrink-0"
-                    title="Kopieer onderwerp"
+                    title="Copy subject"
                   >
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -147,7 +147,7 @@ export default function OutreachEmailPanel({ lead }: Props) {
               {/* Body */}
               <div>
                 <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
-                  E-mailtekst <span className="normal-case font-normal">(bewerkbaar)</span>
+                  Email body <span className="normal-case font-normal">(editable)</span>
                 </label>
                 <textarea
                   rows={8}
@@ -165,7 +165,7 @@ export default function OutreachEmailPanel({ lead }: Props) {
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                 </svg>
-                Kopieer onderwerp + tekst
+                Copy subject + body
               </button>
             </div>
           )}

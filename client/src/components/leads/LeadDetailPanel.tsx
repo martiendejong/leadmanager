@@ -92,10 +92,10 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
     setIsAssigning(true)
     try {
       const updated = await assignLead(lead.id, userId)
-      showToast(userId ? 'Lead toegewezen!' : 'Toewijzing verwijderd', 'success')
+      showToast(userId ? 'Lead assigned!' : 'Assignment removed', 'success')
       if (onLeadUpdated) onLeadUpdated(updated)
     } catch {
-      showToast('Toewijzen mislukt', 'error')
+      showToast('Could not assign lead', 'error')
     } finally {
       setIsAssigning(false)
     }
@@ -104,9 +104,9 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
   const copyToClipboard = async (text: string, label: string) => {
     try {
       await navigator.clipboard.writeText(text)
-      showToast(`${label} gekopieerd naar klembord!`, 'success')
+      showToast(`${label} copied to clipboard!`, 'success')
     } catch {
-      showToast('Kopiëren mislukt', 'error')
+      showToast('Could not copy', 'error')
     }
   }
 
@@ -116,11 +116,11 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
     setIsRegenerating(true)
     try {
       await regenerateSalesApproach(lead.id)
-      showToast('Sales approach opnieuw gegenereerd!', 'success')
+      showToast('Sales approach regenerated!', 'success')
       // Update the lead in parent component would require callback - for now just show success
       window.location.reload() // Simple refresh - in production use proper state management
     } catch (err: any) {
-      showToast(err.response?.data || 'Regenereren mislukt', 'error')
+      showToast(err.response?.data || 'Could not regenerate', 'error')
     } finally {
       setIsRegenerating(false)
     }
@@ -131,9 +131,9 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
     setIsSavingReminder(true)
     try {
       await setReminder(lead.id, date || null)
-      showToast(date ? `Herinnering ingesteld op ${date}` : 'Herinnering verwijderd', 'success')
+      showToast(date ? `Reminder set for ${date}` : 'Reminder removed', 'success')
     } catch {
-      showToast('Herinnering opslaan mislukt', 'error')
+      showToast('Could not save reminder', 'error')
     } finally {
       setIsSavingReminder(false)
     }
@@ -146,7 +146,7 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
       const res = await salesSettingsApi.generateScript({ leadId: lead.id })
       setScriptText(res.script)
     } catch {
-      showToast('Belscript genereren mislukt', 'error')
+      showToast('Could not generate call script', 'error')
     } finally {
       setIsGeneratingScript(false)
     }
@@ -167,9 +167,9 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
       a.download = `Offerte-${lead.name.replace(/ /g, '_')}.pdf`
       a.click()
       URL.revokeObjectURL(url)
-      showToast('Offerte gedownload', 'success')
+      showToast('Quote downloaded', 'success')
     } catch {
-      showToast('Offerte genereren mislukt', 'error')
+      showToast('Could not generate quote', 'error')
     } finally {
       setIsGeneratingQuote(false)
     }
@@ -181,10 +181,10 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
     setIsEnriching(true)
     try {
       await enrichLeads([lead.id])
-      showToast('Verrijking gestart!', 'success')
+      showToast('Enrichment started!', 'success')
       setTimeout(() => window.location.reload(), 2000) // Reload after 2s to show updated data
     } catch (err: any) {
-      showToast(err.response?.data || 'Verrijking starten mislukt', 'error')
+      showToast(err.response?.data || 'Could not start enrichment', 'error')
     } finally {
       setIsEnriching(false)
     }
@@ -193,15 +193,15 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
   const handleStatusTransition = async () => {
     if (!lead || lead.status !== 'Lead') return
 
-    if (!confirm('Weet je zeker dat je deze lead wilt promoveren tot prospect?')) return
+    if (!confirm('Are you sure you want to promote this lead to a prospect?')) return
 
     setIsUpdatingStatus(true)
     try {
       await updateLeadStatus(lead.id, { status: 'Prospect' })
-      showToast('Lead gepromoveerd tot prospect!', 'success')
+      showToast('Lead promoted to prospect!', 'success')
       setTimeout(() => window.location.reload(), 1000) // Reload to show updated status
     } catch (err: any) {
-      showToast(err.response?.data || 'Status update mislukt', 'error')
+      showToast(err.response?.data || 'Could not update status', 'error')
     } finally {
       setIsUpdatingStatus(false)
     }
@@ -271,16 +271,16 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
                       <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                       </svg>
-                      Verrijkt
+                      Enriched
                     </span>
                     {lead.enrichedAt && (
                       <span className="text-xs text-gray-500">
-                        op {new Date(lead.enrichedAt).toLocaleDateString('nl-NL')}
+                        on {new Date(lead.enrichedAt).toLocaleDateString('en-GB')}
                       </span>
                     )}
                   </>
                 ) : (
-                  <span className="text-xs text-gray-400 italic">Nog niet verrijkt</span>
+                  <span className="text-xs text-gray-400 italic">Not enriched yet</span>
                 )}
                 {lead.enrichmentVersion === 2 && (
                   <span className="text-xs text-indigo-600 font-medium bg-indigo-50 border border-indigo-200 rounded-full px-2 py-0.5">
@@ -289,7 +289,7 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
                 )}
                 {lead.websiteStatus === 'Unreachable' && (
                   <span className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-full px-2 py-0.5">
-                    Website onbereikbaar
+                    Website unreachable
                   </span>
                 )}
               </div>
@@ -304,7 +304,7 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                     </svg>
-                    {isUpdatingStatus ? 'Bezig...' : 'Promoveer tot Prospect'}
+                    {isUpdatingStatus ? 'Working...' : 'Promote to prospect'}
                   </button>
                 )}
                 <button
@@ -312,7 +312,7 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
                   disabled={isEnriching}
                   className="text-xs px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
                 >
-                  {isEnriching ? 'Bezig...' : 'Verrijk nu'}
+                  {isEnriching ? 'Working...' : 'Enrich now'}
                 </button>
               </div>
             </div>
@@ -325,13 +325,13 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
                     <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                     </svg>
-                    Klant aangemaakt
+                    Client created
                   </span>
                   <Link
                     to={`/clients/${lead.convertedToClientId}`}
                     className="text-xs text-indigo-600 hover:underline font-medium"
                   >
-                    Bekijk klant →
+                    View client →
                   </Link>
                 </div>
               ) : (
@@ -342,7 +342,7 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
-                  Converteer naar klant
+                  Convert to client
                 </button>
               )}
             </div>
@@ -369,7 +369,7 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
                       lead.salesPriorityScore >= 7 ? 'text-green-700' :
                       lead.salesPriorityScore >= 4 ? 'text-yellow-700' :
                       'text-red-700'
-                    }`}>Sales Prioriteit</span>
+                    }`}>Sales priority</span>
                   </div>
                   <div className="flex items-baseline gap-2">
                     <span className={`text-3xl font-bold ${
@@ -388,9 +388,9 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
                     lead.salesPriorityScore >= 4 ? 'text-yellow-600' :
                     'text-red-600'
                   }`}>
-                    {lead.salesPriorityScore >= 7 ? 'Hoge prioriteit - Zeer waardevol contact' :
-                     lead.salesPriorityScore >= 4 ? 'Normale prioriteit - Standaard follow-up' :
-                     'Lage prioriteit - Beperkte contactgegevens'}
+                    {lead.salesPriorityScore >= 7 ? 'High priority · very valuable contact' :
+                     lead.salesPriorityScore >= 4 ? 'Normal priority · standard follow-up' :
+                     'Low priority · limited contact details'}
                   </p>
                 </div>
               )}
@@ -417,7 +417,7 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                           </svg>
-                          {isRegenerating ? 'Bezig...' : 'Regenereer'}
+                          {isRegenerating ? 'Working...' : 'Regenerate'}
                         </button>
                       </div>
 
@@ -441,7 +441,7 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
                               : 'text-purple-600 hover:bg-purple-100/50'
                           }`}
                         >
-                          Telefoon
+                          Phone
                         </button>
                         <button
                           onClick={() => setActiveTab('email')}
@@ -461,13 +461,13 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
                           <div>
                             <p className="text-sm text-gray-900 leading-relaxed whitespace-pre-wrap mb-3">{approach.linkedinMessage}</p>
                             <button
-                              onClick={() => copyToClipboard(approach.linkedinMessage, 'LinkedIn bericht')}
+                              onClick={() => copyToClipboard(approach.linkedinMessage, 'LinkedIn message')}
                               className="text-xs px-3 py-1.5 bg-purple-600 text-white rounded hover:bg-purple-700 flex items-center gap-1"
                             >
                               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                               </svg>
-                              Kopieer
+                              Copy
                             </button>
                           </div>
                         )}
@@ -476,13 +476,13 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
                           <div>
                             <p className="text-sm text-gray-900 leading-relaxed whitespace-pre-wrap mb-3">{approach.phoneOpener}</p>
                             <button
-                              onClick={() => copyToClipboard(approach.phoneOpener, 'Telefoon opener')}
+                              onClick={() => copyToClipboard(approach.phoneOpener, 'Phone opener')}
                               className="text-xs px-3 py-1.5 bg-purple-600 text-white rounded hover:bg-purple-700 flex items-center gap-1"
                             >
                               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                               </svg>
-                              Kopieer
+                              Copy
                             </button>
                           </div>
                         )}
@@ -497,7 +497,7 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
                               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                               </svg>
-                              Kopieer
+                              Copy
                             </button>
                           </div>
                         )}
@@ -519,7 +519,7 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
                     <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                     </svg>
-                    <span className="text-xs font-semibold text-green-700 uppercase tracking-wide">Salespitch</span>
+                    <span className="text-xs font-semibold text-green-700 uppercase tracking-wide">Sales pitch</span>
                   </div>
                   <p className="text-sm text-green-900 leading-relaxed whitespace-pre-wrap">{lead.salesPitch}</p>
                 </div>
@@ -532,7 +532,7 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
                     <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m1.636 6.364l.707-.707M6.343 6.343l-.707-.707M12 21v-1" />
                     </svg>
-                    <span className="text-xs font-semibold text-indigo-700 uppercase tracking-wide">AI Samenvatting</span>
+                    <span className="text-xs font-semibold text-indigo-700 uppercase tracking-wide">AI summary</span>
                   </div>
                   <p className="text-sm text-indigo-900 leading-relaxed">{lead.aiSummary}</p>
                 </div>
@@ -541,7 +541,7 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
               {/* Assignee (869ck3j4u) */}
               <div>
                 <h3 className="text-sm font-semibold text-gray-700 mb-3 pb-1.5 border-b border-gray-100">
-                  Toegewezen aan
+                  Assigned to
                 </h3>
                 <select
                   value={lead.assignedToUserId ?? ''}
@@ -549,7 +549,7 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
                   disabled={isAssigning}
                   className="w-full text-sm border border-gray-300 rounded-md px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-gray-100"
                 >
-                  <option value="">— Niet toegewezen —</option>
+                  <option value="">Unassigned</option>
                   {users.map((u) => (
                     <option key={u.id} value={u.id}>
                       {[u.firstName, u.lastName].filter(Boolean).join(' ') || u.email}
@@ -564,47 +564,47 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
                   <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
                   </svg>
-                  <span className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Notities & Gesprekken</span>
+                  <span className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Notes & conversations</span>
                 </div>
                 <LeadNotesPanel leadId={lead.id} />
               </div>
 
-              <Section title="Bedrijfsinfo">
-                <Field label="Naam" value={lead.name} />
+              <Section title="Company info">
+                <Field label="Name" value={lead.name} />
                 <Field label="Sector" value={lead.sector} />
-                <Field label="Stad" value={lead.city} />
-                <Field label="Telefoon" value={lead.phone} />
-                <Field label="Zakelijk e-mail" value={lead.companyEmail} />
-                <Field label="Bron" value={lead.source} />
+                <Field label="City" value={lead.city} />
+                <Field label="Phone" value={lead.phone} />
+                <Field label="Company email" value={lead.companyEmail} />
+                <Field label="Source" value={lead.source} />
               </Section>
 
-              <Section title="Eigenaar / contact">
-                <Field label="Naam eigenaar" value={lead.ownerName} />
-                <Field label="Voornaam" value={lead.ownerFirstName} />
-                <Field label="Achternaam" value={lead.ownerLastName} />
-                <Field label="Functietitel" value={lead.ownerTitle} />
-                <Field label="Persoonlijk e-mail" value={lead.personalEmail} />
+              <Section title="Owner / contact">
+                <Field label="Owner name" value={lead.ownerName} />
+                <Field label="First name" value={lead.ownerFirstName} />
+                <Field label="Last name" value={lead.ownerLastName} />
+                <Field label="Job title" value={lead.ownerTitle} />
+                <Field label="Personal email" value={lead.personalEmail} />
                 <Field label="LinkedIn" value={lead.linkedInUrl} />
               </Section>
 
               {(lead.description || lead.services || lead.targetAudience) && (
-                <Section title="AI-analyse">
-                  {lead.description && <Field label="Omschrijving" value={lead.description} />}
-                  {lead.services && <Field label="Diensten / producten" value={lead.services} />}
-                  {lead.targetAudience && <Field label="Doelgroep" value={lead.targetAudience} />}
+                <Section title="AI analysis">
+                  {lead.description && <Field label="Description" value={lead.description} />}
+                  {lead.services && <Field label="Services / products" value={lead.services} />}
+                  {lead.targetAudience && <Field label="Target audience" value={lead.targetAudience} />}
                 </Section>
               )}
 
               {/* KvK Data */}
               {(lead.kvkNumber || lead.employeeCount || lead.foundingYear) && (
-                <Section title="KvK Gegevens">
-                  {lead.kvkNumber && <Field label="KvK nummer" value={lead.kvkNumber} />}
-                  {lead.vatNumber && <Field label="BTW nummer" value={lead.vatNumber} />}
-                  {lead.street && <Field label="Straat" value={lead.street} />}
+                <Section title="KvK (Chamber of Commerce) data">
+                  {lead.kvkNumber && <Field label="KvK number" value={lead.kvkNumber} />}
+                  {lead.vatNumber && <Field label="VAT number" value={lead.vatNumber} />}
+                  {lead.street && <Field label="Street" value={lead.street} />}
                   {lead.zipCode && <Field label="Postcode" value={lead.zipCode} />}
-                  {lead.employeeCount && <Field label="Aantal werknemers" value={lead.employeeCount} />}
-                  {lead.foundingYear && <Field label="Opgericht" value={lead.foundingYear} />}
-                  {lead.legalForm && <Field label="Rechtsvorm" value={lead.legalForm} />}
+                  {lead.employeeCount && <Field label="Employees" value={lead.employeeCount} />}
+                  {lead.foundingYear && <Field label="Founded" value={lead.foundingYear} />}
+                  {lead.legalForm && <Field label="Legal form" value={lead.legalForm} />}
                 </Section>
               )}
 
@@ -613,7 +613,7 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
                 <Section title="Google Reviews">
                   {lead.googleRating && (
                     <div>
-                      <dt className="text-xs font-medium text-gray-500 uppercase tracking-wide">Beoordeling</dt>
+                      <dt className="text-xs font-medium text-gray-500 uppercase tracking-wide">Rating</dt>
                       <dd className="mt-0.5 text-sm text-gray-900 flex items-center gap-1">
                         <span className="text-yellow-500 font-semibold">{lead.googleRating.toFixed(1)}</span>
                         <span className="text-yellow-500">★</span>
@@ -644,44 +644,44 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
                     disabled={isGeneratingScript}
                     className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-60 transition-colors"
                   >
-                    {isGeneratingScript ? 'Genereren...' : 'Belscript genereren'}
+                    {isGeneratingScript ? 'Generating...' : 'Generate call script'}
                   </button>
                   <button
                     onClick={handleGenerateQuote}
                     disabled={isGeneratingQuote}
                     className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-60 transition-colors"
                   >
-                    {isGeneratingQuote ? 'Genereren...' : 'Offerte downloaden (PDF)'}
+                    {isGeneratingQuote ? 'Generating...' : 'Download quote (PDF)'}
                   </button>
                 </div>
                 {scriptText && (
                   <div className="mt-3">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-medium text-gray-600 uppercase tracking-wide">Belscript</span>
+                      <span className="text-xs font-medium text-gray-600 uppercase tracking-wide">Call script</span>
                       <button
                         onClick={() => setScriptText(null)}
                         className="text-xs text-gray-400 hover:text-gray-700"
                       >
-                        Sluiten
+                        Close
                       </button>
                     </div>
                     <pre className="text-xs text-gray-700 whitespace-pre-wrap bg-gray-50 border border-gray-200 rounded-lg p-3 max-h-96 overflow-y-auto font-sans">
                       {scriptText}
                     </pre>
                     <button
-                      onClick={() => { navigator.clipboard.writeText(scriptText); showToast('Gekopieerd!', 'success') }}
+                      onClick={() => { navigator.clipboard.writeText(scriptText); showToast('Copied!', 'success') }}
                       className="mt-2 text-xs text-indigo-600 hover:underline"
                     >
-                      Kopieer naar klembord
+                      Copy to clipboard
                     </button>
                   </div>
                 )}
               </Section>
 
               {/* Reminder */}
-              <Section title="Herinnering instellen">
+              <Section title="Set reminder">
                 <div>
-                  <dt className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Herinnerdatum</dt>
+                  <dt className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Reminder date</dt>
                   <div className="flex items-center gap-2">
                     <input
                       type="date"
@@ -694,14 +694,14 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
                       disabled={isSavingReminder}
                       className="text-xs px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed whitespace-nowrap"
                     >
-                      {isSavingReminder ? 'Opslaan...' : 'Sla op'}
+                      {isSavingReminder ? 'Saving...' : 'Save'}
                     </button>
                     {reminderDate && (
                       <button
                         onClick={() => { setReminderDate(''); handleSetReminder('') }}
                         disabled={isSavingReminder}
                         className="text-xs px-2 py-1.5 text-gray-500 hover:text-red-600 transition-colors"
-                        title="Verwijder herinnering"
+                        title="Remove reminder"
                       >
                         ✕
                       </button>
@@ -712,9 +712,9 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
 
               {lead.enrichmentVersion === 2 && (
                 <Section title="Crawl metadata">
-                  <Field label="Gecrawled op" value={lead.crawledAt ? new Date(lead.crawledAt).toLocaleString('nl-NL') : null} />
-                  <Field label="Pagina's gecrawled" value={lead.pagesCrawled} />
-                  <Field label="Chunks geïndexeerd" value={lead.chunksIndexed} />
+                  <Field label="Crawled on" value={lead.crawledAt ? new Date(lead.crawledAt).toLocaleString('en-GB') : null} />
+                  <Field label="Pages crawled" value={lead.pagesCrawled} />
+                  <Field label="Chunks indexed" value={lead.chunksIndexed} />
                   <Field label="Resolved URL" value={lead.resolvedUrl} />
                   <Field label="Website status" value={lead.websiteStatus} />
                 </Section>

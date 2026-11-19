@@ -40,10 +40,10 @@ function IntakeForm({ clientId, clientName, onSuccess, onCancel }: IntakeFormPro
     setSubmitting(true)
     try {
       const res = await intakeApi.create({ clientId, productType, bundleType, requirements, firstTask, additionalNotes })
-      showToast('Intake aangemaakt', 'success')
+      showToast('Intake created', 'success')
       onSuccess(res.data)
     } catch {
-      showToast('Aanmaken mislukt', 'error')
+      showToast('Could not create intake', 'error')
     } finally {
       setSubmitting(false)
     }
@@ -54,15 +54,15 @@ function IntakeForm({ clientId, clientName, onSuccess, onCancel }: IntakeFormPro
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold text-gray-900 mb-1">Nieuwe intake — {clientName}</h2>
+        <h2 className="text-lg font-semibold text-gray-900 mb-1">New intake: {clientName}</h2>
         <p className="text-sm text-gray-500">
-          Beschrijf wat de klant nodig heeft. Jengo schat de uren en prijs, waarna jij akkoord geeft.
+          Describe what the client needs. Jengo estimates the hours and price, then you approve.
         </p>
       </div>
 
       {/* Product type */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">Producttype</label>
+        <label className="block text-sm font-medium text-gray-700 mb-2">Product type</label>
         <div className="grid grid-cols-2 gap-2">
           {(Object.keys(PRODUCT_LABELS) as IntakeProductType[]).map((t) => (
             <button
@@ -83,7 +83,7 @@ function IntakeForm({ clientId, clientName, onSuccess, onCancel }: IntakeFormPro
 
       {/* Bundle */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">Bundel</label>
+        <label className="block text-sm font-medium text-gray-700 mb-2">Bundle</label>
         <div className="space-y-2">
           {(Object.keys(BUNDLE_LABELS) as IntakeBundleType[]).map((b) => {
             const info = BUNDLE_PRICES[b]
@@ -100,7 +100,7 @@ function IntakeForm({ clientId, clientName, onSuccess, onCancel }: IntakeFormPro
               >
                 <span className="text-sm font-medium text-gray-800">{BUNDLE_LABELS[b]}</span>
                 {b !== 'PayPerHour' && (
-                  <span className="text-xs text-gray-500">{info.hours}u · €{info.hourly}/u</span>
+                  <span className="text-xs text-gray-500">{info.hours}h · €{info.hourly}/h</span>
                 )}
               </button>
             )
@@ -108,7 +108,7 @@ function IntakeForm({ clientId, clientName, onSuccess, onCancel }: IntakeFormPro
         </div>
         {bundleType !== 'PayPerHour' && (
           <p className="mt-2 text-xs text-gray-500">
-            Bundel van {bundle.hours} uur voor €{bundle.monthly}/maand · uren bovenop bundel à €3/uur.
+            Bundle of {bundle.hours} hours for €{bundle.monthly}/month · hours beyond the bundle at €3/hour.
           </p>
         )}
       </div>
@@ -123,32 +123,32 @@ function IntakeForm({ clientId, clientName, onSuccess, onCancel }: IntakeFormPro
           onChange={(e) => setRequirements(e.target.value)}
           rows={5}
           className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="Beschrijf zo concreet mogelijk wat er gebouwd of gedaan moet worden..."
+          placeholder="Describe as concretely as possible what needs to be built or done..."
           required
         />
       </div>
 
       {/* First task */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Eerste taak (optioneel)</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">First task (optional)</label>
         <input
           type="text"
           value={firstTask}
           onChange={(e) => setFirstTask(e.target.value)}
           className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="Bijv. 'Homepage herontwerpen met nieuwe huisstijl'"
+          placeholder="e.g. 'Redesign the homepage with the new brand style'"
         />
       </div>
 
       {/* Notes */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Extra notities (optioneel)</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Additional notes (optional)</label>
         <textarea
           value={additionalNotes}
           onChange={(e) => setAdditionalNotes(e.target.value)}
           rows={2}
           className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="Deadlines, technische beperkingen, referenties..."
+          placeholder="Deadlines, technical constraints, references..."
         />
       </div>
 
@@ -158,14 +158,14 @@ function IntakeForm({ clientId, clientName, onSuccess, onCancel }: IntakeFormPro
           onClick={onCancel}
           className="px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
         >
-          Annuleren
+          Cancel
         </button>
         <button
           type="submit"
           disabled={submitting || !requirements.trim()}
           className="px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
         >
-          {submitting ? 'Aanmaken...' : 'Intake aanmaken'}
+          {submitting ? 'Creating...' : 'Create intake'}
         </button>
       </div>
     </form>
@@ -185,10 +185,10 @@ function IntakeCard({ intake, onRefresh }: IntakeCardProps) {
     setLoading(true)
     try {
       await intakeApi.submit(intake.id)
-      showToast('AI schat de uren...', 'success')
+      showToast('AI is estimating the hours...', 'success')
       onRefresh()
     } catch {
-      showToast('Fout bij indienen', 'error')
+      showToast('Could not submit intake', 'error')
     } finally {
       setLoading(false)
     }
@@ -198,10 +198,10 @@ function IntakeCard({ intake, onRefresh }: IntakeCardProps) {
     setLoading(true)
     try {
       await intakeApi.approve(intake.id, approved)
-      showToast(approved ? 'Intake goedgekeurd — taak naar werkwachtrij' : 'Intake teruggestuurd', 'success')
+      showToast(approved ? 'Intake approved, task sent to work queue' : 'Intake sent back', 'success')
       onRefresh()
     } catch {
-      showToast('Fout bij verwerken', 'error')
+      showToast('Could not process intake', 'error')
     } finally {
       setLoading(false)
     }
@@ -228,7 +228,7 @@ function IntakeCard({ intake, onRefresh }: IntakeCardProps) {
         {intake.estimatedHours && (
           <>
             <span>·</span>
-            <span className="font-medium text-gray-700">~{intake.estimatedHours}u</span>
+            <span className="font-medium text-gray-700">~{intake.estimatedHours}h</span>
             <span>·</span>
             <span className="font-medium text-green-700">€{intake.estimatedPrice?.toFixed(2)}</span>
           </>
@@ -237,13 +237,13 @@ function IntakeCard({ intake, onRefresh }: IntakeCardProps) {
 
       {intake.estimationReasoning && intake.status === 'Estimated' && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4 text-xs text-yellow-800">
-          <strong>Schatting:</strong> {intake.estimationReasoning}
+          <strong>Estimate:</strong> {intake.estimationReasoning}
         </div>
       )}
 
       {intake.workQueueItemId && (
         <div className="text-xs text-gray-400 mb-3">
-          Werkwachtrij ID: <code className="bg-gray-100 px-1 rounded">{intake.workQueueItemId}</code>
+          Work queue ID: <code className="bg-gray-100 px-1 rounded">{intake.workQueueItemId}</code>
         </div>
       )}
 
@@ -255,7 +255,7 @@ function IntakeCard({ intake, onRefresh }: IntakeCardProps) {
             disabled={loading}
             className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
           >
-            {loading ? 'Bezig...' : 'Laat schatten'}
+            {loading ? 'Working...' : 'Get estimate'}
           </button>
         )}
         {intake.status === 'Estimated' && (
@@ -265,14 +265,14 @@ function IntakeCard({ intake, onRefresh }: IntakeCardProps) {
               disabled={loading}
               className="px-3 py-1.5 text-xs font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50"
             >
-              Akkoord
+              Approve
             </button>
             <button
               onClick={() => handleApprove(false)}
               disabled={loading}
               className="px-3 py-1.5 text-xs font-medium text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
             >
-              Herzien
+              Revise
             </button>
           </>
         )}
@@ -315,15 +315,15 @@ export default function IntakePage() {
           onClick={() => navigate(`/clients/${clientId}`)}
           className="text-sm text-gray-500 hover:text-gray-700"
         >
-          ← Klant
+          ← Client
         </button>
-        <h1 className="text-xl font-bold text-gray-900">Intakes{clientName ? ` — ${clientName}` : ''}</h1>
+        <h1 className="text-xl font-bold text-gray-900">Intakes{clientName ? ` · ${clientName}` : ''}</h1>
         <div className="ml-auto">
           <button
             onClick={() => setShowForm(true)}
             className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
           >
-            + Nieuwe intake
+            + New intake
           </button>
         </div>
       </div>
@@ -343,15 +343,15 @@ export default function IntakePage() {
       )}
 
       {loading ? (
-        <div className="text-center text-gray-400 py-12">Laden...</div>
+        <div className="text-center text-gray-400 py-12">Loading...</div>
       ) : intakes.length === 0 && !showForm ? (
         <div className="text-center py-12">
-          <p className="text-gray-500 mb-4">Nog geen intakes voor deze klant.</p>
+          <p className="text-gray-500 mb-4">No intakes for this client yet.</p>
           <button
             onClick={() => setShowForm(true)}
             className="px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
           >
-            Eerste intake aanmaken
+            Create first intake
           </button>
         </div>
       ) : (

@@ -26,9 +26,9 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <p className="text-6xl font-bold text-gray-300 mb-4">403</p>
-          <p className="text-xl font-semibold text-gray-700">Geen toegang</p>
+          <p className="text-xl font-semibold text-gray-700">No access</p>
           <p className="text-gray-500 mt-2">
-            Je hebt geen rechten om deze pagina te bekijken.
+            You do not have permission to view this page.
           </p>
         </div>
       </div>

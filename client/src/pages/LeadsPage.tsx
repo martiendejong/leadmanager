@@ -79,7 +79,7 @@ export default function LeadsPage() {
       setLeads(data.items)
       setTotal(data.total)
     } catch (err) {
-      showToast('Fout bij laden van leads', 'error')
+      showToast('Could not load leads', 'error')
     } finally {
       setIsLoading(false)
     }
@@ -155,13 +155,13 @@ export default function LeadsPage() {
 
   const handleImport = useCallback(async (file: File) => {
     try {
-      showToast('Bezig met importeren…', 'info')
+      showToast('Importing…', 'info')
       await importLeads(file)
-      showToast('Import geslaagd!', 'success')
+      showToast('Import successful!', 'success')
       await loadLeads(filter)
       await loadStats()
     } catch {
-      showToast('Import mislukt', 'error')
+      showToast('Could not import', 'error')
     }
   }, [filter, loadLeads, loadStats, showToast])
 
@@ -186,7 +186,7 @@ export default function LeadsPage() {
     if (selectedIds.size === 0) return
 
     const confirmed = window.confirm(
-      `Weet je zeker dat je ${selectedIds.size} lead${selectedIds.size !== 1 ? 's' : ''} wil verrijken?`
+      `Are you sure you want to enrich ${selectedIds.size} lead${selectedIds.size !== 1 ? 's' : ''}?`
     )
     if (!confirmed) return
 
@@ -195,7 +195,7 @@ export default function LeadsPage() {
       const { jobId } = await enrichLeads(Array.from(selectedIds))
       setActiveJobId(jobId)
     } catch {
-      showToast('Verrijking starten mislukt', 'error')
+      showToast('Could not start enrichment', 'error')
       setIsEnriching(false)
     }
   }, [selectedIds, showToast])
@@ -230,33 +230,33 @@ export default function LeadsPage() {
       // Clean up blob URL after a delay
       setTimeout(() => URL.revokeObjectURL(url), 100)
 
-      showToast(`${selectedIds.size} lead(s) geëxporteerd`, 'success')
+      showToast(`${selectedIds.size} lead(s) exported`, 'success')
     } catch {
-      showToast('Export mislukt', 'error')
+      showToast('Could not export', 'error')
     }
   }, [selectedIds, showToast])
 
   const handleExportCsv = useCallback(async () => {
     try {
       await exportLeads('csv', filter)
-      showToast('CSV export gedownload', 'success')
+      showToast('CSV export downloaded', 'success')
     } catch {
-      showToast('CSV export mislukt', 'error')
+      showToast('Could not export CSV', 'error')
     }
   }, [filter, showToast])
 
   const handleExportExcel = useCallback(async () => {
     try {
       await exportLeads('xlsx', filter)
-      showToast('Excel export gedownload', 'success')
+      showToast('Excel export downloaded', 'success')
     } catch {
-      showToast('Excel export mislukt', 'error')
+      showToast('Could not export Excel', 'error')
     }
   }, [filter, showToast])
 
   const handleCsvImportSuccess = useCallback(async (result: CsvImportResult) => {
-    const enrichMsg = result.enrichmentJobId ? ' Verrijking gestart.' : ''
-    showToast(`${result.created} leads geïmporteerd!${enrichMsg}`, 'success')
+    const enrichMsg = result.enrichmentJobId ? ' Enrichment started.' : ''
+    showToast(`${result.created} leads imported!${enrichMsg}`, 'success')
     if (result.enrichmentJobId) {
       setActiveJobId(result.enrichmentJobId)
       setIsEnriching(true)
@@ -269,7 +269,7 @@ export default function LeadsPage() {
     setActiveJobId(null)
     setIsEnriching(false)
     clearSelection()
-    showToast('Verrijking voltooid!', 'success')
+    showToast('Enrichment complete!', 'success')
     await loadLeads(filter)
     await loadStats()
   }, [filter, loadLeads, loadStats, clearSelection, showToast])
@@ -302,33 +302,33 @@ export default function LeadsPage() {
           <button
             onClick={dismissOnboarding}
             className="absolute top-3 right-3 text-indigo-200 hover:text-white transition-colors"
-            aria-label="Sluiten"
+            aria-label="Close"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
-          <h3 className="font-semibold text-lg mb-3">Welkom bij Clients!</h3>
+          <h3 className="font-semibold text-lg mb-3">Welcome to Clients!</h3>
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex items-start gap-3">
               <span className="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-500 flex items-center justify-center text-xs font-bold">1</span>
               <div>
-                <Link to="/profile" className="font-medium underline hover:no-underline">Maak je bedrijfsprofiel aan</Link>
-                <p className="text-indigo-200 text-xs mt-0.5">Zodat AI weet welke leads bij jou passen</p>
+                <Link to="/profile" className="font-medium underline hover:no-underline">Create your company profile</Link>
+                <p className="text-indigo-200 text-xs mt-0.5">So the AI knows which leads fit you</p>
               </div>
             </div>
             <div className="flex items-start gap-3">
               <span className="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-500 flex items-center justify-center text-xs font-bold">2</span>
               <div>
-                <Link to="/leads/zoeken" className="font-medium underline hover:no-underline">Zoek leads met AI</Link>
-                <p className="text-indigo-200 text-xs mt-0.5">Op basis van jouw profiel</p>
+                <Link to="/leads/search" className="font-medium underline hover:no-underline">Find leads with AI</Link>
+                <p className="text-indigo-200 text-xs mt-0.5">Based on your profile</p>
               </div>
             </div>
             <div className="flex items-start gap-3">
               <span className="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-500 flex items-center justify-center text-xs font-bold">3</span>
               <div>
-                <button onClick={handleOpenFilePicker} className="font-medium underline hover:no-underline text-left">Importeer leads via Excel</button>
-                <p className="text-indigo-200 text-xs mt-0.5">Upload je bestaande leadlijst</p>
+                <button onClick={handleOpenFilePicker} className="font-medium underline hover:no-underline text-left">Import leads from Excel</button>
+                <p className="text-indigo-200 text-xs mt-0.5">Upload your existing lead list</p>
               </div>
             </div>
           </div>
@@ -341,7 +341,7 @@ export default function LeadsPage() {
           <h2 className="text-2xl font-bold text-gray-900">Leads</h2>
           {!isLoading && (
             <p className="text-sm text-gray-500 mt-0.5">
-              {total.toLocaleString('nl-NL')} leads in totaal
+              {total.toLocaleString('en-GB')} leads in total
             </p>
           )}
         </div>
@@ -350,7 +350,7 @@ export default function LeadsPage() {
           <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden">
             <button
               className="px-3 py-2 text-sm bg-indigo-600 text-white font-medium"
-              title="Lijstweergave"
+              title="List view"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
@@ -359,7 +359,7 @@ export default function LeadsPage() {
             <button
               onClick={() => navigate('/leads/pipeline')}
               className="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 border-l border-gray-300"
-              title="Pipeline weergave"
+              title="Pipeline view"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
@@ -373,7 +373,7 @@ export default function LeadsPage() {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            Nieuwe lead
+            New lead
           </button>
         </div>
       </div>
@@ -406,7 +406,7 @@ export default function LeadsPage() {
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
-              <span className="text-sm">Laden…</span>
+              <span className="text-sm">Loading…</span>
             </div>
           </div>
         )}
@@ -428,17 +428,17 @@ export default function LeadsPage() {
         />
       </div>
 
-      {/* Pagination — always visible */}
+      {/* Pagination, always visible */}
       {!isLoading && total > 0 && (
         <div className="flex items-center justify-between text-sm text-gray-600 flex-wrap gap-2">
           <div className="flex items-center gap-3">
             <span>
               {totalPages > 1
-                ? `Pagina ${currentPage} van ${totalPages} (${total.toLocaleString('nl-NL')} leads)`
-                : `${total.toLocaleString('nl-NL')} leads`}
+                ? `Page ${currentPage} of ${totalPages} (${total.toLocaleString('en-GB')} leads)`
+                : `${total.toLocaleString('en-GB')} leads`}
             </span>
             <label className="flex items-center gap-1.5 text-xs text-gray-500">
-              Per pagina:
+              Per page:
               <select
                 value={filter.pageSize ?? PAGE_SIZE}
                 onChange={(e) => setFilter((f) => ({ ...f, pageSize: Number(e.target.value), page: 1 }))}
@@ -455,7 +455,7 @@ export default function LeadsPage() {
                 disabled={currentPage === 1}
                 className="px-3 py-1 border border-gray-300 rounded disabled:opacity-40 hover:bg-gray-50"
               >
-                Vorige
+                Previous
               </button>
               {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                 const startPage = Math.max(1, Math.min(currentPage - 2, totalPages - 4))
@@ -482,7 +482,7 @@ export default function LeadsPage() {
                 disabled={currentPage === totalPages}
                 className="px-3 py-1 border border-gray-300 rounded disabled:opacity-40 hover:bg-gray-50"
               >
-                Volgende
+                Next
               </button>
             </div>
           )}
@@ -492,7 +492,7 @@ export default function LeadsPage() {
       {/* Drag range indicator (subtle) */}
       {dragRange && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-indigo-700 text-white text-xs px-3 py-1.5 rounded-full shadow-lg z-50 pointer-events-none">
-          {selectedIds.size} leads geselecteerd
+          {selectedIds.size} leads selected
         </div>
       )}
 

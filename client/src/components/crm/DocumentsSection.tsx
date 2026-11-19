@@ -36,19 +36,19 @@ const STATUS_CLS: Record<DocumentStatus, string> = {
 }
 
 const QUICK: { kind: DocumentKind; text: string }[] = [
-  { kind: 'Quote', text: 'Offerte' },
-  { kind: 'Order', text: 'Opdracht' },
-  { kind: 'Dpa', text: 'Verwerkersovereenkomst' },
+  { kind: 'Quote', text: 'Quote' },
+  { kind: 'Order', text: 'Order' },
+  { kind: 'Dpa', text: 'Data processing agreement' },
   { kind: 'Nda', text: 'NDA' },
-  { kind: 'Agreement', text: 'Overeenkomst' },
+  { kind: 'Agreement', text: 'Agreement' },
 ]
 
 function fmtDate(iso?: string | null) {
-  return iso ? new Date(iso).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' }) : null
+  return iso ? new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : null
 }
 
 function fmtMoney(n?: number | null) {
-  return n == null ? null : n.toLocaleString('nl-NL', { style: 'currency', currency: 'EUR' })
+  return n == null ? null : n.toLocaleString('en-GB', { style: 'currency', currency: 'EUR' })
 }
 
 function toDateInput(iso?: string | null) {
@@ -108,14 +108,14 @@ function DocumentForm({
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (busy) return
-    if (!f.title.trim()) { setError('Titel is verplicht.'); return }
-    if (f.amount && Number.isNaN(Number(f.amount.replace(',', '.')))) { setError('Bedrag is geen getal.'); return }
+    if (!f.title.trim()) { setError('Title is required.'); return }
+    if (f.amount && Number.isNaN(Number(f.amount.replace(',', '.')))) { setError('Amount is not a number.'); return }
     setBusy(true)
     setError(null)
     try {
       await onSave(f)
     } catch (err) {
-      setError(errorMessage(err, 'Opslaan mislukt'))
+      setError(errorMessage(err, 'Could not save'))
     } finally {
       setBusy(false)
     }
@@ -127,7 +127,7 @@ function DocumentForm({
     <form onSubmit={submit} className="mb-4 space-y-3 p-4 bg-gray-50 rounded-lg" aria-label="Document">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className={label} htmlFor="doc-kind">Soort</label>
+          <label className={label} htmlFor="doc-kind">Type</label>
           <select id="doc-kind" className={input} value={f.kind} onChange={set('kind')}>
             {(Object.keys(KIND_LABELS) as DocumentKind[]).map((k) => <option key={k} value={k}>{KIND_LABELS[k]}</option>)}
           </select>
@@ -140,61 +140,61 @@ function DocumentForm({
         </div>
       </div>
       <div>
-        <label className={label} htmlFor="doc-title">Titel *</label>
+        <label className={label} htmlFor="doc-title">Title *</label>
         <input id="doc-title" className={input} value={f.title} onChange={set('title')} maxLength={300} autoFocus />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div>
-          <label className={label} htmlFor="doc-ref">Kenmerk / nummer</label>
+          <label className={label} htmlFor="doc-ref">Reference / number</label>
           <input id="doc-ref" className={input} value={f.reference} onChange={set('reference')} maxLength={100} />
         </div>
         <div>
-          <label className={label} htmlFor="doc-amount">Bedrag excl. btw (€)</label>
+          <label className={label} htmlFor="doc-amount">Amount excl. VAT (€)</label>
           <input id="doc-amount" className={input} inputMode="decimal" value={f.amount} onChange={set('amount')} />
         </div>
         <div>
-          <label className={label} htmlFor="doc-date">Datum</label>
+          <label className={label} htmlFor="doc-date">Date</label>
           <input id="doc-date" type="date" className={input} value={f.documentDate} onChange={set('documentDate')} />
         </div>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className={label} htmlFor="doc-signed">Getekend op</label>
+          <label className={label} htmlFor="doc-signed">Signed on</label>
           <input id="doc-signed" type="date" className={input} value={f.signedAt} onChange={set('signedAt')} />
         </div>
         <div>
-          <label className={label} htmlFor="doc-valid">Geldig tot</label>
+          <label className={label} htmlFor="doc-valid">Valid until</label>
           <input id="doc-valid" type="date" className={input} value={f.validUntil} onChange={set('validUntil')} />
         </div>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className={label} htmlFor="doc-pred">Volgt op</label>
+          <label className={label} htmlFor="doc-pred">Follows</label>
           <select id="doc-pred" className={input} value={f.predecessorId} onChange={set('predecessorId')}>
-            <option value="">Geen (losstaand)</option>
+            <option value="">None (standalone)</option>
             {candidates.map((d) => <option key={d.id} value={d.id}>{KIND_LABELS[d.kind]}: {d.title}</option>)}
           </select>
         </div>
         <div>
           <label className={label} htmlFor="doc-project">Project</label>
           <select id="doc-project" className={input} value={f.projectId} onChange={set('projectId')}>
-            <option value="">Geen</option>
+            <option value="">None</option>
             {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </div>
       </div>
       <div>
-        <label className={label} htmlFor="doc-url">Link (bijv. waar het document staat)</label>
+        <label className={label} htmlFor="doc-url">Link (e.g. where the document is stored)</label>
         <input id="doc-url" className={input} value={f.url} onChange={set('url')} placeholder="https://..." />
       </div>
       <div>
-        <label className={label} htmlFor="doc-notes">Notities</label>
+        <label className={label} htmlFor="doc-notes">Notes</label>
         <textarea id="doc-notes" rows={3} className={input} value={f.notes} onChange={set('notes')} maxLength={4000} />
       </div>
       {error && <p className="text-sm text-red-600" role="alert">{error}</p>}
       <div className="flex justify-end gap-2">
-        <button type="button" onClick={onCancel} disabled={busy} className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100">Annuleren</button>
-        <button type="submit" disabled={busy} className={primaryBtn}>{f.id ? 'Opslaan' : 'Toevoegen'}</button>
+        <button type="button" onClick={onCancel} disabled={busy} className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100">Cancel</button>
+        <button type="submit" disabled={busy} className={primaryBtn}>{f.id ? 'Save' : 'Add'}</button>
       </div>
     </form>
   )
@@ -209,19 +209,19 @@ function FileRow({ file, onChanged }: { file: DocumentFile; onChanged: () => voi
     try {
       await downloadDocumentFile(file)
     } catch (err) {
-      showToast(errorMessage(err, 'Downloaden mislukt'), 'error')
+      showToast(errorMessage(err, 'Could not download'), 'error')
     } finally {
       setBusy(false)
     }
   }
 
   const remove = async () => {
-    if (!window.confirm(`Bestand "${file.fileName}" verwijderen?`)) return
+    if (!window.confirm(`Delete file "${file.fileName}"?`)) return
     try {
       await deleteDocumentFile(file.id)
       onChanged()
     } catch (err) {
-      showToast(errorMessage(err, 'Verwijderen mislukt'), 'error')
+      showToast(errorMessage(err, 'Could not delete'), 'error')
     }
   }
 
@@ -230,7 +230,7 @@ function FileRow({ file, onChanged }: { file: DocumentFile; onChanged: () => voi
       <span aria-hidden>📎</span>
       <button onClick={download} disabled={busy} className="text-indigo-600 hover:underline truncate text-left">{file.fileName}</button>
       <span className="text-xs text-gray-400 flex-shrink-0">{formatBytes(file.sizeBytes)}</span>
-      <button onClick={remove} className={`${ghostBtn} ml-auto`} aria-label={`Verwijder ${file.fileName}`}>✕</button>
+      <button onClick={remove} className={`${ghostBtn} ml-auto`} aria-label={`Delete ${file.fileName}`}>✕</button>
     </li>
   )
 }
@@ -258,7 +258,7 @@ function DocumentCard({
         try {
           await uploadDocumentFile(doc.id, file)
         } catch (err) {
-          showToast(`${file.name}: ${errorMessage(err, 'uploaden mislukt')}`, 'error')
+          showToast(`${file.name}: ${errorMessage(err, 'could not upload')}`, 'error')
         }
       }
       onChanged()
@@ -269,12 +269,12 @@ function DocumentCard({
   }
 
   const remove = async () => {
-    if (!window.confirm(`Document "${doc.title}" met ${doc.files.length} bestand(en) verwijderen? Dit kan niet ongedaan worden gemaakt.`)) return
+    if (!window.confirm(`Delete document "${doc.title}" and its ${doc.files.length} file(s)? This cannot be undone.`)) return
     try {
       await deleteDocument(doc.id)
       onChanged()
     } catch (err) {
-      showToast(errorMessage(err, 'Verwijderen mislukt'), 'error')
+      showToast(errorMessage(err, 'Could not delete'), 'error')
     }
   }
 
@@ -285,21 +285,21 @@ function DocumentCard({
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs px-2 py-0.5 rounded-full bg-white border border-gray-200 text-gray-600">{KIND_LABELS[doc.kind]}</span>
             <span className={`text-xs font-medium border rounded-full px-2 py-0.5 ${STATUS_CLS[doc.status]}`}>{STATUS_LABELS[doc.status]}</span>
-            {expired && <span className="text-xs font-medium text-amber-700">verlopen op {fmtDate(doc.validUntil)}</span>}
+            {expired && <span className="text-xs font-medium text-amber-700">expired on {fmtDate(doc.validUntil)}</span>}
             <p className="text-sm font-medium text-gray-900 break-words">{doc.title}</p>
           </div>
           <p className="text-xs text-gray-500 mt-1">
             {[
-              doc.reference && `kenmerk ${doc.reference}`,
+              doc.reference && `reference ${doc.reference}`,
               fmtMoney(doc.amount),
               fmtDate(doc.documentDate),
-              doc.signedAt && `getekend ${fmtDate(doc.signedAt)}`,
-              doc.validUntil && !expired && `geldig tot ${fmtDate(doc.validUntil)}`,
+              doc.signedAt && `signed ${fmtDate(doc.signedAt)}`,
+              doc.validUntil && !expired && `valid until ${fmtDate(doc.validUntil)}`,
               doc.projectName && `project ${doc.projectName}`,
             ].filter(Boolean).join(' · ')}
           </p>
           {predecessor && (
-            <p className="text-xs text-gray-500 mt-0.5">↳ volgt op {KIND_LABELS[predecessor.kind].toLowerCase()} &quot;{predecessor.title}&quot;</p>
+            <p className="text-xs text-gray-500 mt-0.5">↳ follows {KIND_LABELS[predecessor.kind].toLowerCase()} &quot;{predecessor.title}&quot;</p>
           )}
           {doc.notes && <p className="text-xs text-gray-600 mt-1 whitespace-pre-wrap break-words">{doc.notes}</p>}
           {doc.url && /^https?:\/\//i.test(doc.url) && (
@@ -307,9 +307,9 @@ function DocumentCard({
           )}
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
-          <button onClick={() => onEdit(doc)} className={ghostBtn}>Bewerken</button>
-          <button onClick={() => onFollow(doc)} className={ghostBtn}>Volgend document</button>
-          <button onClick={remove} className={ghostBtn} aria-label={`Verwijder ${doc.title}`}>✕</button>
+          <button onClick={() => onEdit(doc)} className={ghostBtn}>Edit</button>
+          <button onClick={() => onFollow(doc)} className={ghostBtn}>Next document</button>
+          <button onClick={remove} className={ghostBtn} aria-label={`Delete ${doc.title}`}>✕</button>
         </div>
       </div>
 
@@ -317,7 +317,7 @@ function DocumentCard({
         {doc.files.map((f) => <FileRow key={f.id} file={f} onChanged={onChanged} />)}
       </ul>
       <div className="mt-2">
-        <input ref={fileInput} type="file" multiple className="hidden" id={`up-${doc.id}`} tabIndex={-1} aria-label={`Bestand kiezen voor ${doc.title}`} onChange={(e) => upload(e.target.files)}
+        <input ref={fileInput} type="file" multiple className="hidden" id={`up-${doc.id}`} tabIndex={-1} aria-label={`Choose file for ${doc.title}`} onChange={(e) => upload(e.target.files)}
           accept=".pdf,.doc,.docx,.xls,.xlsx,.odt,.ods,.txt,.png,.jpg,.jpeg,.eml,.msg" />
         <button
           type="button"
@@ -325,14 +325,14 @@ function DocumentCard({
           disabled={uploading}
           className={`${ghostBtn} border border-dashed border-gray-300`}
         >
-          {uploading ? 'Uploaden...' : '+ Bestand toevoegen (max 25 MB)'}
+          {uploading ? 'Uploading...' : '+ Add file (max 25 MB)'}
         </button>
       </div>
     </li>
   )
 }
 
-/** The dossier of a client: offers, orders and signed agreements, each with its files. */
+/** The file of a client: quotes, orders and signed agreements, each with its files. */
 export default function DocumentsSection({ clientId, projects }: { clientId: string; projects: Project[] }) {
   const { showToast } = useToast()
   const [docs, setDocs] = useState<ClientDocument[] | null>(null)
@@ -350,7 +350,7 @@ export default function DocumentsSection({ clientId, projects }: { clientId: str
       })
       .catch((err) => {
         if (ticket !== latest.current) return
-        showToast(errorMessage(err, 'Dossier laden mislukt'), 'error')
+        showToast(errorMessage(err, 'Could not load client file'), 'error')
         setDocs([])
       })
   }, [clientId, showToast])
@@ -391,7 +391,7 @@ export default function DocumentsSection({ clientId, projects }: { clientId: str
     <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
       <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <h2 className="text-base font-semibold text-gray-900">
-          Dossier
+          File
           <span className="ml-2 text-sm font-normal text-gray-400">({docs?.length ?? 0})</span>
         </h2>
         <div className="flex gap-1 flex-wrap">
@@ -400,7 +400,7 @@ export default function DocumentsSection({ clientId, projects }: { clientId: str
           ))}
         </div>
       </div>
-      <p className="text-xs text-gray-400 mb-3">Offertes, opdrachten en getekende overeenkomsten (zoals een verwerkersovereenkomst) met hun bestanden.</p>
+      <p className="text-xs text-gray-400 mb-3">Quotes, orders and signed agreements (such as a data processing agreement) with their files.</p>
 
       {form && (
         <DocumentForm key={form.id ?? `new-${form.kind}-${form.predecessorId}`} initial={form} documents={docs ?? []} projects={projects}
@@ -408,9 +408,9 @@ export default function DocumentsSection({ clientId, projects }: { clientId: str
       )}
 
       {docs === null ? (
-        <p className="text-sm text-gray-400">Laden...</p>
+        <p className="text-sm text-gray-400">Loading...</p>
       ) : docs.length === 0 ? (
-        <p className="text-sm text-gray-400">Nog niets vastgelegd. Begin met een offerte of een overeenkomst.</p>
+        <p className="text-sm text-gray-400">Nothing recorded yet. Start with a quote or an agreement.</p>
       ) : (
         <ul className="space-y-3">
           {docs.map((d) => (

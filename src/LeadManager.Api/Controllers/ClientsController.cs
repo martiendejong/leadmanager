@@ -82,14 +82,14 @@ public class ClientsController : ControllerBase
         email = CrmRules.Clean(rawEmail);
         notes = CrmRules.Clean(rawNotes);
 
-        if (name == "") return "Naam is verplicht.";
-        if (CrmRules.TooLong(name, CrmRules.MaxName)) return "Naam is te lang.";
+        if (name == "") return "Name is required.";
+        if (CrmRules.TooLong(name, CrmRules.MaxName)) return "Name is too long.";
         if (website != null && !website.Contains("://")) website = "https://" + website;
-        if (website != null && !CrmRules.IsSafeHttpUrl(website)) return "Website moet een geldig http(s)-adres zijn.";
+        if (website != null && !CrmRules.IsSafeHttpUrl(website)) return "Website must be a valid http(s) address.";
         if (category != null && !new[] { "Active", "Maintenance", "Reactive" }.Contains(category)) return "Unknown engagement category.";
-        if (email != null && (email.Length > 320 || !System.Net.Mail.MailAddress.TryCreate(email, out _))) return "E-mailadres is niet geldig.";
+        if (email != null && (email.Length > 320 || !System.Net.Mail.MailAddress.TryCreate(email, out _))) return "Email address is not valid.";
         if (shortFields.Select(CrmRules.Clean).Any(f => CrmRules.TooLong(f, CrmRules.MaxName)) || CrmRules.TooLong(notes, CrmRules.MaxNotes))
-            return "Een veld is te lang.";
+            return "A field is too long.";
         return null;
     }
 
@@ -107,15 +107,15 @@ public class ClientsController : ControllerBase
 
         // Same name for the same owner is almost always a double click, not a second client.
         var exists = await _db.Clients.AnyAsync(c => c.CreatedByUserId == userId && c.Name.ToLower() == name.ToLower());
-        if (exists) return Conflict(new { error = "Je hebt al een klant met deze naam." });
+        if (exists) return Conflict(new { error = "You already have a client with this name." });
 
         var projects = new List<Project>();
         foreach (var p in dto.Projects ?? new List<CreateClientProjectDto>())
         {
             var pn = CrmRules.Clean(p.Name);
-            if (pn == null || CrmRules.TooLong(pn, CrmRules.MaxName)) return BadRequest(new { error = "Projectnaam ontbreekt of is te lang." });
+            if (pn == null || CrmRules.TooLong(pn, CrmRules.MaxName)) return BadRequest(new { error = "Project name is missing or too long." });
             var pd = CrmRules.Clean(p.Description);
-            if (CrmRules.TooLong(pd, CrmRules.MaxNotes)) return BadRequest(new { error = "Projectomschrijving is te lang." });
+            if (CrmRules.TooLong(pd, CrmRules.MaxNotes)) return BadRequest(new { error = "Project description is too long." });
             var ps = CrmRules.Clean(p.Status) ?? "Active";
             if (!ProjectStatuses.All.Contains(ps)) return BadRequest(new { error = "Onbekende projectstatus." });
             projects.Add(new Project { Name = pn, Description = pd, Status = ps });
@@ -181,7 +181,7 @@ public class ClientsController : ControllerBase
             .FirstOrDefaultAsync(c => c.Id == id && c.CreatedByUserId == userId);
         if (client == null) return NotFound();
         if (!ClientPriority.InRange(dto.Value) || !ClientPriority.InRange(dto.Urgency) || !ClientPriority.InRange(dto.Effort))
-            return BadRequest(new { error = "Scores liggen tussen 1 en 144." });
+            return BadRequest(new { error = "Scores must be between 1 and 144." });
 
         client.PriorityValue = ClientPriority.Snap(dto.Value);
         client.PriorityUrgency = ClientPriority.Snap(dto.Urgency);

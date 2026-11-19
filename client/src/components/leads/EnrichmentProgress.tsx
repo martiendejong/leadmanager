@@ -118,16 +118,16 @@ export default function EnrichmentProgress({ jobId, onComplete }: EnrichmentProg
       <div className="fixed right-0 top-0 h-full w-96 bg-white shadow-2xl z-50 flex flex-col animate-in slide-in-from-right duration-300">
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-200 bg-indigo-600 text-white">
-          <h3 className="font-semibold text-lg">Verrijking bezig</h3>
+          <h3 className="font-semibold text-lg">Enrichment in progress</h3>
           <p className="text-indigo-200 text-sm mt-0.5">
-            {isComplete ? 'Klaar!' : `${processed} van ${total || '?'} verwerkt`}
+            {isComplete ? 'Done!' : `${processed} of ${total || '?'} processed`}
           </p>
         </div>
 
         {/* Progress bar */}
         <div className="px-6 py-4 border-b border-gray-100">
           <div className="flex justify-between text-sm text-gray-600 mb-2">
-            <span>Voortgang</span>
+            <span>Progress</span>
             <span>{percent}%</span>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-3">
@@ -141,9 +141,9 @@ export default function EnrichmentProgress({ jobId, onComplete }: EnrichmentProg
 
           {isComplete && (
             <div className="mt-3 flex gap-4 text-sm">
-              <span className="text-green-600 font-medium">✓ {successCount} gevonden</span>
+              <span className="text-green-600 font-medium">✓ {successCount} found</span>
               {failCount > 0 && (
-                <span className="text-gray-400">✗ {failCount} niet gevonden</span>
+                <span className="text-gray-400">✗ {failCount} not found</span>
               )}
             </div>
           )}
@@ -155,7 +155,7 @@ export default function EnrichmentProgress({ jobId, onComplete }: EnrichmentProg
           className="flex-1 overflow-y-auto px-4 py-3 space-y-1"
         >
           {events.length === 0 && (
-            <p className="text-sm text-gray-400 text-center mt-8">Wachten op resultaten…</p>
+            <p className="text-sm text-gray-400 text-center mt-8">Waiting for results…</p>
           )}
           {events.map((event, i) => (
             <div
@@ -169,7 +169,7 @@ export default function EnrichmentProgress({ jobId, onComplete }: EnrichmentProg
               </span>
               <span className="font-medium truncate flex-1">{event.name}</span>
               <span className={event.isSuccess ? 'text-green-600' : 'text-gray-400'}>
-                {event.isSuccess ? 'Naam gevonden' : 'niet gevonden'}
+                {event.isSuccess ? 'Name found' : 'not found'}
               </span>
             </div>
           ))}
@@ -178,7 +178,7 @@ export default function EnrichmentProgress({ jobId, onComplete }: EnrichmentProg
         {isComplete && (
           <div className="px-6 py-4 border-t border-gray-200 bg-green-50">
             <p className="text-sm text-green-700 font-medium">
-              Verrijking voltooid — pagina wordt vernieuwd…
+              Enrichment complete · refreshing page…
             </p>
           </div>
         )}

@@ -26,7 +26,7 @@ function ProportionalBar({ label, count, max, colorClass }: { label: string; cou
 }
 
 function Sparkline({ data }: { data: { date: string; count: number }[] }) {
-  if (!data || data.length === 0) return <p className="text-sm text-gray-400">Geen data</p>
+  if (!data || data.length === 0) return <p className="text-sm text-gray-400">No data</p>
 
   const maxVal = Math.max(...data.map(d => d.count), 1)
   const width = 600
@@ -151,7 +151,7 @@ export default function AnalyticsPage() {
       const data = await getLeadsAnalytics(fromVal || undefined, toVal || undefined)
       setAnalytics(data)
     } catch (err: any) {
-      setError('Analyse laden mislukt')
+      setError('Could not load analytics')
     } finally {
       setLoading(false)
     }
@@ -188,8 +188,8 @@ export default function AnalyticsPage() {
       {/* Page header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Analyse</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Overzicht van je leadpipeline en prestaties</p>
+          <h1 className="text-2xl font-bold text-gray-900">Analytics</h1>
+          <p className="text-sm text-gray-500 mt-0.5">Overview of your lead pipeline and performance</p>
         </div>
 
         <div className="flex items-center gap-3">
@@ -219,15 +219,15 @@ export default function AnalyticsPage() {
               value={from}
               onChange={e => setFrom(e.target.value)}
               className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              placeholder="Van"
+              placeholder="From"
             />
-            <span className="text-gray-400 text-sm">—</span>
+            <span className="text-gray-400 text-sm">–</span>
             <input
               type="date"
               value={to}
               onChange={e => setTo(e.target.value)}
               className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              placeholder="Tot"
+              placeholder="To"
             />
             <button
               type="submit"
@@ -254,7 +254,7 @@ export default function AnalyticsPage() {
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
           </svg>
-          <span className="ml-2 text-sm text-gray-500">Analyse laden...</span>
+          <span className="ml-2 text-sm text-gray-500">Loading analytics...</span>
         </div>
       )}
 
@@ -266,26 +266,26 @@ export default function AnalyticsPage() {
         <div ref={chartsRef}>
           {/* Stat cards */}
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-            <StatCard label="Totaal leads" value={analytics.totalLeads} />
+            <StatCard label="Total leads" value={analytics.totalLeads} />
             <StatCard
-              label="Verrijkt"
+              label="Enriched"
               value={`${enrichedPct}%`}
-              sub={`${analytics.enrichedLeads} van ${analytics.totalLeads}`}
+              sub={`${analytics.enrichedLeads} of ${analytics.totalLeads}`}
             />
             <StatCard
-              label="Conversieratio"
+              label="Conversion rate"
               value={`${Math.round(analytics.conversionRate * 100)}%`}
-              sub="Verrijkt / totaal"
+              sub="Enriched / total"
             />
             <StatCard
-              label="Gemiddelde score"
-              value={analytics.avgSalesScore > 0 ? analytics.avgSalesScore.toFixed(1) : '—'}
-              sub="Sales prioriteit /10"
+              label="Average score"
+              value={analytics.avgSalesScore > 0 ? analytics.avgSalesScore.toFixed(1) : '–'}
+              sub="Sales priority /10"
             />
             <StatCard
-              label="Deze maand"
+              label="This month"
               value={analytics.leadsThisMonth}
-              sub="Leads aangemaakt (30d)"
+              sub="Leads created (30d)"
             />
           </div>
 
@@ -293,9 +293,9 @@ export default function AnalyticsPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Leads by industry */}
             <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-              <h2 className="text-sm font-semibold text-gray-700 mb-4">Leads per sector (top 8)</h2>
+              <h2 className="text-sm font-semibold text-gray-700 mb-4">Leads by sector (top 8)</h2>
               {analytics.leadsByIndustry.length === 0 ? (
-                <p className="text-sm text-gray-400">Geen sectordata beschikbaar</p>
+                <p className="text-sm text-gray-400">No sector data available</p>
               ) : (
                 <div className="space-y-3">
                   {analytics.leadsByIndustry.map((item, i) => (
@@ -313,9 +313,9 @@ export default function AnalyticsPage() {
 
             {/* Leads by pipeline status */}
             <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-              <h2 className="text-sm font-semibold text-gray-700 mb-4">Leads per status</h2>
+              <h2 className="text-sm font-semibold text-gray-700 mb-4">Leads by status</h2>
               {analytics.leadsByStatus.length === 0 ? (
-                <p className="text-sm text-gray-400">Geen statusdata beschikbaar</p>
+                <p className="text-sm text-gray-400">No status data available</p>
               ) : (
                 <div className="space-y-3">
                   {analytics.leadsByStatus.map((item, i) => (
@@ -349,7 +349,7 @@ export default function AnalyticsPage() {
 
           {/* Leads over time */}
           <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-            <h2 className="text-sm font-semibold text-gray-700 mb-4">Leads aangemaakt over tijd (laatste 30 dagen)</h2>
+            <h2 className="text-sm font-semibold text-gray-700 mb-4">Leads created over time (last 30 days)</h2>
             <Sparkline data={analytics.leadsOverTime} />
           </div>
 
@@ -357,15 +357,15 @@ export default function AnalyticsPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Top sources */}
             <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-              <h2 className="text-sm font-semibold text-gray-700 mb-4">Top bronnen</h2>
+              <h2 className="text-sm font-semibold text-gray-700 mb-4">Top sources</h2>
               {analytics.topSources.length === 0 ? (
-                <p className="text-sm text-gray-400">Geen brondata beschikbaar</p>
+                <p className="text-sm text-gray-400">No source data available</p>
               ) : (
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-xs text-gray-500 uppercase tracking-wide border-b border-gray-100">
-                      <th className="text-left pb-2 font-medium">Bron</th>
-                      <th className="text-right pb-2 font-medium">Aantal</th>
+                      <th className="text-left pb-2 font-medium">Source</th>
+                      <th className="text-right pb-2 font-medium">Count</th>
                       <th className="text-right pb-2 font-medium">%</th>
                     </tr>
                   </thead>
@@ -374,7 +374,7 @@ export default function AnalyticsPage() {
                       const pct = totalSourceCount > 0 ? Math.round((s.count / totalSourceCount) * 100) : 0
                       return (
                         <tr key={s.source} className="hover:bg-gray-50">
-                          <td className="py-2 text-gray-700">{s.source || '(onbekend)'}</td>
+                          <td className="py-2 text-gray-700">{s.source || '(unknown)'}</td>
                           <td className="py-2 text-right font-medium text-gray-900">{s.count}</td>
                           <td className="py-2 text-right text-gray-500">{pct}%</td>
                         </tr>
@@ -387,9 +387,9 @@ export default function AnalyticsPage() {
 
             {/* Avg score by industry */}
             <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-              <h2 className="text-sm font-semibold text-gray-700 mb-4">Gem. score per sector</h2>
+              <h2 className="text-sm font-semibold text-gray-700 mb-4">Avg. score by sector</h2>
               {analytics.avgScoreByIndustry.length === 0 ? (
-                <p className="text-sm text-gray-400">Geen scoredata beschikbaar (scores nog niet gegenereerd)</p>
+                <p className="text-sm text-gray-400">No score data available (scores not generated yet)</p>
               ) : (
                 <div className="space-y-3">
                   {analytics.avgScoreByIndustry.map((item, i) => (
@@ -411,18 +411,18 @@ export default function AnalyticsPage() {
 
           {/* Team performance */}
           <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-            <h2 className="text-sm font-semibold text-gray-700 mb-4">Teamprestaties</h2>
+            <h2 className="text-sm font-semibold text-gray-700 mb-4">Team performance</h2>
             {analytics.teamPerformance.length === 0 ? (
-              <p className="text-sm text-gray-400">Geen teamdata beschikbaar (leads nog niet toegewezen)</p>
+              <p className="text-sm text-gray-400">No team data available (leads not assigned yet)</p>
             ) : (
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-xs text-gray-500 uppercase tracking-wide border-b border-gray-100">
-                    <th className="text-left pb-2 font-medium">Medewerker</th>
+                    <th className="text-left pb-2 font-medium">Team member</th>
                     <th className="text-right pb-2 font-medium">Leads</th>
-                    <th className="text-right pb-2 font-medium">Verrijkt</th>
-                    <th className="text-right pb-2 font-medium">Gem. score</th>
-                    <th className="text-right pb-2 font-medium">Gewonnen</th>
+                    <th className="text-right pb-2 font-medium">Enriched</th>
+                    <th className="text-right pb-2 font-medium">Avg. score</th>
+                    <th className="text-right pb-2 font-medium">Won</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -431,7 +431,7 @@ export default function AnalyticsPage() {
                       <td className="py-2 text-gray-700 font-medium">{tp.userName}</td>
                       <td className="py-2 text-right text-gray-900">{tp.totalLeads}</td>
                       <td className="py-2 text-right text-gray-900">{tp.enrichedLeads}</td>
-                      <td className="py-2 text-right text-gray-900">{tp.avgScore > 0 ? tp.avgScore.toFixed(1) : '—'}</td>
+                      <td className="py-2 text-right text-gray-900">{tp.avgScore > 0 ? tp.avgScore.toFixed(1) : '–'}</td>
                       <td className="py-2 text-right">
                         <span className={tp.wonLeads > 0 ? 'text-green-600 font-semibold' : 'text-gray-400'}>{tp.wonLeads}</span>
                       </td>

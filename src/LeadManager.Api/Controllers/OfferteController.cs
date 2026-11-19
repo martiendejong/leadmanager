@@ -28,7 +28,7 @@ public class OfferteController : ControllerBase
         var userId = GetUserId();
 
         var lead = await _db.Leads.FindAsync(req.LeadId);
-        if (lead == null) return NotFound("Lead niet gevonden");
+        if (lead == null) return NotFound("Lead not found");
 
         var client = await _db.Clients.FirstOrDefaultAsync(c => c.SourceLeadId == req.LeadId)
             ?? new Client { Name = lead.Name, City = lead.City ?? "", PrimaryContactName = lead.OwnerName };

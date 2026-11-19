@@ -31,9 +31,9 @@ public class ProjectsController : ControllerBase
         name = Clean(dto.Name) ?? "";
         description = Clean(dto.Description);
         status = Clean(dto.Status) ?? "Active";
-        if (name == "") return "Naam is verplicht.";
-        if (TooLong(name, MaxName)) return "Naam is te lang.";
-        if (TooLong(description, MaxNotes)) return "Omschrijving is te lang.";
+        if (name == "") return "Name is required.";
+        if (TooLong(name, MaxName)) return "Name is too long.";
+        if (TooLong(description, MaxNotes)) return "Description is too long.";
         if (!Statuses.Contains(status)) return "Onbekende status.";
         return null;
     }

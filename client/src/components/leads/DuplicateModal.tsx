@@ -16,14 +16,14 @@ export default function DuplicateModal({ duplicates, onMerge, onForce, onCancel 
             <svg className="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <h2 className="text-lg font-semibold">Mogelijke duplicaten gevonden</h2>
+            <h2 className="text-lg font-semibold">Possible duplicates found</h2>
           </div>
           <button onClick={onCancel} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
         </div>
 
         <div className="p-6">
           <p className="text-sm text-gray-600 mb-4">
-            Deze lead lijkt op bestaande leads in je database. Wil je samenvoegen of toch een nieuwe lead aanmaken?
+            This lead looks like existing leads in your database. Do you want to merge, or create a new lead anyway?
           </p>
 
           <div className="space-y-3 mb-6">
@@ -55,7 +55,7 @@ export default function DuplicateModal({ duplicates, onMerge, onForce, onCancel 
                   onClick={() => onMerge(dup.id)}
                   className="ml-3 px-3 py-1.5 text-xs font-medium bg-indigo-600 text-white rounded hover:bg-indigo-700 flex-shrink-0"
                 >
-                  Samenvoegen
+                  Merge
                 </button>
               </div>
             ))}
@@ -66,13 +66,13 @@ export default function DuplicateModal({ duplicates, onMerge, onForce, onCancel 
               onClick={onCancel}
               className="px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50"
             >
-              Annuleren
+              Cancel
             </button>
             <button
               onClick={onForce}
               className="px-4 py-2 text-sm bg-gray-800 text-white rounded-md hover:bg-gray-900"
             >
-              Toch aanmaken
+              Create anyway
             </button>
           </div>
         </div>

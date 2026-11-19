@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { getClients, createClient, type Client, type CreateClientData } from '../api/clients'
 import { useToast } from '../components/Toast'
-import { EngagementCategoryBadge, ENGAGEMENT_CATEGORIES } from '../components/EngagementCategory'
+import { EngagementCategoryBadge, ENGAGEMENT_CATEGORIES, CATEGORY_LABELS } from '../components/EngagementCategory'
 import { ScoreBadge } from '../components/crm/PriorityCard'
 
 function PlanBadge({ plan }: { plan?: string | null }) {
@@ -37,16 +37,16 @@ function NewClientDialog({ onClose, onCreated }: { onClose: () => void; onCreate
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     if (saving) return
-    if (!form.name.trim()) { setError('Naam is verplicht.'); return }
+    if (!form.name.trim()) { setError('Name is required.'); return }
     setSaving(true)
     setError(null)
     try {
       const client = await createClient(form)
-      showToast('Klant toegevoegd', 'success')
+      showToast('Client added', 'success')
       onCreated(client)
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
-      setError(msg ?? 'Toevoegen mislukt')
+      setError(msg ?? 'Could not add client')
     } finally {
       setSaving(false)
     }
@@ -64,28 +64,28 @@ function NewClientDialog({ onClose, onCreated }: { onClose: () => void; onCreate
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="nc-title">
       <form onSubmit={submit} className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 space-y-4">
-        <h2 id="nc-title" className="text-lg font-semibold text-gray-900">Nieuwe klant</h2>
+        <h2 id="nc-title" className="text-lg font-semibold text-gray-900">New client</h2>
         <div>
-          <label className={label} htmlFor="nc-name">Naam *</label>
+          <label className={label} htmlFor="nc-name">Name *</label>
           <input id="nc-name" className={input} value={form.name} onChange={set('name')} autoFocus maxLength={200} required />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={label} htmlFor="nc-contact">Contactpersoon</label>
+            <label className={label} htmlFor="nc-contact">Contact person</label>
             <input id="nc-contact" className={input} value={form.primaryContactName ?? ''} onChange={set('primaryContactName')} maxLength={200} />
           </div>
           <div>
-            <label className={label} htmlFor="nc-phone">Telefoon</label>
+            <label className={label} htmlFor="nc-phone">Phone</label>
             <input id="nc-phone" className={input} value={form.primaryContactPhone ?? ''} onChange={set('primaryContactPhone')} maxLength={200} />
           </div>
         </div>
         <div>
-          <label className={label} htmlFor="nc-email">E-mail</label>
+          <label className={label} htmlFor="nc-email">Email</label>
           <input id="nc-email" type="email" className={input} value={form.primaryContactEmail ?? ''} onChange={set('primaryContactEmail')} />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={label} htmlFor="nc-city">Plaats</label>
+            <label className={label} htmlFor="nc-city">City</label>
             <input id="nc-city" className={input} value={form.city ?? ''} onChange={set('city')} maxLength={200} />
           </div>
           <div>
@@ -95,24 +95,24 @@ function NewClientDialog({ onClose, onCreated }: { onClose: () => void; onCreate
         </div>
         <div>
           <label className={label} htmlFor="nc-site">Website</label>
-          <input id="nc-site" className={input} value={form.website ?? ''} onChange={set('website')} placeholder="bedrijf.nl" />
+          <input id="nc-site" className={input} value={form.website ?? ''} onChange={set('website')} placeholder="company.com" />
         </div>
         <div>
-          <label className={label} htmlFor="nc-cat">Omgang</label>
+          <label className={label} htmlFor="nc-cat">Engagement</label>
           <select id="nc-cat" className={input} value={form.engagementCategory ?? ''} onChange={set('engagementCategory')}>
-            <option value="">Nog niet bepaald</option>
-            {ENGAGEMENT_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            <option value="">Not set yet</option>
+            {ENGAGEMENT_CATEGORIES.map((c) => <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>)}
           </select>
         </div>
         <div>
-          <label className={label} htmlFor="nc-notes">Notities</label>
+          <label className={label} htmlFor="nc-notes">Notes</label>
           <textarea id="nc-notes" rows={3} className={input} value={form.notes ?? ''} onChange={set('notes')} maxLength={4000} />
         </div>
         {error && <p className="text-sm text-red-600" role="alert">{error}</p>}
         <div className="flex justify-end gap-2 pt-2">
-          <button type="button" onClick={onClose} disabled={saving} className="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">Annuleren</button>
+          <button type="button" onClick={onClose} disabled={saving} className="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</button>
           <button type="submit" disabled={saving} className="px-4 py-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">
-            {saving ? 'Opslaan...' : 'Klant toevoegen'}
+            {saving ? 'Saving...' : 'Add client'}
           </button>
         </div>
       </form>
@@ -124,24 +124,24 @@ type View = 'cards' | 'list'
 type SortKey = 'score' | 'name' | 'next' | 'contact'
 
 const SORTS: { key: SortKey; label: string }[] = [
-  { key: 'score', label: 'Prioriteit' },
-  { key: 'name', label: 'Naam' },
-  { key: 'next', label: 'Volgende actie' },
-  { key: 'contact', label: 'Laatste contact' },
+  { key: 'score', label: 'Priority' },
+  { key: 'name', label: 'Name' },
+  { key: 'next', label: 'Next action' },
+  { key: 'contact', label: 'Last contact' },
 ]
 
 function sortClients(list: Client[], key: SortKey): Client[] {
   const time = (v?: string | null, empty = Infinity) => (v ? new Date(v).getTime() : empty)
   const out = [...list]
-  if (key === 'score') out.sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || a.name.localeCompare(b.name, 'nl'))
-  else if (key === 'name') out.sort((a, b) => a.name.localeCompare(b.name, 'nl'))
-  else if (key === 'next') out.sort((a, b) => time(a.nextActionAt) - time(b.nextActionAt) || a.name.localeCompare(b.name, 'nl'))
-  else out.sort((a, b) => time(b.lastContactAt, -Infinity) - time(a.lastContactAt, -Infinity) || a.name.localeCompare(b.name, 'nl'))
+  if (key === 'score') out.sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || a.name.localeCompare(b.name, 'en-GB'))
+  else if (key === 'name') out.sort((a, b) => a.name.localeCompare(b.name, 'en-GB'))
+  else if (key === 'next') out.sort((a, b) => time(a.nextActionAt) - time(b.nextActionAt) || a.name.localeCompare(b.name, 'en-GB'))
+  else out.sort((a, b) => time(b.lastContactAt, -Infinity) - time(a.lastContactAt, -Infinity) || a.name.localeCompare(b.name, 'en-GB'))
   return out
 }
 
 function fmtDate(iso?: string | null) {
-  return iso ? new Date(iso).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' }) : '–'
+  return iso ? new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '–'
 }
 
 function ClientTable({ clients }: { clients: Client[] }) {
@@ -150,13 +150,13 @@ function ClientTable({ clients }: { clients: Client[] }) {
       <table className="min-w-full text-sm">
         <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wider">
           <tr>
-            <th className="text-left font-medium px-4 py-2">Klant</th>
-            <th className="text-left font-medium px-4 py-2">Prioriteit</th>
-            <th className="text-left font-medium px-4 py-2">Omgang</th>
+            <th className="text-left font-medium px-4 py-2">Client</th>
+            <th className="text-left font-medium px-4 py-2">Priority</th>
+            <th className="text-left font-medium px-4 py-2">Engagement</th>
             <th className="text-left font-medium px-4 py-2">Contact</th>
-            <th className="text-right font-medium px-4 py-2">Projecten</th>
-            <th className="text-left font-medium px-4 py-2">Volgende actie</th>
-            <th className="text-left font-medium px-4 py-2">Laatste contact</th>
+            <th className="text-right font-medium px-4 py-2">Projects</th>
+            <th className="text-left font-medium px-4 py-2">Next action</th>
+            <th className="text-left font-medium px-4 py-2">Last contact</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
@@ -198,7 +198,7 @@ export default function ClientsPage() {
   useEffect(() => {
     getClients()
       .then(setClients)
-      .catch(() => showToast('Klanten laden mislukt', 'error'))
+      .catch(() => showToast('Could not load clients', 'error'))
       .finally(() => setLoading(false))
   }, [])
 
@@ -214,28 +214,28 @@ export default function ClientsPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Klanten</h1>
-          <p className="text-sm text-gray-500 mt-1">{clients.length} klant{clients.length !== 1 ? 'en' : ''}</p>
+          <h1 className="text-2xl font-bold text-gray-900">Clients</h1>
+          <p className="text-sm text-gray-500 mt-1">{clients.length} client{clients.length !== 1 ? 's' : ''}</p>
         </div>
         <div className="flex items-center gap-2 ml-auto mr-3">
           <select
             value={sort}
             onChange={(e) => setSort(e.target.value as SortKey)}
             className="text-sm border border-gray-300 rounded-lg px-2 py-1.5"
-            aria-label="Sorteren op"
+            aria-label="Sort by"
           >
             {SORTS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
           </select>
-          <div className="flex rounded-lg border border-gray-300 overflow-hidden" role="group" aria-label="Weergave">
-            <button onClick={() => setView('list')} aria-pressed={view === 'list'} className={`px-3 py-1.5 text-sm ${view === 'list' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600'}`}>Lijst</button>
-            <button onClick={() => setView('cards')} aria-pressed={view === 'cards'} className={`px-3 py-1.5 text-sm ${view === 'cards' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600'}`}>Kaarten</button>
+          <div className="flex rounded-lg border border-gray-300 overflow-hidden" role="group" aria-label="View">
+            <button onClick={() => setView('list')} aria-pressed={view === 'list'} className={`px-3 py-1.5 text-sm ${view === 'list' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600'}`}>List</button>
+            <button onClick={() => setView('cards')} aria-pressed={view === 'cards'} className={`px-3 py-1.5 text-sm ${view === 'cards' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600'}`}>Cards</button>
           </div>
         </div>
         <button
           onClick={() => setShowNew(true)}
           className="px-4 py-2 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
         >
-          + Nieuwe klant
+          + New client
         </button>
       </div>
 
@@ -244,10 +244,10 @@ export default function ClientsPage() {
           <svg className="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
-          <p className="text-sm font-medium">Nog geen klanten</p>
-          <p className="text-xs mt-1 text-gray-400">Voeg een klant toe, of converteer een lead naar klant.</p>
+          <p className="text-sm font-medium">No clients yet</p>
+          <p className="text-xs mt-1 text-gray-400">Add a client, or convert a lead to a client.</p>
           <Link to="/leads" className="mt-4 inline-block text-sm text-indigo-600 hover:underline">
-            Naar leads →
+            Go to leads →
           </Link>
         </div>
       ) : view === 'list' ? (
@@ -307,8 +307,8 @@ export default function ClientsPage() {
               </div>
 
               <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-400">
-                <span>{client.projects.length} project{client.projects.length !== 1 ? 'en' : ''}</span>
-                <span>{new Date(client.createdAt).toLocaleDateString('nl-NL')}</span>
+                <span>{client.projects.length} project{client.projects.length !== 1 ? 's' : ''}</span>
+                <span>{new Date(client.createdAt).toLocaleDateString('en-GB')}</span>
               </div>
             </Link>
           ))}

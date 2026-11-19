@@ -98,7 +98,7 @@ public class LeadManagerMcpController : McpControllerBase
             },
             "parent_id", "kind", "summary"),
         Tool("add_next_action",
-            "Plan the next step for a lead or client. It shows up on the Vandaag list when it is due.",
+            "Plan the next step for a lead or client. It shows up on the Today list when it is due.",
             new
             {
                 parent_type = ParentTypeSchema, parent_id = ParentIdSchema,

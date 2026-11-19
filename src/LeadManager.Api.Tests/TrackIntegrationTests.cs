@@ -138,7 +138,7 @@ public class TrackIntegrationTests : IDisposable
 
         Assert.Equal(200, Status(result));
         var i = Assert.Single(_db.Interactions.Where(x => x.LeadId == lead.Id));
-        Assert.Equal("Klikte op Offerte bekijken\nKanaal: mail · Campagne: koude-acquisitie · Bron: leadmanager", i.Summary);
+        Assert.Equal("Clicked Offerte bekijken\nChannel: mail · Campaign: koude-acquisitie · Source: leadmanager", i.Summary);
         Assert.Equal(InteractionDirection.Inbound, i.Direction);
         Assert.Equal(DateTimeOffset.FromUnixTimeMilliseconds(1_800_000_000_000).UtcDateTime, i.OccurredAt);
     }
@@ -236,12 +236,12 @@ public class TrackIntegrationTests : IDisposable
         await Post(Options(threshold: 2), ClickBody(lead.Id, total: 2, ts: 1_800_000_000_000, token: "a"));
 
         var action = Assert.Single(_db.NextActions);
-        Assert.Equal("Bel nu: Hogenkamp las je bericht", action.Title);
+        Assert.Equal("Call now: Hogenkamp read your message", action.Title);
         Assert.Equal(Me, action.AssignedToUserId);
         Assert.Equal(lead.Id, action.LeadId);
         Assert.Equal(3, _db.Interactions.Count());
 
-        // It is on the Vandaag list, and not yet overdue.
+        // It is on the Today list, and not yet overdue.
         var today = (OkObjectResult)await new NextActionsController(_db, _access)
         {
             ControllerContext = new ControllerContext
@@ -253,7 +253,7 @@ public class TrackIntegrationTests : IDisposable
             },
         }.Today();
         var row = Assert.Single((IEnumerable<TodayActionDto>)today.Value!);
-        Assert.Equal("Bel nu: Hogenkamp las je bericht", row.Title);
+        Assert.Equal("Call now: Hogenkamp read your message", row.Title);
         Assert.False(row.Overdue);
     }
 
@@ -398,7 +398,7 @@ public class TrackIntegrationTests : IDisposable
             .CreateLink("leads", lead.Id, new CreateTrackedLinkDto("https://example.com/x", null, null), CancellationToken.None);
         var obj = Assert.IsType<ObjectResult>(result);
         Assert.Equal(503, obj.StatusCode);
-        Assert.Contains("niet aan", (string)obj.Value!);
+        Assert.Contains("not enabled", (string)obj.Value!);
         Assert.Empty(handler.Calls);
     }
 
@@ -523,7 +523,7 @@ public class TrackIntegrationTests : IDisposable
             Assert.Equal(200, Status(result));
 
             var interaction = Assert.Single(_db.Interactions.Where(i => i.LeadId == lead.Id));
-            Assert.StartsWith("Klikte op Offerte", interaction.Summary);
+            Assert.StartsWith("Clicked Offerte", interaction.Summary);
 
             // And the same body with the wrong secret is refused.
             options.WebhookSecret = "not-the-secret-not-the-secret-123456";

@@ -47,7 +47,7 @@ function Modal({
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 text-xl font-bold leading-none"
-            aria-label="Sluit"
+            aria-label="Close"
           >
             ×
           </button>
@@ -78,12 +78,12 @@ function AddUserModal({
 
   const validate = (): boolean => {
     const e: Partial<UserFormData> = {}
-    if (!form.email.trim()) e.email = 'Vul een e-mailadres in'
-    else if (!form.email.includes('@')) e.email = 'Vul een geldig e-mailadres in'
-    if (!form.firstName.trim()) e.firstName = 'Vul een voornaam in'
-    if (!form.lastName.trim()) e.lastName = 'Vul een achternaam in'
-    if (!form.password) e.password = 'Vul een wachtwoord in'
-    else if (form.password.length < 6) e.password = 'Wachtwoord moet minimaal 6 tekens zijn'
+    if (!form.email.trim()) e.email = 'Enter an email address'
+    else if (!form.email.includes('@')) e.email = 'Enter a valid email address'
+    if (!form.firstName.trim()) e.firstName = 'Enter a first name'
+    if (!form.lastName.trim()) e.lastName = 'Enter a last name'
+    if (!form.password) e.password = 'Enter a password'
+    else if (form.password.length < 6) e.password = 'Password must be at least 6 characters'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -94,20 +94,20 @@ function AddUserModal({
     setSaving(true)
     try {
       await apiClient.post('/api/admin/users', form)
-      showToast('Gebruiker aangemaakt', 'success')
+      showToast('User created', 'success')
       onSaved()
       onClose()
     } catch {
-      showToast('Opslaan mislukt', 'error')
+      showToast('Could not save', 'error')
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <Modal title="Gebruiker toevoegen" onClose={onClose}>
+    <Modal title="Add user" onClose={onClose}>
       <form onSubmit={handleSubmit} className="space-y-4">
-        <Field label="E-mailadres">
+        <Field label="Email address">
           <input
             type="email"
             value={form.email}
@@ -117,7 +117,7 @@ function AddUserModal({
           {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
         </Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Voornaam">
+          <Field label="First name">
             <input
               value={form.firstName}
               onChange={(e) => setForm({ ...form, firstName: e.target.value })}
@@ -125,7 +125,7 @@ function AddUserModal({
             />
             {errors.firstName && <p className="text-red-500 text-xs mt-1">{errors.firstName}</p>}
           </Field>
-          <Field label="Achternaam">
+          <Field label="Last name">
             <input
               value={form.lastName}
               onChange={(e) => setForm({ ...form, lastName: e.target.value })}
@@ -134,7 +134,7 @@ function AddUserModal({
             {errors.lastName && <p className="text-red-500 text-xs mt-1">{errors.lastName}</p>}
           </Field>
         </div>
-        <Field label="Wachtwoord">
+        <Field label="Password">
           <input
             type="password"
             value={form.password}
@@ -143,7 +143,7 @@ function AddUserModal({
           />
           {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password}</p>}
         </Field>
-        <Field label="Rol">
+        <Field label="Role">
           <select
             value={form.role}
             onChange={(e) => setForm({ ...form, role: e.target.value })}
@@ -158,10 +158,10 @@ function AddUserModal({
         </Field>
         <div className="flex justify-end gap-3 pt-2">
           <button type="button" onClick={onClose} className={secondaryBtn}>
-            Annuleer
+            Cancel
           </button>
           <button type="submit" disabled={saving} className={primaryBtn}>
-            {saving ? 'Opslaan...' : 'Opslaan'}
+            {saving ? 'Saving...' : 'Save'}
           </button>
         </div>
       </form>
@@ -192,21 +192,21 @@ function EditUserModal({
     setSaving(true)
     try {
       await apiClient.put(`/api/admin/users/${user.id}`, form)
-      showToast('Gebruiker bijgewerkt', 'success')
+      showToast('User updated', 'success')
       onSaved()
       onClose()
     } catch {
-      showToast('Opslaan mislukt', 'error')
+      showToast('Could not save', 'error')
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <Modal title={`Bewerk ${user.firstName} ${user.lastName}`} onClose={onClose}>
+    <Modal title={`Edit ${user.firstName} ${user.lastName}`} onClose={onClose}>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Voornaam">
+          <Field label="First name">
             <input
               required
               value={form.firstName}
@@ -214,7 +214,7 @@ function EditUserModal({
               className={inputCls}
             />
           </Field>
-          <Field label="Achternaam">
+          <Field label="Last name">
             <input
               required
               value={form.lastName}
@@ -223,7 +223,7 @@ function EditUserModal({
             />
           </Field>
         </div>
-        <Field label="Rol">
+        <Field label="Role">
           <select
             value={form.role}
             onChange={(e) => setForm({ ...form, role: e.target.value })}
@@ -245,15 +245,15 @@ function EditUserModal({
             className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
           />
           <label htmlFor="isActive" className="text-sm text-gray-700">
-            Account actief
+            Account active
           </label>
         </div>
         <div className="flex justify-end gap-3 pt-2">
           <button type="button" onClick={onClose} className={secondaryBtn}>
-            Annuleer
+            Cancel
           </button>
           <button type="submit" disabled={saving} className={primaryBtn}>
-            {saving ? 'Opslaan...' : 'Opslaan'}
+            {saving ? 'Saving...' : 'Save'}
           </button>
         </div>
       </form>
@@ -291,7 +291,7 @@ export default function AdminUsersPage() {
       const res = await apiClient.get<AdminUser[]>('/api/admin/users')
       setUsers(res.data)
     } catch {
-      showToast('Gebruikers laden mislukt', 'error')
+      showToast('Could not load users', 'error')
     } finally {
       setLoading(false)
     }
@@ -303,10 +303,10 @@ export default function AdminUsersPage() {
   }, [])
 
   const toggleActive = async (user: AdminUser) => {
-    const action = user.isActive ? 'deactiveren' : 'activeren'
-    const warning = user.isActive ? ' De gebruiker kan daarna niet meer inloggen.' : ''
+    const action = user.isActive ? 'deactivate' : 'activate'
+    const warning = user.isActive ? ' The user will no longer be able to log in.' : ''
     const confirmed = window.confirm(
-      `Weet je zeker dat je ${user.firstName} ${user.lastName} wilt ${action}?${warning}`
+      `Are you sure you want to ${action} ${user.firstName} ${user.lastName}?${warning}`
     )
     if (!confirmed) return
     try {
@@ -316,15 +316,15 @@ export default function AdminUsersPage() {
         role: user.role,
         isActive: !user.isActive,
       })
-      showToast(user.isActive ? 'Gebruiker gedeactiveerd' : 'Gebruiker geactiveerd', 'success')
+      showToast(user.isActive ? 'User deactivated' : 'User activated', 'success')
       fetchUsers()
     } catch {
-      showToast('Actie mislukt', 'error')
+      showToast('Action failed', 'error')
     }
   }
 
   const formatDate = (dateStr: string) =>
-    new Date(dateStr).toLocaleDateString('nl-NL', {
+    new Date(dateStr).toLocaleDateString('en-GB', {
       day: '2-digit',
       month: 'short',
       year: 'numeric',
@@ -333,9 +333,9 @@ export default function AdminUsersPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">Gebruikers</h2>
+        <h2 className="text-2xl font-bold text-gray-900">Users</h2>
         <button onClick={() => setShowAdd(true)} className={primaryBtn}>
-          + Gebruiker toevoegen
+          + Add user
         </button>
       </div>
 
@@ -352,16 +352,16 @@ export default function AdminUsersPage() {
                   Email
                 </th>
                 <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-3">
-                  Naam
+                  Name
                 </th>
                 <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-3">
-                  Rol
+                  Role
                 </th>
                 <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-3">
                   Status
                 </th>
                 <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-3">
-                  Aangemaakt
+                  Created
                 </th>
                 <th className="px-5 py-3" />
               </tr>
@@ -370,7 +370,7 @@ export default function AdminUsersPage() {
               {users.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="text-center text-gray-400 py-10">
-                    Geen gebruikers gevonden
+                    No users found
                   </td>
                 </tr>
               ) : (
@@ -399,7 +399,7 @@ export default function AdminUsersPage() {
                             : 'bg-red-100 text-red-700'
                         }`}
                       >
-                        {u.isActive ? 'Actief' : 'Inactief'}
+                        {u.isActive ? 'Active' : 'Inactive'}
                       </span>
                     </td>
                     <td className="px-5 py-3 text-gray-500">{formatDate(u.createdAt)}</td>
@@ -409,7 +409,7 @@ export default function AdminUsersPage() {
                           onClick={() => setEditUser(u)}
                           className="text-indigo-600 hover:text-indigo-800 font-medium text-xs px-2 py-1 rounded hover:bg-indigo-50 transition-colors"
                         >
-                          Bewerk
+                          Edit
                         </button>
                         <button
                           onClick={() => toggleActive(u)}
@@ -419,7 +419,7 @@ export default function AdminUsersPage() {
                               : 'text-green-600 hover:text-green-800 hover:bg-green-50'
                           }`}
                         >
-                          {u.isActive ? 'Deactiveer' : 'Activeer'}
+                          {u.isActive ? 'Deactivate' : 'Activate'}
                         </button>
                       </div>
                     </td>

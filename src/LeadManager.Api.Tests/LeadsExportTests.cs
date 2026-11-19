@@ -120,18 +120,18 @@ public class LeadsExportTests : IDisposable
         // Header + exactly one filtered (enriched) row — Beta and the other user's lead excluded
         Assert.Equal(2, lines.Count);
         var header = lines[0].Split(',');
-        Assert.Contains("naam", header);
+        Assert.Contains("name", header);
         Assert.Contains("email", header);
-        Assert.Contains("telefoon", header);
-        Assert.Contains("contactpersoon", header);
-        Assert.Contains("stad", header);
+        Assert.Contains("phone", header);
+        Assert.Contains("contact_person", header);
+        Assert.Contains("city", header);
         Assert.Contains("sector", header);
         Assert.Contains("kvk", header);
-        Assert.Contains("medewerkers", header);
+        Assert.Contains("employees", header);
         Assert.Contains("google_rating", header);
         Assert.Contains("sales_score", header);
-        Assert.Contains("verrijkingsstatus", header);
-        Assert.Contains("aangemaakt", header);
+        Assert.Contains("enrichment_status", header);
+        Assert.Contains("created", header);
 
         Assert.Contains("Acme BV", lines[1]);
         Assert.Contains("Jan Jansen", lines[1]);
@@ -158,14 +158,14 @@ public class LeadsExportTests : IDisposable
         using var package = new ExcelPackage(new MemoryStream(file.FileContents));
         var ws = package.Workbook.Worksheets["Leads"];
         Assert.NotNull(ws);
-        Assert.Equal("Naam", ws!.Cells[1, 1].Text);
+        Assert.Equal("Name", ws!.Cells[1, 1].Text);
         Assert.Equal("Acme BV", ws.Cells[2, 1].Text);
         Assert.Equal("info@acme.example.com", ws.Cells[2, 2].Text);
         Assert.Equal("Jan Jansen", ws.Cells[2, 4].Text);
         Assert.Equal("Amsterdam", ws.Cells[2, 5].Text);
         Assert.Equal("12345678", ws.Cells[2, 7].Text);
         Assert.Equal("8", ws.Cells[2, 10].Text);
-        Assert.Equal("Ja", ws.Cells[2, 11].Text);
+        Assert.Equal("Yes", ws.Cells[2, 11].Text);
         Assert.Equal("2026-01-15", ws.Cells[2, 12].Text);
 
         // Exactly 2 rows (header + 1 data row)
@@ -184,7 +184,7 @@ public class LeadsExportTests : IDisposable
 
         // Header row only, no exception thrown
         Assert.Single(lines);
-        Assert.Contains("naam", lines[0]);
+        Assert.Contains("name", lines[0]);
     }
 
     [Fact]
@@ -197,7 +197,7 @@ public class LeadsExportTests : IDisposable
         using var package = new ExcelPackage(new MemoryStream(file.FileContents));
         var ws = package.Workbook.Worksheets["Leads"];
         Assert.NotNull(ws);
-        Assert.Equal("Naam", ws!.Cells[1, 1].Text);
+        Assert.Equal("Name", ws!.Cells[1, 1].Text);
         // Only header row present
         Assert.Equal(1, ws.Dimension.Rows);
     }

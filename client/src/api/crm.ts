@@ -88,27 +88,27 @@ export interface EntityLink {
 }
 
 export const INTERACTION_LABELS: Record<InteractionKind, string> = {
-  Call: 'Gebeld',
-  Email: 'E-mail',
+  Call: 'Call',
+  Email: 'Email',
   WhatsApp: 'WhatsApp',
-  Meeting: 'Gesprek / meeting',
-  Note: 'Notitie',
+  Meeting: 'Meeting',
+  Note: 'Note',
 }
 
 export const LINK_LABELS: Record<EntityLinkKind, string> = {
-  JengoWorkBoard: 'JengoWork-bord',
-  JengoWorkTask: 'JengoWork-taak',
-  KnowledgeProject: 'JengoKnowledge-project',
-  MailThread: 'Mailthread',
-  MeetSession: 'Meet-sessie',
-  WhatsAppChat: 'WhatsApp-chat',
-  GitHubRepo: 'GitHub-repo',
+  JengoWorkBoard: 'JengoWork board',
+  JengoWorkTask: 'JengoWork task',
+  KnowledgeProject: 'Knowledge project',
+  MailThread: 'Mail thread',
+  MeetSession: 'Meet session',
+  WhatsAppChat: 'WhatsApp chat',
+  GitHubRepo: 'GitHub repo',
   Document: 'Document',
-  Web: 'Website',
+  Web: 'Web link',
 }
 
 /** Quick outcomes for a call, so logging one takes two clicks. */
-export const CALL_OUTCOMES = ['Geen gehoor', 'Terugbellen', 'Interesse', 'Geen interesse', 'Afspraak gemaakt']
+export const CALL_OUTCOMES = ['No answer', 'Call back', 'Interested', 'Not interested', 'Meeting booked']
 
 export async function getTimeline(parentType: ParentType, parentId: string, projectId?: string): Promise<TimelineItem[]> {
   const res = await apiClient.get<TimelineItem[]>(`/api/${parentType}/${parentId}/timeline`, {

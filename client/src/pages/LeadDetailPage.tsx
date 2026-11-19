@@ -62,16 +62,16 @@ interface Activity {
 // ── Step definitions ─────────────────────────────────────────────────────────
 
 const STEPS = [
-  { num: 1, title: 'Lead gegenereerd',     desc: 'Lead aangemaakt in het systeem' },
-  { num: 2, title: 'Informatie aangevuld', desc: 'Website, KvK en AI-verrijking' },
-  { num: 3, title: 'Intake',               desc: 'Website analyseren voor verkoopcontext' },
-  { num: 4, title: 'Applicatievoorstel',   desc: 'AI genereert een concreet voorstel op maat' },
-  { num: 5, title: 'PoC genereren',        desc: 'Board, GitHub repo en Jengo AGI project aanmaken' },
-  { num: 6, title: 'Script genereren',     desc: 'Persoonlijk bel- of emailscript op maat' },
-  { num: 7, title: 'Contact opnemen',      desc: 'Bellen, mailen of afspraak plannen' },
-  { num: 8, title: 'Offerte',              desc: 'Offerte opstellen en laten accorderen' },
-  { num: 9, title: 'PoC uitwerken',        desc: 'PoC uitbouwen tot volledige applicatie' },
-  { num: 10, title: 'Factureren',          desc: 'Factuur aanmaken in Fedha' },
+  { num: 1, title: 'Lead generated',     desc: 'Lead created in the system' },
+  { num: 2, title: 'Information added', desc: 'Website, KvK and AI enrichment' },
+  { num: 3, title: 'Intake',               desc: 'Analyse the website for sales context' },
+  { num: 4, title: 'Application proposal',   desc: 'AI generates a tailored, concrete proposal' },
+  { num: 5, title: 'Generate PoC',        desc: 'Create board, GitHub repo and Jengo AGI project' },
+  { num: 6, title: 'Generate script',     desc: 'Personalised call or email script' },
+  { num: 7, title: 'Make contact',      desc: 'Call, email or schedule a meeting' },
+  { num: 8, title: 'Quote',              desc: 'Prepare the quote and get it approved' },
+  { num: 9, title: 'Build out PoC',        desc: 'Build the PoC out into a full application' },
+  { num: 10, title: 'Invoice',          desc: 'Create an invoice in Fedha' },
 ]
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -144,12 +144,12 @@ function InfoRow({ label, value }: { label: string; value?: string | number | nu
 }
 
 const PIPELINE_LABELS: Record<string, { label: string; color: string }> = {
-  New: { label: 'Nieuw', color: 'bg-gray-100 text-gray-600' },
-  Contacted: { label: 'Gecontacteerd', color: 'bg-blue-100 text-blue-700' },
-  Qualified: { label: 'Gekwalificeerd', color: 'bg-indigo-100 text-indigo-700' },
-  ProposalSent: { label: 'Offerte gestuurd', color: 'bg-yellow-100 text-yellow-700' },
-  Won: { label: 'Gewonnen', color: 'bg-green-100 text-green-700' },
-  Lost: { label: 'Verloren', color: 'bg-red-100 text-red-700' },
+  New: { label: 'New', color: 'bg-gray-100 text-gray-600' },
+  Contacted: { label: 'Contacted', color: 'bg-blue-100 text-blue-700' },
+  Qualified: { label: 'Qualified', color: 'bg-indigo-100 text-indigo-700' },
+  ProposalSent: { label: 'Quote sent', color: 'bg-yellow-100 text-yellow-700' },
+  Won: { label: 'Won', color: 'bg-green-100 text-green-700' },
+  Lost: { label: 'Lost', color: 'bg-red-100 text-red-700' },
 }
 
 // ── Step 2 — Enrichment ──────────────────────────────────────────────────────
@@ -162,14 +162,14 @@ function Step2Content({ lead, onAdvance, saving, onLeadUpdate }:
 
   const startEnrich = async () => {
     setEnriching(true)
-    setProgress('Verrijking gestart…')
+    setProgress('Enrichment started…')
     try {
       const { data } = await api.post('/api/leads/enrich', { ids: [lead.id] })
       const jobId: string = data.jobId
       pollRef.current = setInterval(async () => {
         try {
           const { data: status } = await api.get(`/api/leads/enrich/${jobId}`)
-          setProgress(status.message || 'Bezig…')
+          setProgress(status.message || 'Working…')
           if (status.status === 'Completed' || status.status === 'Failed') {
             clearInterval(pollRef.current!)
             setEnriching(false)
@@ -177,12 +177,12 @@ function Step2Content({ lead, onAdvance, saving, onLeadUpdate }:
               const { data: updated } = await api.get(`/api/leads/${lead.id}`)
               onLeadUpdate(updated)
             } else {
-              setProgress('Verrijking mislukt')
+              setProgress('Enrichment failed')
             }
           }
         } catch { clearInterval(pollRef.current!); setEnriching(false) }
       }, 2000)
-    } catch { setEnriching(false); setProgress('Fout bij starten verrijking') }
+    } catch { setEnriching(false); setProgress('Could not start enrichment') }
   }
 
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current) }, [])
@@ -193,28 +193,28 @@ function Step2Content({ lead, onAdvance, saving, onLeadUpdate }:
         <div className="text-sm text-gray-600 space-y-1">
           <p className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
-            Verrijkt op {lead.enrichedAt ? new Date(lead.enrichedAt).toLocaleDateString('nl-NL') : '—'}
+            Enriched on {lead.enrichedAt ? new Date(lead.enrichedAt).toLocaleDateString('en-GB') : '—'}
           </p>
-          {lead.pagesCrawled ? <p className="text-xs text-gray-400">{lead.pagesCrawled} pagina's gecrawld · {lead.chunksIndexed} chunks geïndexeerd</p> : null}
+          {lead.pagesCrawled ? <p className="text-xs text-gray-400">{lead.pagesCrawled} pages crawled · {lead.chunksIndexed} chunks indexed</p> : null}
           {lead.aiSummary && (
             <p className="mt-2 text-gray-700 bg-gray-50 rounded-lg p-3 text-xs leading-relaxed">{lead.aiSummary.slice(0, 400)}{lead.aiSummary.length > 400 ? '…' : ''}</p>
           )}
         </div>
-        <Btn onClick={() => onAdvance(3)} loading={saving} variant="primary">Naar stap 3 →</Btn>
+        <Btn onClick={() => onAdvance(3)} loading={saving} variant="primary">Go to step 3 →</Btn>
       </div>
     )
   }
 
   return (
     <div className="pt-3 space-y-3">
-      <p className="text-sm text-gray-500">AI crawlt de website en verrijkt contactgegevens, sector, KvK en meer.</p>
+      <p className="text-sm text-gray-500">AI crawls the website and enriches contact details, sector, KvK and more.</p>
       {progress && <p className="text-xs text-indigo-600">{progress}</p>}
       <div className="flex gap-2 flex-wrap">
         <Btn onClick={startEnrich} loading={enriching} variant="primary">
-          {enriching ? 'Bezig met verrijken…' : 'Verrijking starten'}
+          {enriching ? 'Enriching…' : 'Start enrichment'}
         </Btn>
         {!enriching && (
-          <Btn onClick={() => onAdvance(3)} loading={saving} variant="secondary">Overslaan →</Btn>
+          <Btn onClick={() => onAdvance(3)} loading={saving} variant="secondary">Skip →</Btn>
         )}
       </div>
     </div>
@@ -234,7 +234,7 @@ function Step3Content({ lead, wfData, onAdvance, saving, onDataUpdate }:
       const { data } = await api.post(`/api/leads/${lead.id}/intake`)
       onDataUpdate(data.workflowDataJson)
     } catch (e: any) {
-      setError(e?.response?.data || 'Intake mislukt')
+      setError(e?.response?.data || 'Intake failed')
     } finally { setLoading(false) }
   }
 
@@ -246,17 +246,17 @@ function Step3Content({ lead, wfData, onAdvance, saving, onDataUpdate }:
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div className="p-3 bg-blue-50 rounded-lg border border-blue-100">
-              <p className="text-xs font-semibold text-blue-700 mb-1">Type applicatie</p>
+              <p className="text-xs font-semibold text-blue-700 mb-1">Application type</p>
               <p className="text-sm text-blue-800">{intake.applicatieType}</p>
             </div>
             <div className="p-3 bg-indigo-50 rounded-lg border border-indigo-100">
-              <p className="text-xs font-semibold text-indigo-700 mb-1">Complexiteit</p>
-              <p className="text-sm text-indigo-800 capitalize">{intake.complexiteit} · ~{intake.schattingWeken} weken</p>
+              <p className="text-xs font-semibold text-indigo-700 mb-1">Complexity</p>
+              <p className="text-sm text-indigo-800 capitalize">{intake.complexiteit} · ~{intake.schattingWeken} weeks</p>
             </div>
           </div>
           {intake.pijnpunten && intake.pijnpunten.length > 0 && (
             <div>
-              <p className="text-xs font-semibold text-gray-500 mb-1">Pijnpunten</p>
+              <p className="text-xs font-semibold text-gray-500 mb-1">Pain points</p>
               <ul className="space-y-1">{intake.pijnpunten.map((p, i) => (
                 <li key={i} className="text-xs text-gray-700 flex items-start gap-1.5">
                   <span className="text-red-400 mt-0.5 flex-shrink-0">⚡</span>{p}
@@ -266,7 +266,7 @@ function Step3Content({ lead, wfData, onAdvance, saving, onDataUpdate }:
           )}
           {intake.kansen && intake.kansen.length > 0 && (
             <div>
-              <p className="text-xs font-semibold text-gray-500 mb-1">Kansen</p>
+              <p className="text-xs font-semibold text-gray-500 mb-1">Opportunities</p>
               <ul className="space-y-1">{intake.kansen.map((k, i) => (
                 <li key={i} className="text-xs text-gray-700 flex items-start gap-1.5">
                   <span className="text-green-500 mt-0.5 flex-shrink-0">✓</span>{k}
@@ -276,25 +276,25 @@ function Step3Content({ lead, wfData, onAdvance, saving, onDataUpdate }:
           )}
           {intake.verkoopargument && (
             <div className="p-3 bg-green-50 rounded-lg border border-green-100">
-              <p className="text-xs font-semibold text-green-700 mb-1">Verkoopargument</p>
+              <p className="text-xs font-semibold text-green-700 mb-1">Sales argument</p>
               <p className="text-sm text-green-800 italic">"{intake.verkoopargument}"</p>
             </div>
           )}
           <div className="flex gap-2 flex-wrap">
-            <Btn onClick={runIntake} loading={loading} variant="secondary">Opnieuw genereren</Btn>
-            <Btn onClick={() => onAdvance(4)} loading={saving} variant="primary">Naar stap 4 →</Btn>
+            <Btn onClick={runIntake} loading={loading} variant="secondary">Regenerate</Btn>
+            <Btn onClick={() => onAdvance(4)} loading={saving} variant="primary">Go to step 4 →</Btn>
           </div>
         </div>
       ) : (
         <div className="space-y-3">
           <div className="p-3 bg-blue-50 rounded-lg border border-blue-100 text-sm text-blue-800">
-            <p className="font-medium mb-1">Website-intake analyse</p>
-            <p className="text-blue-700 text-xs">AI analyseert de beschikbare bedrijfsinformatie: pijnpunten, kansen, applicatietype en verkoopargument voor {lead.name}.</p>
+            <p className="font-medium mb-1">Website intake analysis</p>
+            <p className="text-blue-700 text-xs">AI analyses the available company information: pain points, opportunities, application type and sales argument for {lead.name}.</p>
           </div>
           {error && <p className="text-xs text-red-600">{error}</p>}
           <div className="flex gap-2">
-            <Btn onClick={runIntake} loading={loading} variant="primary">Intake starten</Btn>
-            <Btn onClick={() => onAdvance(4)} loading={saving} variant="secondary">Overslaan →</Btn>
+            <Btn onClick={runIntake} loading={loading} variant="primary">Start intake</Btn>
+            <Btn onClick={() => onAdvance(4)} loading={saving} variant="secondary">Skip →</Btn>
           </div>
         </div>
       )}
@@ -302,7 +302,7 @@ function Step3Content({ lead, wfData, onAdvance, saving, onDataUpdate }:
   )
 }
 
-// ── Step 4 — Applicatievoorstel ───────────────────────────────────────────────
+// ── Step 4: Application proposal ──────────────────────────────────────────────
 
 function Step4Content({ lead, wfData, onAdvance, saving, onDataUpdate }:
   { lead: Lead; wfData: WorkflowData; onAdvance: (n: number) => void; saving: boolean; onDataUpdate: (json: string) => void }) {
@@ -315,7 +315,7 @@ function Step4Content({ lead, wfData, onAdvance, saving, onDataUpdate }:
       const { data } = await api.post(`/api/leads/${lead.id}/proposal`)
       onDataUpdate(data.workflowDataJson)
     } catch (e: any) {
-      setError(e?.response?.data || 'Voorstel mislukt')
+      setError(e?.response?.data || 'Proposal failed')
     } finally { setLoading(false) }
   }
 
@@ -331,7 +331,7 @@ function Step4Content({ lead, wfData, onAdvance, saving, onDataUpdate }:
           </div>
           {proposal.functionaliteiten && proposal.functionaliteiten.length > 0 && (
             <div>
-              <p className="text-xs font-semibold text-gray-500 mb-1">Functionaliteiten</p>
+              <p className="text-xs font-semibold text-gray-500 mb-1">Features</p>
               <ul className="space-y-1">{proposal.functionaliteiten.map((f, i) => (
                 <li key={i} className="text-xs text-gray-700 flex items-start gap-1.5">
                   <span className="text-purple-400 mt-0.5 flex-shrink-0">▸</span>{f}
@@ -348,7 +348,7 @@ function Step4Content({ lead, wfData, onAdvance, saving, onDataUpdate }:
             )}
             {proposal.prijs && (
               <div className="p-2 bg-green-50 rounded border border-green-100 text-xs">
-                <span className="font-medium text-green-700">Prijs: </span>
+                <span className="font-medium text-green-700">Price: </span>
                 <span className="text-green-800 font-semibold">{proposal.prijs}</span>
               </div>
             )}
@@ -357,20 +357,20 @@ function Step4Content({ lead, wfData, onAdvance, saving, onDataUpdate }:
             <p className="text-xs text-gray-600 italic border-l-2 border-indigo-200 pl-2">{proposal.meerwaarde}</p>
           )}
           <div className="flex gap-2 flex-wrap">
-            <Btn onClick={runProposal} loading={loading} variant="secondary">Opnieuw genereren</Btn>
-            <Btn onClick={() => onAdvance(5)} loading={saving} variant="primary">Naar stap 5 →</Btn>
+            <Btn onClick={runProposal} loading={loading} variant="secondary">Regenerate</Btn>
+            <Btn onClick={() => onAdvance(5)} loading={saving} variant="primary">Go to step 5 →</Btn>
           </div>
         </div>
       ) : (
         <div className="space-y-3">
           <div className="p-3 bg-purple-50 rounded-lg border border-purple-100 text-sm text-purple-800">
-            <p className="font-medium mb-1">AI-applicatievoorstel</p>
-            <p className="text-purple-700 text-xs">Op basis van de intake genereert AI een concreet voorstel: functionaliteiten, technologie en prijsindicatie voor {lead.name}.</p>
+            <p className="font-medium mb-1">AI application proposal</p>
+            <p className="text-purple-700 text-xs">Based on the intake, AI generates a concrete proposal: features, technology and price indication for {lead.name}.</p>
           </div>
           {error && <p className="text-xs text-red-600">{error}</p>}
           <div className="flex gap-2">
-            <Btn onClick={runProposal} loading={loading} variant="primary">Voorstel genereren</Btn>
-            <Btn onClick={() => onAdvance(5)} loading={saving} variant="secondary">Overslaan →</Btn>
+            <Btn onClick={runProposal} loading={loading} variant="primary">Generate proposal</Btn>
+            <Btn onClick={() => onAdvance(5)} loading={saving} variant="secondary">Skip →</Btn>
           </div>
         </div>
       )}
@@ -378,7 +378,7 @@ function Step4Content({ lead, wfData, onAdvance, saving, onDataUpdate }:
   )
 }
 
-// ── Step 5 — PoC genereren ────────────────────────────────────────────────────
+// ── Step 5: Generate PoC ──────────────────────────────────────────────────────
 
 function Step5Content({ lead, wfData, onAdvance, saving, onDataUpdate }:
   { lead: Lead; wfData: WorkflowData; onAdvance: (n: number) => void; saving: boolean; onDataUpdate: (json: string) => void }) {
@@ -392,7 +392,7 @@ function Step5Content({ lead, wfData, onAdvance, saving, onDataUpdate }:
       onDataUpdate(data.workflowDataJson)
       onAdvance(6)
     } catch (e: any) {
-      setError(e?.response?.data || 'PoC aanmaken mislukt')
+      setError(e?.response?.data || 'Could not create PoC')
     } finally { setLoading(false) }
   }
 
@@ -402,12 +402,12 @@ function Step5Content({ lead, wfData, onAdvance, saving, onDataUpdate }:
     return (
       <div className="pt-3 space-y-3">
         <div className="p-3 bg-amber-50 rounded-lg border border-amber-100 space-y-2">
-          <p className="text-xs font-semibold text-amber-700">PoC aangemaakt</p>
+          <p className="text-xs font-semibold text-amber-700">PoC created</p>
           <p className="text-sm font-medium text-amber-900">{poc.boardName}</p>
           <a href={poc.boardUrl} target="_blank" rel="noopener noreferrer"
             className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:underline">
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-            Board openen in TaskManager
+            Open board in TaskManager
           </a>
           {poc.repoUrl && (
             <a href={poc.repoUrl} target="_blank" rel="noopener noreferrer"
@@ -420,11 +420,11 @@ function Step5Content({ lead, wfData, onAdvance, saving, onDataUpdate }:
             <a href={poc.agiTaskUrl} target="_blank" rel="noopener noreferrer"
               className="flex items-center gap-1 text-xs text-purple-600 hover:underline">
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
-              Jengo AGI taak
+              Jengo AGI task
             </a>
           )}
         </div>
-        <Btn onClick={() => onAdvance(6)} loading={saving} variant="primary">Naar stap 6 →</Btn>
+        <Btn onClick={() => onAdvance(6)} loading={saving} variant="primary">Go to step 6 →</Btn>
       </div>
     )
   }
@@ -432,19 +432,19 @@ function Step5Content({ lead, wfData, onAdvance, saving, onDataUpdate }:
   return (
     <div className="pt-3 space-y-3">
       <div className="p-3 bg-amber-50 rounded-lg border border-amber-100 text-sm text-amber-800">
-        <p className="font-medium mb-1">PoC genereren</p>
-        <p className="text-amber-700 text-xs">Bij ja: automatisch een board aanmaken in TaskManager met initiële taken op basis van het applicatievoorstel.</p>
+        <p className="font-medium mb-1">Generate PoC</p>
+        <p className="text-amber-700 text-xs">If yes: automatically create a board in TaskManager with initial tasks based on the application proposal.</p>
       </div>
       {error && <p className="text-xs text-red-600">{error}</p>}
       <div className="flex gap-2 flex-wrap">
-        <Btn onClick={createPoc} loading={loading} variant="primary">Ja, PoC aanmaken</Btn>
-        <Btn onClick={() => onAdvance(6)} loading={saving} variant="secondary">Nee, overslaan →</Btn>
+        <Btn onClick={createPoc} loading={loading} variant="primary">Yes, create PoC</Btn>
+        <Btn onClick={() => onAdvance(6)} loading={saving} variant="secondary">No, skip →</Btn>
       </div>
     </div>
   )
 }
 
-// ── Step 6 — Script genereren ─────────────────────────────────────────────────
+// ── Step 6: Generate script ───────────────────────────────────────────────────
 
 function Step6Content({ lead, wfData, onAdvance, saving }:
   { lead: Lead; wfData: WorkflowData; onAdvance: (n: number) => void; saving: boolean }) {
@@ -464,7 +464,7 @@ function Step6Content({ lead, wfData, onAdvance, saving }:
         extraContext: extraContext || undefined,
       })
       setScript(data.script)
-    } catch { setScript('Generatie mislukt') }
+    } catch { setScript('Generation failed') }
     finally { setLoading(false) }
   }
 
@@ -478,9 +478,9 @@ function Step6Content({ lead, wfData, onAdvance, saving }:
     <div className="pt-3 space-y-3">
       {belscript && (
         <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 text-xs text-indigo-800 space-y-1">
-          <div className="font-semibold">Belscript beschikbaar (prospect #{belscript.prospectNummer} · {belscript.segment})</div>
-          {belscript.belMet && <div><span className="text-indigo-500">Bel met:</span> {belscript.belMet}</div>}
-          {belscript.waaromBellen && <div><span className="text-indigo-500">Waarom:</span> {belscript.waaromBellen}</div>}
+          <div className="font-semibold">Call script available (prospect #{belscript.prospectNummer} · {belscript.segment})</div>
+          {belscript.belMet && <div><span className="text-indigo-500">Call with:</span> {belscript.belMet}</div>}
+          {belscript.waaromBellen && <div><span className="text-indigo-500">Why:</span> {belscript.waaromBellen}</div>}
         </div>
       )}
       <div className="flex gap-2 items-center">
@@ -488,26 +488,26 @@ function Step6Content({ lead, wfData, onAdvance, saving }:
         {(['bel', 'email'] as const).map(t => (
           <button key={t} onClick={() => setScriptType(t)}
             className={`px-3 py-1 rounded-lg text-xs font-medium border transition-colors ${scriptType === t ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
-            {t === 'bel' ? 'Belscript' : 'Emailscript'}
+            {t === 'bel' ? 'Call script' : 'Email script'}
           </button>
         ))}
       </div>
       <textarea
         value={extraContext}
         onChange={e => setExtraContext(e.target.value)}
-        placeholder="Extra context (optioneel): bijv. 'Ze hebben onlangs een nieuwe locatie geopend'"
+        placeholder="Extra context (optional): e.g. 'They recently opened a new location'"
         className="w-full text-xs border border-gray-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-300"
         rows={2}
       />
       <Btn onClick={generate} loading={loading} variant="primary">
-        {belscript?.script ? 'Nieuw AI-script genereren' : 'Script genereren'}
+        {belscript?.script ? 'Generate new AI script' : 'Generate script'}
       </Btn>
       {script && (
         <div className="relative">
           <pre className="text-xs text-gray-700 bg-gray-50 rounded-lg p-3 border overflow-auto max-h-64 whitespace-pre-wrap leading-relaxed">{script}</pre>
           <button onClick={copy}
             className="absolute top-2 right-2 px-2 py-1 text-xs bg-white border border-gray-200 rounded hover:bg-gray-50 text-gray-600 transition-colors">
-            {copied ? '✓ Gekopieerd' : 'Kopieer'}
+            {copied ? '✓ Copied' : 'Copy'}
           </button>
         </div>
       )}
@@ -515,7 +515,7 @@ function Step6Content({ lead, wfData, onAdvance, saving }:
         <div>
           <button onClick={() => setShowQa(v => !v)}
             className="text-xs text-indigo-600 hover:text-indigo-800 font-medium">
-            {showQa ? 'Verberg' : 'Toon'} bezwaren & antwoorden ({belscript.qa.length})
+            {showQa ? 'Hide' : 'Show'} objections & answers ({belscript.qa.length})
           </button>
           {showQa && (
             <div className="mt-2 space-y-2">
@@ -530,14 +530,14 @@ function Step6Content({ lead, wfData, onAdvance, saving }:
         </div>
       )}
       <div className="flex gap-2">
-        <Btn onClick={() => onAdvance(7)} loading={saving} variant="primary">Script opgeslagen → Stap 7</Btn>
-        <Btn onClick={() => onAdvance(7)} loading={saving} variant="secondary">Overslaan</Btn>
+        <Btn onClick={() => onAdvance(7)} loading={saving} variant="primary">Script saved → Step 7</Btn>
+        <Btn onClick={() => onAdvance(7)} loading={saving} variant="secondary">Skip</Btn>
       </div>
     </div>
   )
 }
 
-// ── Step 7 — Contact opnemen ──────────────────────────────────────────────────
+// ── Step 7: Make contact ──────────────────────────────────────────────────────
 
 function Step7Content({ lead, onAdvance, saving }:
   { lead: Lead; onAdvance: (n: number) => void; saving: boolean }) {
@@ -565,19 +565,19 @@ function Step7Content({ lead, onAdvance, saving }:
   }
 
   const TYPE_LABELS: Record<string, string> = {
-    Called: '📞 Gebeld', EmailSent: '📧 Email verstuurd', NoteAdded: '📝 Notitie', Enriched: '🔍 Verrijkt', StatusChanged: '🔄 Status gewijzigd'
+    Called: '📞 Called', EmailSent: '📧 Email sent', NoteAdded: '📝 Note', Enriched: '🔍 Enriched', StatusChanged: '🔄 Status changed'
   }
 
   return (
     <div className="pt-3 space-y-4">
       <div className="grid grid-cols-3 gap-2">
         {[
-          { label: '📞 Bellen', value: lead.phone || lead.ownerMobile, type: 'Called' },
-          { label: '📧 Emailen', value: lead.companyEmail || lead.personalEmail, type: 'EmailSent' },
-          { label: '📅 Afspraak', value: 'Snel inplannen', type: 'NoteAdded' },
+          { label: '📞 Call', value: lead.phone || lead.ownerMobile, type: 'Called' },
+          { label: '📧 Email', value: lead.companyEmail || lead.personalEmail, type: 'EmailSent' },
+          { label: '📅 Meeting', value: 'Schedule soon', type: 'NoteAdded' },
         ].map(item => (
           <button key={item.label}
-            onClick={() => { setNoteType(item.type); setNote(`${item.label} met ${lead.name}`) }}
+            onClick={() => { setNoteType(item.type); setNote(`${item.label} with ${lead.name}`) }}
             className="p-3 bg-gray-50 rounded-lg border border-gray-200 text-center hover:border-indigo-300 hover:bg-indigo-50 transition-colors">
             <div className="text-base mb-0.5">{item.label.split(' ')[0]}</div>
             <div className="text-xs font-medium text-gray-700">{item.label.split(' ').slice(1).join(' ')}</div>
@@ -592,22 +592,22 @@ function Step7Content({ lead, onAdvance, saving }:
           {Object.entries(TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
         <textarea value={note} onChange={e => setNote(e.target.value)}
-          placeholder="Notitie toevoegen…"
+          placeholder="Add a note…"
           className="w-full text-xs border border-gray-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-300"
           rows={2} />
         <div className="flex gap-2">
-          <Btn onClick={() => addActivity(noteType, note)} loading={submitting} variant="primary">Activiteit loggen</Btn>
-          <Btn onClick={() => onAdvance(8)} loading={saving} variant="secondary">Contact gelogd → Stap 8</Btn>
+          <Btn onClick={() => addActivity(noteType, note)} loading={submitting} variant="primary">Log activity</Btn>
+          <Btn onClick={() => onAdvance(8)} loading={saving} variant="secondary">Contact logged → Step 8</Btn>
         </div>
       </div>
 
       {activities.length > 0 && (
         <div className="space-y-1.5">
-          <p className="text-xs font-semibold text-gray-500">Activiteiten</p>
+          <p className="text-xs font-semibold text-gray-500">Activities</p>
           {activities.slice(0, 8).map(a => (
             <div key={a.id} className="flex items-start gap-2 text-xs text-gray-600">
               <span className="text-gray-400 flex-shrink-0 w-20">
-                {new Date(a.createdAt).toLocaleDateString('nl-NL', { day: '2-digit', month: '2-digit' })}
+                {new Date(a.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit' })}
               </span>
               <span className="font-medium">{TYPE_LABELS[a.activityType] ?? a.activityType}</span>
               {a.note && <span className="text-gray-500 truncate">{a.note}</span>}
@@ -619,7 +619,7 @@ function Step7Content({ lead, onAdvance, saving }:
   )
 }
 
-// ── Step 8 — Offerte ──────────────────────────────────────────────────────────
+// ── Step 8: Quote ─────────────────────────────────────────────────────────────
 
 function Step8Content({ lead, wfData, onAdvance, saving }:
   { lead: Lead; wfData: WorkflowData; onAdvance: (n: number, wfJson?: string) => void; saving: boolean }) {
@@ -645,7 +645,7 @@ function Step8Content({ lead, wfData, onAdvance, saving }:
       a.click()
       URL.revokeObjectURL(url)
       setGenerated(true)
-    } catch { alert('Offerte generatie mislukt') }
+    } catch { alert('Could not generate quote') }
     finally { setGenerating(false) }
   }
 
@@ -661,15 +661,15 @@ function Step8Content({ lead, wfData, onAdvance, saving }:
     return (
       <div className="pt-3 space-y-3">
         <div className="p-3 bg-green-50 rounded-lg border border-green-200">
-          <p className="text-xs font-semibold text-green-700">Offerte geaccordeerd</p>
+          <p className="text-xs font-semibold text-green-700">Quote approved</p>
           {existing.prijs && <p className="text-sm text-green-800 font-medium mt-1">{existing.prijs}</p>}
           {existing.datum && (
             <p className="text-xs text-green-600 mt-0.5">
-              {new Date(existing.datum).toLocaleDateString('nl-NL', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+              {new Date(existing.datum).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
             </p>
           )}
         </div>
-        <Btn onClick={() => onAdvance(9)} loading={saving} variant="primary">Naar stap 9 →</Btn>
+        <Btn onClick={() => onAdvance(9)} loading={saving} variant="primary">Go to step 9 →</Btn>
       </div>
     )
   }
@@ -682,7 +682,7 @@ function Step8Content({ lead, wfData, onAdvance, saving }:
           <select value={productType} onChange={e => setProductType(e.target.value)}
             className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-300">
             {['Website', 'AIEmployee', 'AITeam', 'Custom'].map(p => (
-              <option key={p} value={p}>{p === 'AIEmployee' ? 'AI Medewerker' : p === 'AITeam' ? 'AI Team' : p}</option>
+              <option key={p} value={p}>{p === 'AIEmployee' ? 'AI Employee' : p === 'AITeam' ? 'AI Team' : p}</option>
             ))}
           </select>
         </div>
@@ -697,38 +697,38 @@ function Step8Content({ lead, wfData, onAdvance, saving }:
         </div>
       </div>
       <div>
-        <label className="text-xs text-gray-500 block mb-1">Overeengekomen prijs</label>
+        <label className="text-xs text-gray-500 block mb-1">Agreed price</label>
         <input
           type="text"
           value={prijs}
           onChange={e => setPrijs(e.target.value)}
-          placeholder="bijv. €4.500 eenmalig"
+          placeholder="e.g. €4,500 one-off"
           className="w-full text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-300"
         />
       </div>
       <div className="flex gap-2 flex-wrap">
-        <Btn onClick={generateOfferte} loading={generating} variant="primary">Offerte genereren (PDF)</Btn>
-        {generated && <Btn onClick={accordeer} loading={saving} variant="success">Offerte geaccordeerd → Stap 9</Btn>}
-        {!generated && <Btn onClick={() => onAdvance(9)} loading={saving} variant="secondary">Overslaan →</Btn>}
+        <Btn onClick={generateOfferte} loading={generating} variant="primary">Generate quote (PDF)</Btn>
+        {generated && <Btn onClick={accordeer} loading={saving} variant="success">Quote approved → Step 9</Btn>}
+        {!generated && <Btn onClick={() => onAdvance(9)} loading={saving} variant="secondary">Skip →</Btn>}
       </div>
     </div>
   )
 }
 
-// ── Step 9 — PoC uitwerken ────────────────────────────────────────────────────
+// ── Step 9: Build out PoC ─────────────────────────────────────────────────────
 
 function Step9Content({ wfData, onAdvance, saving }:
   { wfData: WorkflowData; onAdvance: (n: number) => void; saving: boolean }) {
   const poc = wfData.poc
   return (
     <div className="pt-3 space-y-3">
-      <p className="text-sm text-gray-600">PoC wordt uitgebouwd tot volledige applicatie. Tracked via het board en de GitHub repo.</p>
-      {!poc?.boardUrl && <p className="text-xs text-amber-600">Geen PoC board — stap 5 is overgeslagen.</p>}
+      <p className="text-sm text-gray-600">The PoC is being built out into a full application. Tracked via the board and the GitHub repo.</p>
+      {!poc?.boardUrl && <p className="text-xs text-amber-600">No PoC board · step 5 was skipped.</p>}
       {poc?.boardUrl && (
         <a href={poc.boardUrl} target="_blank" rel="noopener noreferrer"
           className="flex items-center gap-2 px-3 py-2 border border-indigo-200 text-indigo-700 text-xs font-medium rounded-lg hover:bg-indigo-50 transition-colors">
           <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-          {poc.boardName || 'Board openen in TaskManager'}
+          {poc.boardName || 'Open board in TaskManager'}
         </a>
       )}
       {poc?.repoUrl && (
@@ -738,12 +738,12 @@ function Step9Content({ wfData, onAdvance, saving }:
           GitHub: {poc.repoName}
         </a>
       )}
-      <Btn onClick={() => onAdvance(10)} loading={saving} variant="success">Applicatie opgeleverd → Stap 10</Btn>
+      <Btn onClick={() => onAdvance(10)} loading={saving} variant="success">Application delivered → Step 10</Btn>
     </div>
   )
 }
 
-// ── Step 10 — Factureren ──────────────────────────────────────────────────────
+// ── Step 10: Invoice ──────────────────────────────────────────────────────────
 
 function Step10Content({ lead, wfData, onAdvance, saving }:
   { lead: Lead; wfData: WorkflowData; onAdvance: (n: number) => void; saving: boolean }) {
@@ -758,22 +758,22 @@ function Step10Content({ lead, wfData, onAdvance, saving }:
   return (
     <div className="pt-3 space-y-3">
       <div className="p-3 bg-indigo-50 rounded-lg border border-indigo-100">
-        <p className="text-sm font-medium text-indigo-900 mb-1">Factureren via Fedha</p>
+        <p className="text-sm font-medium text-indigo-900 mb-1">Invoice via Fedha</p>
         {prijs ? (
-          <p className="text-xs text-indigo-700">Overeengekomen prijs: <span className="font-semibold">{prijs}</span></p>
+          <p className="text-xs text-indigo-700">Agreed price: <span className="font-semibold">{prijs}</span></p>
         ) : (
-          <p className="text-xs text-indigo-700">Factuur aanmaken op basis van de overeengekomen prijs.</p>
+          <p className="text-xs text-indigo-700">Create an invoice based on the agreed price.</p>
         )}
       </div>
       <div className="flex gap-2">
         <a href={fedhaUrl} target="_blank" rel="noopener noreferrer"
           className="inline-flex items-center gap-2 px-4 py-2 border border-indigo-300 text-indigo-700 text-sm font-medium rounded-lg hover:bg-indigo-50 transition-colors">
-          Fedha openen
+          Open Fedha
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
           </svg>
         </a>
-        <Btn onClick={() => onAdvance(10)} loading={saving} variant="success">Gefactureerd ✓</Btn>
+        <Btn onClick={() => onAdvance(10)} loading={saving} variant="success">Invoiced ✓</Btn>
       </div>
     </div>
   )
@@ -784,8 +784,8 @@ function Step10Content({ lead, wfData, onAdvance, saving }:
 function Step1Content({ lead }: { lead: Lead }) {
   return (
     <div className="pt-3 text-sm text-gray-600 space-y-1">
-      <p>Aangemaakt: {lead.createdAt ? new Date(lead.createdAt).toLocaleDateString('nl-NL') : '—'}</p>
-      <p>Bron: <span className="font-medium">{lead.source || '—'}</span></p>
+      <p>Created: {lead.createdAt ? new Date(lead.createdAt).toLocaleDateString('en-GB') : '—'}</p>
+      <p>Source: <span className="font-medium">{lead.source || '—'}</span></p>
     </div>
   )
 }
@@ -842,8 +842,8 @@ export default function LeadDetailPage() {
   if (notFound || !lead) {
     return (
       <div className="p-8 text-center">
-        <p className="text-gray-500 mb-4">Lead niet gevonden.</p>
-        <Link to="/leads" className="text-indigo-600 hover:underline text-sm">← Terug naar leads</Link>
+        <p className="text-gray-500 mb-4">Lead not found.</p>
+        <Link to="/leads" className="text-indigo-600 hover:underline text-sm">← Back to leads</Link>
       </div>
     )
   }
@@ -874,7 +874,7 @@ export default function LeadDetailPage() {
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div className="flex items-center gap-3">
-          <Link to="/leads" className="text-gray-400 hover:text-gray-600 transition-colors" title="Terug naar leads">
+          <Link to="/leads" className="text-gray-400 hover:text-gray-600 transition-colors" title="Back to leads">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
@@ -903,8 +903,8 @@ export default function LeadDetailPage() {
       {/* Progress bar */}
       <div className="mb-6">
         <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
-          <span>Stap {workflowStep} van 10</span>
-          <span>{progress}% voltooid</span>
+          <span>Step {workflowStep} of 10</span>
+          <span>{progress}% complete</span>
         </div>
         <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
           <div className="h-full bg-indigo-500 rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
@@ -918,30 +918,30 @@ export default function LeadDetailPage() {
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Contact</h3>
             <div className="space-y-2.5">
-              <InfoRow label="Eigenaar" value={[lead.ownerFirstName, lead.ownerLastName].filter(Boolean).join(' ') || lead.ownerName} />
-              <InfoRow label="Telefoon" value={lead.phone} />
-              <InfoRow label="Mobiel" value={lead.ownerMobile} />
-              <InfoRow label="Zakelijk email" value={lead.companyEmail} />
-              <InfoRow label="Persoonlijk email" value={lead.personalEmail} />
+              <InfoRow label="Owner" value={[lead.ownerFirstName, lead.ownerLastName].filter(Boolean).join(' ') || lead.ownerName} />
+              <InfoRow label="Phone" value={lead.phone} />
+              <InfoRow label="Mobile" value={lead.ownerMobile} />
+              <InfoRow label="Company email" value={lead.companyEmail} />
+              <InfoRow label="Personal email" value={lead.personalEmail} />
               {lead.linkedInUrl && (
                 <div className="flex flex-col">
                   <span className="text-xs text-gray-400">LinkedIn</span>
                   <a href={lead.linkedInUrl} target="_blank" rel="noopener noreferrer"
-                    className="text-sm text-indigo-600 hover:underline truncate">Profiel bekijken</a>
+                    className="text-sm text-indigo-600 hover:underline truncate">View profile</a>
                 </div>
               )}
             </div>
           </div>
 
           <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Bedrijf</h3>
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Company</h3>
             <div className="space-y-2.5">
               <InfoRow label="Sector" value={lead.sector} />
-              <InfoRow label="Stad" value={lead.city} />
+              <InfoRow label="City" value={lead.city} />
               <InfoRow label="KvK" value={lead.kvkNumber} />
-              <InfoRow label="Medewerkers" value={lead.employeeCount} />
-              <InfoRow label="Opgericht" value={lead.foundingYear} />
-              <InfoRow label="Rechtsvorm" value={lead.legalForm} />
+              <InfoRow label="Employees" value={lead.employeeCount} />
+              <InfoRow label="Founded" value={lead.foundingYear} />
+              <InfoRow label="Legal form" value={lead.legalForm} />
               {lead.googleRating && (
                 <div className="flex flex-col">
                   <span className="text-xs text-gray-400">Google rating</span>
@@ -953,14 +953,14 @@ export default function LeadDetailPage() {
 
           {lead.aiSummary && (
             <div className="bg-white rounded-xl border border-gray-200 p-4">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">AI Samenvatting</h3>
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">AI summary</h3>
               <p className="text-xs text-gray-700 leading-relaxed">{lead.aiSummary}</p>
             </div>
           )}
 
           {(lead.salesPriorityScore != null || lead.salesPriorityLabel) && (
             <div className="bg-white rounded-xl border border-gray-200 p-4">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Verkoopkans</h3>
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Sales opportunity</h3>
               <div className="space-y-2.5">
                 {lead.salesPriorityScore != null && (
                   <div className="flex items-center gap-2">
@@ -997,7 +997,7 @@ export default function LeadDetailPage() {
                       <div className="text-xs text-gray-400 truncate">{step.desc}</div>
                     </div>
                     {status === 'active' && (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-medium flex-shrink-0">Actief</span>
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-medium flex-shrink-0">Active</span>
                     )}
                     <svg className={`w-4 h-4 text-gray-300 flex-shrink-0 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
                       fill="none" viewBox="0 0 24 24" stroke="currentColor">

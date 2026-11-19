@@ -66,7 +66,7 @@ function ToastItem({
       <button
         onClick={() => onDismiss(toast.id)}
         className="text-white/80 hover:text-white ml-2 flex-shrink-0 font-bold"
-        aria-label="Sluit"
+        aria-label="Close"
       >
         ×
       </button>

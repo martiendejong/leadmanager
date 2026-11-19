@@ -39,7 +39,7 @@ export default function FinderPage() {
       setResults(data)
       setSelected(new Set(data.map((_, i) => i)))
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Zoeken mislukt')
+      setError(err.response?.data?.message || 'Search failed')
     } finally {
       setSearching(false)
     }
@@ -80,11 +80,11 @@ export default function FinderPage() {
           targetAudience: r.targetAudience ?? null,
         }))
       const result: ImportResultDto = await importSearchResults(toImport as any)
-      showToast(`${result.imported} leads geïmporteerd, ${result.skipped} overgeslagen`)
+      showToast(`${result.imported} leads imported, ${result.skipped} skipped`)
       setResults(null)
       setSelected(new Set())
     } catch {
-      showToast('Importeren mislukt', 'error')
+      showToast('Could not import', 'error')
     } finally {
       setImporting(false)
     }
@@ -102,7 +102,7 @@ export default function FinderPage() {
   if (profileLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-gray-400 text-sm">Laden…</div>
+        <div className="text-gray-400 text-sm">Loading…</div>
       </div>
     )
   }
@@ -117,24 +117,24 @@ export default function FinderPage() {
       )}
 
       <div>
-        <h2 className="text-2xl font-bold text-gray-900">Leads zoeken</h2>
+        <h2 className="text-2xl font-bold text-gray-900">Find leads</h2>
         <p className="text-sm text-gray-500 mt-1">
-          Op basis van jouw bedrijfsprofiel zoekt het systeem relevante leads met AI.
+          Based on your company profile, the system searches for relevant leads using AI.
         </p>
       </div>
 
       {/* Profile card */}
       {!profile ? (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-6 text-center space-y-3">
-          <p className="text-amber-800 font-medium">Nog geen bedrijfsprofiel aangemaakt</p>
+          <p className="text-amber-800 font-medium">No company profile yet</p>
           <p className="text-amber-700 text-sm">
-            Maak eerst een profiel aan zodat het systeem weet voor welk bedrijf leads gezocht moeten worden.
+            Create a profile first so the system knows which company to find leads for.
           </p>
           <Link
             to="/profile"
             className="inline-block px-5 py-2 bg-amber-600 text-white rounded-md text-sm font-medium hover:bg-amber-700"
           >
-            Profiel aanmaken
+            Create profile
           </Link>
         </div>
       ) : (
@@ -146,7 +146,7 @@ export default function FinderPage() {
               <p className="text-sm text-gray-600 mt-2">{profile.description}</p>
             </div>
             <Link to="/profile" className="text-xs text-indigo-600 hover:underline whitespace-nowrap">
-              Profiel bewerken
+              Edit profile
             </Link>
           </div>
 
@@ -173,15 +173,15 @@ export default function FinderPage() {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
-                  Leads zoeken… (kan 30-60 sec duren)
+                  Searching for leads… (can take 30-60 sec)
                 </>
               ) : (
-                'Zoek leads met AI'
+                'Find leads with AI'
               )}
             </button>
             {searching && (
               <p className="text-xs text-gray-400 mt-2">
-                Queries worden gegenereerd → DuckDuckGo → AI kwalificeert resultaten
+                Queries are generated → DuckDuckGo → AI qualifies results
               </p>
             )}
           </div>
@@ -200,20 +200,20 @@ export default function FinderPage() {
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
             <span className="text-sm text-gray-600 font-medium">
-              {results.length} gekwalificeerde leads gevonden
+              {results.length} qualified leads found
             </span>
             <button
               onClick={handleImport}
               disabled={selected.size === 0 || importing}
               className="inline-flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {importing ? 'Importeren…' : `Importeer geselecteerde (${selected.size})`}
+              {importing ? 'Importing…' : `Import selected (${selected.size})`}
             </button>
           </div>
 
           {results.length === 0 ? (
             <div className="px-6 py-12 text-center text-sm text-gray-500">
-              Geen resultaten gevonden. Pas je profiel aan en probeer opnieuw.
+              No results found. Adjust your profile and try again.
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -230,11 +230,11 @@ export default function FinderPage() {
                       />
                     </th>
                     <th className="px-4 py-3 text-left">Score</th>
-                    <th className="px-4 py-3 text-left">Bedrijf</th>
+                    <th className="px-4 py-3 text-left">Company</th>
                     <th className="px-4 py-3 text-left">Website</th>
                     <th className="px-4 py-3 text-left">Sector</th>
-                    <th className="px-4 py-3 text-left">Stad</th>
-                    <th className="px-4 py-3 text-left">Reden</th>
+                    <th className="px-4 py-3 text-left">City</th>
+                    <th className="px-4 py-3 text-left">Reason</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -258,7 +258,7 @@ export default function FinderPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 font-medium text-gray-900 max-w-[180px] truncate">
-                        {lead.name || '—'}
+                        {lead.name || '–'}
                       </td>
                       <td className="px-4 py-3 max-w-[160px]">
                         {lead.website ? (
@@ -271,12 +271,12 @@ export default function FinderPage() {
                           >
                             {lead.website.replace(/^https?:\/\/(www\.)?/, '')}
                           </a>
-                        ) : '—'}
+                        ) : '–'}
                       </td>
-                      <td className="px-4 py-3 text-gray-600">{lead.sector || '—'}</td>
-                      <td className="px-4 py-3 text-gray-600">{lead.city || '—'}</td>
+                      <td className="px-4 py-3 text-gray-600">{lead.sector || '–'}</td>
+                      <td className="px-4 py-3 text-gray-600">{lead.city || '–'}</td>
                       <td className="px-4 py-3 text-gray-500 text-xs max-w-[240px] truncate" title={lead.qualificationReason}>
-                        {lead.qualificationReason || '—'}
+                        {lead.qualificationReason || '–'}
                       </td>
                     </tr>
                   ))}

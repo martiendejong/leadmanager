@@ -13,18 +13,18 @@ import {
 } from '../api/crm'
 import { getClients, type Client } from '../api/clients'
 
-const WEEKDAYS = ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo']
+const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 function dayKey(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 function fmtTime(iso: string) {
-  return new Date(iso).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })
+  return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
 }
 
 function fmtDay(iso: string) {
-  return new Date(iso).toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short' })
+  return new Date(iso).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
 }
 
 function parentLink(a: ActionRow) {
@@ -42,7 +42,7 @@ function ActionLine({ a, onDone }: { a: ActionRow; onDone: (id: string) => void 
       <button
         onClick={() => onDone(a.id)}
         className="mt-0.5 w-5 h-5 rounded-full border-2 border-gray-300 hover:border-green-500 hover:bg-green-50 flex-shrink-0"
-        aria-label={`Afronden: ${a.title}`}
+        aria-label={`Complete: ${a.title}`}
       />
       <div className="min-w-0 flex-1">
         <p className="text-sm text-gray-900 break-words">{a.title}</p>
@@ -63,9 +63,9 @@ function ListView({ rows, onDone }: { rows: ActionRow[]; onDone: (id: string) =>
     const endWeek = new Date(endToday)
     endWeek.setDate(endWeek.getDate() + 7)
     const out: { title: string; tone: string; items: ActionRow[] }[] = [
-      { title: 'Achterstallig', tone: 'text-red-700', items: [] },
-      { title: 'Vandaag', tone: 'text-indigo-700', items: [] },
-      { title: 'Komende 7 dagen', tone: 'text-gray-700', items: [] },
+      { title: 'Overdue', tone: 'text-red-700', items: [] },
+      { title: 'Today', tone: 'text-indigo-700', items: [] },
+      { title: 'Next 7 days', tone: 'text-gray-700', items: [] },
       { title: 'Later', tone: 'text-gray-500', items: [] },
     ]
     for (const r of rows) {
@@ -78,7 +78,7 @@ function ListView({ rows, onDone }: { rows: ActionRow[]; onDone: (id: string) =>
   }, [rows])
 
   if (groups.length === 0) {
-    return <div className="bg-white rounded-xl border border-gray-200 p-6 text-sm text-gray-500">Geen open acties. Plan er een met de knop hierboven.</div>
+    return <div className="bg-white rounded-xl border border-gray-200 p-6 text-sm text-gray-500">No open actions. Schedule one with the button above.</div>
   }
   return (
     <div className="space-y-4">
@@ -128,7 +128,7 @@ function CalendarView({ rows, onDone }: { rows: ActionRow[]; onDone: (id: string
 
   const todayKey = dayKey(new Date())
   const selectedRows = byDay.get(selected) ?? []
-  const title = month.toLocaleDateString('nl-NL', { month: 'long', year: 'numeric' })
+  const title = month.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
   const shift = (n: number) => setMonth(new Date(month.getFullYear(), month.getMonth() + n, 1))
 
   return (
@@ -137,14 +137,14 @@ function CalendarView({ rows, onDone }: { rows: ActionRow[]; onDone: (id: string
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold text-gray-900 capitalize">{title}</h3>
           <div className="flex gap-1">
-            <button onClick={() => shift(-1)} className="px-2 py-1 text-sm rounded-md hover:bg-gray-100" aria-label="Vorige maand">‹</button>
+            <button onClick={() => shift(-1)} className="px-2 py-1 text-sm rounded-md hover:bg-gray-100" aria-label="Previous month">‹</button>
             <button
               onClick={() => { const n = new Date(); setMonth(new Date(n.getFullYear(), n.getMonth(), 1)); setSelected(dayKey(n)) }}
               className="px-2 py-1 text-xs rounded-md hover:bg-gray-100"
             >
-              Vandaag
+              Today
             </button>
-            <button onClick={() => shift(1)} className="px-2 py-1 text-sm rounded-md hover:bg-gray-100" aria-label="Volgende maand">›</button>
+            <button onClick={() => shift(1)} className="px-2 py-1 text-sm rounded-md hover:bg-gray-100" aria-label="Next month">›</button>
           </div>
         </div>
         <div className="grid grid-cols-7 text-center text-xs text-gray-400 mb-1">
@@ -160,7 +160,7 @@ function CalendarView({ rows, onDone }: { rows: ActionRow[]; onDone: (id: string
                 key={k}
                 onClick={() => setSelected(k)}
                 className={`min-h-[64px] p-1 text-left bg-white hover:bg-indigo-50 ${inMonth ? '' : 'opacity-40'} ${selected === k ? 'ring-2 ring-inset ring-indigo-400' : ''}`}
-                aria-label={`${d.toLocaleDateString('nl-NL', { day: 'numeric', month: 'long' })}, ${items.length} acties`}
+                aria-label={`${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}, ${items.length} actions`}
               >
                 <span className={`text-xs ${k === todayKey ? 'inline-flex w-5 h-5 items-center justify-center rounded-full bg-indigo-600 text-white' : 'text-gray-600'}`}>
                   {d.getDate()}
@@ -170,7 +170,7 @@ function CalendarView({ rows, onDone }: { rows: ActionRow[]; onDone: (id: string
                     {fmtTime(i.dueAt)} {i.title}
                   </span>
                 ))}
-                {items.length > 2 && <span className="block text-[10px] text-gray-400 mt-0.5">+{items.length - 2} meer</span>}
+                {items.length > 2 && <span className="block text-[10px] text-gray-400 mt-0.5">+{items.length - 2} more</span>}
               </button>
             )
           })}
@@ -179,10 +179,10 @@ function CalendarView({ rows, onDone }: { rows: ActionRow[]; onDone: (id: string
 
       <div className="bg-white rounded-xl border border-gray-200 p-4">
         <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-          {new Date(selected + 'T12:00:00').toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' })}
+          {new Date(selected + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
         </h3>
         {selectedRows.length === 0 ? (
-          <p className="text-sm text-gray-400">Niets gepland.</p>
+          <p className="text-sm text-gray-400">Nothing scheduled.</p>
         ) : (
           <ul className="divide-y divide-gray-100">
             {selectedRows.map((a) => <ActionLine key={a.id} a={a} onDone={onDone} />)}
@@ -202,20 +202,20 @@ function NewActionForm({ onAdded, onCancel }: { onAdded: () => void; onCancel: (
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
-    getClients().then((c) => { setClients(c); if (c.length > 0) setClientId(c[0].id) }).catch(() => showToast('Klanten laden mislukt', 'error'))
+    getClients().then((c) => { setClients(c); if (c.length > 0) setClientId(c[0].id) }).catch(() => showToast('Could not load clients', 'error'))
   }, [showToast])
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim() || !clientId || busy) return
-    if (!due || Number.isNaN(new Date(due).getTime())) { showToast('Kies een datum en tijd', 'error'); return }
+    if (!due || Number.isNaN(new Date(due).getTime())) { showToast('Choose a date and time', 'error'); return }
     setBusy(true)
     try {
       await addNextAction('clients', clientId, { title: title.trim(), dueAt: new Date(due).toISOString() })
-      showToast('Actie gepland', 'success')
+      showToast('Action scheduled', 'success')
       onAdded()
     } catch (err) {
-      showToast(errorMessage(err, 'Plannen mislukt'), 'error')
+      showToast(errorMessage(err, 'Could not schedule action'), 'error')
     } finally {
       setBusy(false)
     }
@@ -225,21 +225,21 @@ function NewActionForm({ onAdded, onCancel }: { onAdded: () => void; onCancel: (
   return (
     <form onSubmit={submit} className="bg-white rounded-xl border border-gray-200 p-4 mb-4 flex flex-wrap gap-2 items-end">
       <div className="flex-1 min-w-[180px]">
-        <label className="block text-xs text-gray-600 mb-1" htmlFor="na-client">Klant</label>
+        <label className="block text-xs text-gray-600 mb-1" htmlFor="na-client">Client</label>
         <select id="na-client" className={`${input} w-full`} value={clientId} onChange={(e) => setClientId(e.target.value)}>
           {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
       </div>
       <div className="flex-[2] min-w-[220px]">
-        <label className="block text-xs text-gray-600 mb-1" htmlFor="na-title">Wat moet er gebeuren?</label>
+        <label className="block text-xs text-gray-600 mb-1" htmlFor="na-title">What needs to happen?</label>
         <input id="na-title" className={`${input} w-full`} value={title} onChange={(e) => setTitle(e.target.value)} maxLength={300} autoFocus />
       </div>
       <div>
-        <label className="block text-xs text-gray-600 mb-1" htmlFor="na-due">Wanneer</label>
+        <label className="block text-xs text-gray-600 mb-1" htmlFor="na-due">When</label>
         <input id="na-due" type="datetime-local" className={input} value={due} onChange={(e) => setDue(e.target.value)} />
       </div>
-      <button type="submit" disabled={busy || !title.trim() || !clientId} className="text-sm px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">Plannen</button>
-      <button type="button" onClick={onCancel} className="text-sm px-3 py-1.5 rounded-lg text-gray-600 hover:bg-gray-100">Annuleren</button>
+      <button type="submit" disabled={busy || !title.trim() || !clientId} className="text-sm px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">Schedule</button>
+      <button type="button" onClick={onCancel} className="text-sm px-3 py-1.5 rounded-lg text-gray-600 hover:bg-gray-100">Cancel</button>
     </form>
   )
 }
@@ -251,50 +251,50 @@ function FeedCard() {
 
   useEffect(() => {
     if (!open || feed) return
-    getCalendarFeed().then(setFeed).catch((err) => showToast(errorMessage(err, 'Feed laden mislukt'), 'error'))
+    getCalendarFeed().then(setFeed).catch((err) => showToast(errorMessage(err, 'Could not load feed'), 'error'))
   }, [open, feed, showToast])
 
   const copy = async () => {
     if (!feed) return
     try {
       await navigator.clipboard.writeText(feed.url)
-      showToast('Link gekopieerd', 'success')
+      showToast('Link copied', 'success')
     } catch {
-      showToast('Kopiëren mislukt: selecteer de link en kopieer handmatig', 'error')
+      showToast('Could not copy: select the link and copy it manually', 'error')
     }
   }
 
   const rotate = async () => {
-    if (!window.confirm('Een nieuwe link maken? De oude link stopt direct met werken en je moet de agenda opnieuw koppelen.')) return
+    if (!window.confirm('Create a new link? The old link stops working immediately and you will need to reconnect your calendar.')) return
     try {
       setFeed(await rotateCalendarFeed())
     } catch (err) {
-      showToast(errorMessage(err, 'Vernieuwen mislukt'), 'error')
+      showToast(errorMessage(err, 'Could not create new link'), 'error')
     }
   }
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
       <button onClick={() => setOpen((v) => !v)} className="text-sm font-medium text-gray-800 w-full text-left" aria-expanded={open}>
-        {open ? '▾' : '▸'} Koppel met Google Agenda (of een andere agenda)
+        {open ? '▾' : '▸'} Connect to Google Calendar (or another calendar)
       </button>
       {open && (
         <div className="mt-3 space-y-2 text-sm text-gray-600">
           <p>
-            Je acties verschijnen in je agenda via een persoonlijke link. Google Agenda: <em>Andere agenda&apos;s → + → Via URL</em>, plak de link
-            en kies Toevoegen. Wijzigingen zijn in Google meestal binnen enkele uren zichtbaar. De koppeling werkt één kant op: acties
-            afvinken of verplaatsen doe je hier.
+            Your actions appear in your calendar through a personal link. Google Calendar: <em>Other calendars → + → From URL</em>, paste the link
+            and choose Add calendar. Changes usually show up in Google within a few hours. The connection works one way: complete or
+            reschedule actions here.
           </p>
           {feed ? (
             <div className="flex gap-2">
-              <input readOnly value={feed.url} onFocus={(e) => e.target.select()} className="flex-1 text-xs font-mono border border-gray-300 rounded-lg px-3 py-1.5 bg-gray-50" aria-label="Agenda-link" />
-              <button onClick={copy} className="text-sm px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700">Kopieer</button>
-              <button onClick={rotate} className="text-sm px-3 py-1.5 rounded-lg text-gray-600 hover:bg-gray-100">Nieuwe link</button>
+              <input readOnly value={feed.url} onFocus={(e) => e.target.select()} className="flex-1 text-xs font-mono border border-gray-300 rounded-lg px-3 py-1.5 bg-gray-50" aria-label="Calendar link" />
+              <button onClick={copy} className="text-sm px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700">Copy</button>
+              <button onClick={rotate} className="text-sm px-3 py-1.5 rounded-lg text-gray-600 hover:bg-gray-100">New link</button>
             </div>
           ) : (
-            <p className="text-xs text-gray-400">Laden...</p>
+            <p className="text-xs text-gray-400">Loading...</p>
           )}
-          <p className="text-xs text-gray-400">Iedereen met deze link kan je geplande acties lezen. Deel hem niet.</p>
+          <p className="text-xs text-gray-400">Anyone with this link can read your scheduled actions. Do not share it.</p>
         </div>
       )}
     </div>
@@ -315,7 +315,7 @@ export default function ActionsPage() {
       .then((d) => { if (!cancelled) setRows(d) })
       .catch((err) => {
         if (cancelled) return
-        showToast(errorMessage(err, 'Acties laden mislukt'), 'error')
+        showToast(errorMessage(err, 'Could not load actions'), 'error')
         setRows([])
       })
     return () => { cancelled = true }
@@ -326,7 +326,7 @@ export default function ActionsPage() {
       await completeNextAction(id)
       setTick((n) => n + 1)
     } catch (err) {
-      showToast(errorMessage(err, 'Afronden mislukt'), 'error')
+      showToast(errorMessage(err, 'Could not complete the action'), 'error')
     }
   }, [showToast])
 
@@ -336,15 +336,15 @@ export default function ActionsPage() {
     <div className="max-w-5xl">
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Acties</h1>
-          <p className="text-sm text-gray-500">Alle volgende stappen bij leads en klanten.</p>
+          <h1 className="text-xl font-semibold text-gray-900">Actions</h1>
+          <p className="text-sm text-gray-500">All next steps for leads and clients.</p>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex gap-1" role="tablist">
-            <button role="tab" aria-selected={tab === 'list'} className={tabCls('list')} onClick={() => setTab('list')}>Lijst</button>
-            <button role="tab" aria-selected={tab === 'calendar'} className={tabCls('calendar')} onClick={() => setTab('calendar')}>Kalender</button>
+            <button role="tab" aria-selected={tab === 'list'} className={tabCls('list')} onClick={() => setTab('list')}>List</button>
+            <button role="tab" aria-selected={tab === 'calendar'} className={tabCls('calendar')} onClick={() => setTab('calendar')}>Calendar</button>
           </div>
-          <button onClick={() => setAdding((v) => !v)} className="text-sm px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700">+ Actie</button>
+          <button onClick={() => setAdding((v) => !v)} className="text-sm px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700">+ Action</button>
         </div>
       </div>
 
@@ -352,7 +352,7 @@ export default function ActionsPage() {
       <FeedCard />
 
       {rows === null ? (
-        <p className="text-sm text-gray-400">Laden...</p>
+        <p className="text-sm text-gray-400">Loading...</p>
       ) : tab === 'list' ? (
         <ListView rows={rows} onDone={done} />
       ) : (

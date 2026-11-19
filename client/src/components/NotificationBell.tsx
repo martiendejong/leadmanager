@@ -25,7 +25,7 @@ export default function NotificationBell() {
         const n = await getNotificationCount()
         if (!cancelled) setCount(n)
       } catch {
-        // silently ignore — not critical
+        // silently ignore, not critical
       }
     }
 
@@ -87,7 +87,7 @@ export default function NotificationBell() {
 
   const formatTime = (iso: string) => {
     try {
-      return new Date(iso).toLocaleString('nl-NL', {
+      return new Date(iso).toLocaleString('en-GB', {
         day: '2-digit',
         month: '2-digit',
         hour: '2-digit',
@@ -117,8 +117,8 @@ export default function NotificationBell() {
       <button
         onClick={handleOpen}
         className="relative p-2 rounded-lg text-gray-600 hover:text-indigo-600 hover:bg-gray-100 transition-colors"
-        title="Meldingen"
-        aria-label="Meldingen"
+        title="Notifications"
+        aria-label="Notifications"
       >
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
@@ -139,13 +139,13 @@ export default function NotificationBell() {
       {open && (
         <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-gray-200 z-50 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-            <h3 className="text-sm font-semibold text-gray-800">Meldingen</h3>
+            <h3 className="text-sm font-semibold text-gray-800">Notifications</h3>
             {notifications.length > 0 && (
               <button
                 onClick={handleMarkAll}
                 className="text-xs text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
               >
-                Alles gelezen
+                Mark all as read
               </button>
             )}
           </div>
@@ -153,12 +153,12 @@ export default function NotificationBell() {
           <div className="max-h-72 overflow-y-auto">
             {loading && (
               <div className="px-4 py-6 text-center text-sm text-gray-400">
-                Laden...
+                Loading...
               </div>
             )}
             {!loading && notifications.length === 0 && (
               <div className="px-4 py-6 text-center text-sm text-gray-400">
-                Geen ongelezen meldingen
+                No unread notifications
               </div>
             )}
             {!loading &&

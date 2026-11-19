@@ -20,7 +20,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     const ssoError = searchParams.get('sso_error')
-    if (ssoError) setError(`SSO fout: ${ssoError}`)
+    if (ssoError) setError(`SSO error: ${ssoError}`)
   }, [searchParams])
 
   const handleSso = async () => {
@@ -29,7 +29,7 @@ export default function LoginPage() {
       const res = await api.get<{ authorizeUrl: string }>('/api/auth/sso/start')
       window.location.href = res.data.authorizeUrl
     } catch {
-      showToast('SSO starten mislukt', 'error')
+      showToast('Could not start SSO', 'error')
       setSsoLoading(false)
     }
   }
@@ -40,12 +40,12 @@ export default function LoginPage() {
     setIsLoading(true)
     try {
       await login(email, password)
-      showToast('Ingelogd', 'success')
-      navigate('/leads')
+      showToast('Logged in', 'success')
+      navigate('/today')
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-        'Inloggen mislukt. Controleer je gegevens.'
+        'Login failed. Check your credentials.'
       setError(msg)
     } finally {
       setIsLoading(false)
@@ -60,14 +60,14 @@ export default function LoginPage() {
           {/* Header */}
           <div className="text-center mb-8">
             <h1 className="text-2xl font-bold text-indigo-700 tracking-tight">Clients</h1>
-            <p className="text-gray-500 text-sm mt-1">Log in op je account</p>
+            <p className="text-gray-500 text-sm mt-1">Log in to your account</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Email */}
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                E-mailadres
+                Email address
               </label>
               <input
                 id="email"
@@ -77,14 +77,14 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
-                placeholder="naam@bedrijf.nl"
+                placeholder="name@company.com"
               />
             </div>
 
             {/* Password */}
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-                Wachtwoord
+                Password
               </label>
               <div className="relative">
                 <input
@@ -100,7 +100,7 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  aria-label={showPassword ? 'Wachtwoord verbergen' : 'Wachtwoord tonen'}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                 >
                   {showPassword ? (
@@ -133,10 +133,10 @@ export default function LoginPage() {
               {isLoading ? (
                 <>
                   <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                  Bezig met inloggen...
+                  Logging in...
                 </>
               ) : (
-                'Inloggen'
+                'Log in'
               )}
             </button>
           </form>
@@ -144,7 +144,7 @@ export default function LoginPage() {
           {/* Divider */}
           <div className="flex items-center gap-3 my-5">
             <div className="flex-1 h-px bg-gray-200" />
-            <span className="text-xs text-gray-400">of</span>
+            <span className="text-xs text-gray-400">or</span>
             <div className="flex-1 h-px bg-gray-200" />
           </div>
 
@@ -161,7 +161,7 @@ export default function LoginPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
               </svg>
             )}
-            Inloggen via SSO (Jengo IAM)
+            Log in with SSO (Jengo IAM)
           </button>
         </div>
       </div>

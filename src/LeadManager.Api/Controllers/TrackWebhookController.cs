@@ -21,7 +21,9 @@ namespace LeadManager.Api.Controllers;
 public class TrackWebhookController : ControllerBase
 {
     public const int MaxBodyBytes = 64 * 1024;
-    public const string CallNowPrefix = "Bel nu:";
+    public const string CallNowPrefix = "Call now:";
+    /// <summary>Open actions created before the interface became English start with this; they still count as open.</summary>
+    private const string LegacyCallNowPrefix = "Bel nu:";
 
     private readonly LeadManagerDbContext _db;
     private readonly TrackOptions _options;
@@ -86,12 +88,12 @@ public class TrackWebhookController : ControllerBase
         var duplicate = await _db.Interactions.AnyAsync(i => i.LeadId == leadId && i.ClientId == clientId && i.SourceRef == sourceRef, ct);
         if (duplicate) return Ok(new { handled = true, duplicate = true });
 
-        var what = CrmRules.Clean(click.Label) ?? CrmRules.Clean(click.Url) ?? "een link";
+        var what = CrmRules.Clean(click.Label) ?? CrmRules.Clean(click.Url) ?? "a link";
         var details = new List<string>();
-        if (CrmRules.Clean(click.Channel) is { } channel) details.Add($"Kanaal: {channel}");
-        if (CrmRules.Clean(click.Campaign) is { } campaign) details.Add($"Campagne: {campaign}");
-        if (CrmRules.Clean(click.SourceTool) is { } source) details.Add($"Bron: {source}");
-        var summary = $"Klikte op {what}" + (details.Count > 0 ? "\n" + string.Join(" · ", details) : "");
+        if (CrmRules.Clean(click.Channel) is { } channel) details.Add($"Channel: {channel}");
+        if (CrmRules.Clean(click.Campaign) is { } campaign) details.Add($"Campaign: {campaign}");
+        if (CrmRules.Clean(click.SourceTool) is { } source) details.Add($"Source: {source}");
+        var summary = $"Clicked {what}" + (details.Count > 0 ? "\n" + string.Join(" · ", details) : "");
 
         _db.Interactions.Add(new Interaction
         {
@@ -101,7 +103,7 @@ public class TrackWebhookController : ControllerBase
             Direction = InteractionDirection.Inbound,
             OccurredAt = click.Ts > 0 ? click.At.UtcDateTime : DateTime.UtcNow,
             Summary = Cut(summary, CrmRules.MaxSummary),
-            Outcome = "Klik",
+            Outcome = "Click",
             SourceRef = sourceRef,
         });
 
@@ -109,15 +111,15 @@ public class TrackWebhookController : ControllerBase
         if (hot)
         {
             var hasOpen = await _db.NextActions.AnyAsync(a =>
-                a.LeadId == leadId && a.ClientId == clientId && a.DoneAt == null && a.Title.StartsWith(CallNowPrefix), ct);
+                a.LeadId == leadId && a.ClientId == clientId && a.DoneAt == null && (a.Title.StartsWith(CallNowPrefix) || a.Title.StartsWith(LegacyCallNowPrefix)), ct);
             if (!hasOpen)
             {
                 _db.NextActions.Add(new NextAction
                 {
                     LeadId = leadId,
                     ClientId = clientId,
-                    Title = Cut($"{CallNowPrefix} {name} las je bericht", CrmRules.MaxTitle),
-                    // End of today (Dutch time): on the Vandaag list at once, not "achterstallig" at once.
+                    Title = Cut($"{CallNowPrefix} {name} read your message", CrmRules.MaxTitle),
+                    // End of today (Dutch time): on the Today list at once, not overdue at once.
                     DueAt = NextActionsController.EndOfDayNl(DateTime.UtcNow),
                     AssignedToUserId = ownerId,
                 });

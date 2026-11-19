@@ -40,7 +40,7 @@ public class TrackController : CrmControllerBase
     {
         var parent = await ResolveParentAsync(parentType, parentId);
         if (parent == null) return NotFound();
-        if (!_track.Enabled) return StatusCode(503, "Klik-tracking staat niet aan.");
+        if (!_track.Enabled) return StatusCode(503, "Click tracking is not enabled.");
 
         var url = Clean(dto.Url);
         if (!IsSafeHttpUrl(url)) return BadRequest("Url must be an absolute http(s) address");
@@ -66,7 +66,7 @@ public class TrackController : CrmControllerBase
         }, ct);
 
         if (link == null || string.IsNullOrEmpty(link.ShortUrl))
-            return StatusCode(502, "Track kon de link niet maken (onbereikbaar, of dit domein staat niet op de toegestane lijst).");
+            return StatusCode(502, "Track could not create the link (unreachable, or this domain is not on the allow list).");
         return Ok(new { shortUrl = link.ShortUrl, token = link.Token });
     }
 }

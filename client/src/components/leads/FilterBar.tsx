@@ -9,6 +9,9 @@ interface FilterBarProps {
   stats: LeadStats | null
 }
 
+// Display labels for the priority tokens sent to the API
+const PRIORITY_LABELS: Record<string, string> = { Hoog: 'High', Normaal: 'Normal', Laag: 'Low' }
+
 function daysAgo(days: number): string {
   const d = new Date()
   d.setDate(d.getDate() - days)
@@ -107,7 +110,7 @@ export default function FilterBar({ filter, onChange, stats }: FilterBarProps) {
               : 'text-gray-600 hover:bg-gray-100'
           }`}
         >
-          Alle ({stats?.total ?? '…'})
+          All ({stats?.total ?? '…'})
         </button>
         <button
           onClick={() => setEnrichedFilter(true)}
@@ -117,7 +120,7 @@ export default function FilterBar({ filter, onChange, stats }: FilterBarProps) {
               : 'text-gray-600 hover:bg-gray-100'
           }`}
         >
-          Verrijkt ({stats?.enriched ?? '…'})
+          Enriched ({stats?.enriched ?? '…'})
         </button>
         <button
           onClick={() => setEnrichedFilter(false)}
@@ -127,7 +130,7 @@ export default function FilterBar({ filter, onChange, stats }: FilterBarProps) {
               : 'text-gray-600 hover:bg-gray-100'
           }`}
         >
-          Niet verrijkt ({stats?.notEnriched ?? '…'})
+          Not enriched ({stats?.notEnriched ?? '…'})
         </button>
 
         {isFilterActive(filter) && (
@@ -135,7 +138,7 @@ export default function FilterBar({ filter, onChange, stats }: FilterBarProps) {
             onClick={clearFilters}
             className="ml-auto text-xs text-red-500 hover:text-red-700 underline"
           >
-            Filters wissen
+            Clear filters
           </button>
         )}
       </div>
@@ -143,13 +146,13 @@ export default function FilterBar({ filter, onChange, stats }: FilterBarProps) {
       {/* Assignee filter (869ck3j4u) */}
       {assignees.length > 0 && (
         <div className="flex items-center gap-2">
-          <label className="text-xs text-gray-500 font-medium whitespace-nowrap">Toegewezen aan:</label>
+          <label className="text-xs text-gray-500 font-medium whitespace-nowrap">Assigned to:</label>
           <select
             value={filter.assignedToUserId ?? ''}
             onChange={(e) => setAssigneeFilter(e.target.value)}
             className="text-sm border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-500"
           >
-            <option value="">Iedereen</option>
+            <option value="">Everyone</option>
             {assignees.map((a) => (
               <option key={a.userId} value={a.userId}>
                 {a.displayName} ({a.leadCount})
@@ -161,7 +164,7 @@ export default function FilterBar({ filter, onChange, stats }: FilterBarProps) {
 
       {/* Priority + contact quick filters */}
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs text-gray-500 font-medium">Prioriteit:</span>
+        <span className="text-xs text-gray-500 font-medium">Priority:</span>
         {(['Hoog', 'Normaal', 'Laag'] as const).map((label) => {
           const colorMap: Record<string, string> = {
             Hoog: filter.priorityLabel === label ? 'bg-green-100 text-green-700 border-green-300' : 'border-gray-300 text-gray-600 hover:bg-gray-50',
@@ -174,7 +177,7 @@ export default function FilterBar({ filter, onChange, stats }: FilterBarProps) {
               onClick={() => setPriorityFilter(filter.priorityLabel === label ? undefined : label)}
               className={`px-2.5 py-1 text-xs border rounded font-medium transition-colors ${colorMap[label]}`}
             >
-              {label}
+              {PRIORITY_LABELS[label]}
             </button>
           )
         })}
@@ -185,7 +188,7 @@ export default function FilterBar({ filter, onChange, stats }: FilterBarProps) {
             filter.hasOwner === true ? 'bg-indigo-100 text-indigo-700 border-indigo-300' : 'border-gray-300 text-gray-600 hover:bg-gray-50'
           }`}
         >
-          Heeft eigenaar
+          Has owner
         </button>
         <button
           onClick={() => onChange({ ...filter, hasLinkedIn: filter.hasLinkedIn === true ? undefined : true, page: 1 })}
@@ -193,14 +196,14 @@ export default function FilterBar({ filter, onChange, stats }: FilterBarProps) {
             filter.hasLinkedIn === true ? 'bg-indigo-100 text-indigo-700 border-indigo-300' : 'border-gray-300 text-gray-600 hover:bg-gray-50'
           }`}
         >
-          Heeft LinkedIn
+          Has LinkedIn
         </button>
       </div>
 
       {/* Date filters */}
       <div className="flex flex-wrap items-end gap-4">
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500 font-medium">Verrijkt na:</label>
+          <label className="text-xs text-gray-500 font-medium">Enriched after:</label>
           <input
             type="date"
             value={filter.enrichedAfter ?? ''}
@@ -209,7 +212,7 @@ export default function FilterBar({ filter, onChange, stats }: FilterBarProps) {
           />
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500 font-medium">Verrijkt voor:</label>
+          <label className="text-xs text-gray-500 font-medium">Enriched before:</label>
           <input
             type="date"
             value={filter.enrichedBefore ?? ''}
@@ -220,25 +223,25 @@ export default function FilterBar({ filter, onChange, stats }: FilterBarProps) {
 
         {/* Presets */}
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500 font-medium">Snelfilter:</label>
+          <label className="text-xs text-gray-500 font-medium">Quick filter:</label>
           <div className="flex gap-1">
             <button
               onClick={() => onChange({ ...filter, enrichedAfter: daysAgo(7), page: 1 })}
               className="px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50 text-gray-600"
             >
-              Afgelopen week
+              Past week
             </button>
             <button
               onClick={() => onChange({ ...filter, enrichedAfter: daysAgo(14), page: 1 })}
               className="px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50 text-gray-600"
             >
-              2 weken
+              2 weeks
             </button>
             <button
               onClick={() => onChange({ ...filter, enrichedAfter: daysAgo(30), page: 1 })}
               className="px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50 text-gray-600"
             >
-              Maand
+              Month
             </button>
           </div>
         </div>

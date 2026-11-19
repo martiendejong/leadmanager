@@ -10,6 +10,7 @@ import DocumentsSection from '../components/crm/DocumentsSection'
 import {
   ENGAGEMENT_CATEGORIES,
   CATEGORY_DESCRIPTIONS,
+  CATEGORY_LABELS,
   EngagementCategoryBadge,
   ReactiveBanner,
 } from '../components/EngagementCategory'
@@ -39,7 +40,7 @@ export default function ClientDetailPage() {
         setBundle(bundles.find((b: ClientBundle) => b.isActive) ?? null)
       })
       .catch(() => {
-        showToast('Klant niet gevonden', 'error')
+        showToast('Client not found', 'error')
         navigate('/clients')
       })
       .finally(() => setLoading(false))
@@ -56,7 +57,7 @@ export default function ClientDetailPage() {
   if (!client) return null
 
   const changeCategory = async (category: string) => {
-    // PUT vervangt het hele record, dus altijd de volledige klant meesturen
+    // PUT replaces the whole record, so always send the full client
     const prev = client
     setClient({ ...client, engagementCategory: category || null })
     try {
@@ -64,7 +65,7 @@ export default function ClientDetailPage() {
       setClient(updated)
     } catch {
       setClient(prev)
-      showToast('Categorie opslaan mislukt', 'error')
+      showToast('Could not save category', 'error')
     }
   }
 
@@ -76,13 +77,13 @@ export default function ClientDetailPage() {
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
-          Klanten
+          Clients
         </Link>
         {client.sourceLeadId && (
           <>
             <span className="text-gray-300">·</span>
             <Link to="/leads" className="text-sm text-gray-500 hover:text-indigo-600">
-              Terug naar leads
+              Back to leads
             </Link>
           </>
         )}
@@ -104,7 +105,7 @@ export default function ClientDetailPage() {
               )}
               {!client.isActive && (
                 <span className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-full px-2 py-0.5">
-                  Inactief
+                  Inactive
                 </span>
               )}
             </div>
@@ -127,7 +128,7 @@ export default function ClientDetailPage() {
         <div className="grid grid-cols-2 gap-3 text-sm">
           {client.city && (
             <div>
-              <span className="text-xs text-gray-500 uppercase tracking-wide font-medium">Stad</span>
+              <span className="text-xs text-gray-500 uppercase tracking-wide font-medium">City</span>
               <p className="text-gray-900 mt-0.5">{client.city}</p>
             </div>
           )}
@@ -138,19 +139,19 @@ export default function ClientDetailPage() {
             </div>
           )}
           <div>
-            <span className="text-xs text-gray-500 uppercase tracking-wide font-medium">Klant sinds</span>
-            <p className="text-gray-900 mt-0.5">{new Date(client.createdAt).toLocaleDateString('nl-NL')}</p>
+            <span className="text-xs text-gray-500 uppercase tracking-wide font-medium">Client since</span>
+            <p className="text-gray-900 mt-0.5">{new Date(client.createdAt).toLocaleDateString('en-GB')}</p>
           </div>
           <div>
-            <span className="text-xs text-gray-500 uppercase tracking-wide font-medium">Omgangscategorie</span>
+            <span className="text-xs text-gray-500 uppercase tracking-wide font-medium">Engagement category</span>
             <select
               value={client.engagementCategory ?? ''}
               onChange={e => changeCategory(e.target.value)}
               className="block mt-0.5 border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
-              <option value="">Geen</option>
+              <option value="">None</option>
               {ENGAGEMENT_CATEGORIES.map(c => (
-                <option key={c} value={c}>{c}</option>
+                <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>
               ))}
             </select>
             {client.engagementCategory && CATEGORY_DESCRIPTIONS[client.engagementCategory] && (
@@ -161,7 +162,7 @@ export default function ClientDetailPage() {
 
         {client.notes && (
           <div className="mt-4 pt-4 border-t border-gray-100">
-            <span className="text-xs text-gray-500 uppercase tracking-wide font-medium">Notities</span>
+            <span className="text-xs text-gray-500 uppercase tracking-wide font-medium">Notes</span>
             <p className="text-sm text-gray-900 mt-1 leading-relaxed">{client.notes}</p>
           </div>
         )}
@@ -172,7 +173,7 @@ export default function ClientDetailPage() {
       {/* Primary contact */}
       {(client.primaryContactName || client.primaryContactEmail || client.primaryContactPhone) && (
         <div className="bg-white rounded-xl border border-gray-200 p-6 mb-4">
-          <h2 className="text-base font-semibold text-gray-900 mb-4">Primair contact</h2>
+          <h2 className="text-base font-semibold text-gray-900 mb-4">Primary contact</h2>
           <div className="space-y-2 text-sm">
             {client.primaryContactName && (
               <div className="flex items-center gap-2.5">
@@ -210,14 +211,14 @@ export default function ClientDetailPage() {
       {bundle && (
         <div className="bg-white rounded-xl border border-gray-200 p-6 mb-4">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-base font-semibold text-gray-900">Bundel</h2>
+            <h2 className="text-base font-semibold text-gray-900">Bundle</h2>
             <span className="text-xs text-gray-500">{BUNDLE_LABELS[bundle.bundleType]}</span>
           </div>
           {bundle.bundleType !== 'PayPerHour' && (
             <div>
               <div className="flex justify-between text-xs text-gray-600 mb-1">
-                <span>{bundle.hoursUsed.toFixed(1)} uur gebruikt</span>
-                <span>{bundle.hoursRemaining.toFixed(1)} uur resterend</span>
+                <span>{bundle.hoursUsed.toFixed(1)} hours used</span>
+                <span>{bundle.hoursRemaining.toFixed(1)} hours remaining</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div
@@ -226,7 +227,7 @@ export default function ClientDetailPage() {
                 />
               </div>
               {bundle.isOverBudget && (
-                <p className="text-xs text-red-600 mt-1">Bundel overschreden — losse uren à €{bundle.hourlyRate}/u</p>
+                <p className="text-xs text-red-600 mt-1">Bundle exceeded: loose hours at €{bundle.hourlyRate}/h</p>
               )}
             </div>
           )}
@@ -244,11 +245,11 @@ export default function ClientDetailPage() {
             onClick={() => navigate(`/clients/${id}/intake`)}
             className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
           >
-            + Nieuwe intake
+            + New intake
           </button>
         </div>
         {intakes.length === 0 ? (
-          <p className="text-sm text-gray-400">Nog geen intakes. Klik op "Nieuwe intake" om te starten.</p>
+          <p className="text-sm text-gray-400">No intakes yet. Click "New intake" to start.</p>
         ) : (
           <div className="space-y-2">
             {intakes.slice(0, 3).map((intake) => (
@@ -268,7 +269,7 @@ export default function ClientDetailPage() {
                     {STATUS_LABELS[intake.status]}
                   </span>
                   {intake.estimatedHours && (
-                    <span className="text-xs text-gray-500">~{intake.estimatedHours}u</span>
+                    <span className="text-xs text-gray-500">~{intake.estimatedHours}h</span>
                   )}
                 </div>
               </div>
@@ -278,7 +279,7 @@ export default function ClientDetailPage() {
                 onClick={() => navigate(`/clients/${id}/intake`)}
                 className="text-xs text-blue-600 hover:underline mt-1"
               >
-                Alle {intakes.length} intakes bekijken →
+                View all {intakes.length} intakes →
               </button>
             )}
           </div>
@@ -290,7 +291,7 @@ export default function ClientDetailPage() {
         clientId={client.id}
         projects={client.projects}
         onHistoryChanged={() => setHistoryTick((t) => t + 1)}
-        onChanged={() => { getClient(client.id).then(setClient).catch(() => showToast('Vernieuwen mislukt', 'error')) }}
+        onChanged={() => { getClient(client.id).then(setClient).catch(() => showToast('Could not refresh', 'error')) }}
       />
 
       {/* Quotes, orders and signed agreements with their files */}
