@@ -206,9 +206,10 @@ public class HuntService
         {
             _db.Entry(noteRow).State = EntityState.Detached;
             _db.Entry(lead).State = EntityState.Detached;
-            cand.Outcome = HuntOutcomes.Duplicate;
-            cand.Reason = "A lead with this name and website already exists.";
             cand.Score = null;
+            var duplicate = await _db.Leads.AnyAsync(l => l.ImportedByUserId == job.UserId && l.Name == lead.Name && l.Website == lead.Website, CancellationToken.None);
+            cand.Outcome = duplicate ? HuntOutcomes.Duplicate : HuntOutcomes.Error;
+            cand.Reason = duplicate ? "A lead with this name and website already exists." : "The lead could not be saved.";
             return false;
         }
     }
