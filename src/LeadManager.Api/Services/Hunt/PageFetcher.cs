@@ -6,7 +6,35 @@ using HtmlAgilityPack;
 
 namespace LeadManager.Api.Services.Hunt;
 
-public record FetchedPage(string Url, int Status, string Html, string Text);
+public record FetchedPage(string Url, int Status, string Html, string Text)
+{
+    private HtmlDocument? _dom;
+    private bool _domTried;
+    private string? _ownerText;
+
+    /// <summary>A page from its markup: parsed ONCE (safely), the visible text computed from that parse and the parse kept for the rules.</summary>
+    public static FetchedPage Parse(string url, int status, string html)
+    {
+        var dom = SafeHtml.TryLoad(html);
+        var page = new FetchedPage(url, status, html, dom == null ? "" : HtmlText.ToText(dom, ownerView: false));
+        page._dom = dom;
+        page._domTried = true;
+        return page;
+    }
+
+    /// <summary>The parsed page (once), or null when it is empty or nests too deep to be handled safely. See <see cref="SafeHtml"/>.</summary>
+    public HtmlDocument? Dom
+    {
+        get
+        {
+            if (!_domTried) { _domTried = true; _dom = SafeHtml.TryLoad(Html); }
+            return _dom;
+        }
+    }
+
+    /// <summary>The visible text without the parts that quote other people (testimonials, blockquotes): where names and statements are read.</summary>
+    public string OwnerText => _ownerText ??= HtmlText.ToOwnerText(this);
+}
 
 public interface IPageFetcher
 {
@@ -67,7 +95,7 @@ public class SafePageFetcher : IPageFetcher
     public async Task<FetchedPage?> FetchAsync(string url, CancellationToken ct)
     {
         if (!UrlGuard.TryNormalize(url, out var uri)) return null;
-        var startDomain = UrlGuard.RegistrableDomain(uri.Host);
+        var startSite = UrlGuard.SiteKey(uri);
         // One budget for the whole fetch: connecting, headers, redirects and reading the body.
         using var budget = CancellationTokenSource.CreateLinkedTokenSource(ct);
         budget.CancelAfter(FetchTimeout);
@@ -86,7 +114,7 @@ public class SafePageFetcher : IPageFetcher
                     var next = resp.Headers.Location.IsAbsoluteUri ? resp.Headers.Location : new Uri(uri, resp.Headers.Location);
                     if (!UrlGuard.TryNormalize(next.ToString(), out var checkedNext)) return null;
                     // A redirect to another site must not make that site's facts count for this business.
-                    if (UrlGuard.RegistrableDomain(checkedNext.Host) != startDomain) return null;
+                    if (UrlGuard.SiteKey(checkedNext) != startSite) return null;
                     uri = checkedNext;
                     continue;
                 }
@@ -106,7 +134,7 @@ public class SafePageFetcher : IPageFetcher
                 var bytes = ms.ToArray();
                 if (bytes.Length > MaxBodyBytes) bytes = bytes[..(int)MaxBodyBytes]; // the cap is exact, not 'about one buffer more'
                 var html = Decode(bytes, resp.Content.Headers.ContentType?.CharSet);
-                return new FetchedPage(uri.ToString(), (int)resp.StatusCode, html, HtmlText.ToText(html));
+                return FetchedPage.Parse(uri.ToString(), (int)resp.StatusCode, html);
             }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
@@ -134,45 +162,97 @@ public class SafePageFetcher : IPageFetcher
 
 public static class HtmlText
 {
+    private static readonly HashSet<string> Skipped = new(StringComparer.OrdinalIgnoreCase)
+    { "script", "style", "noscript", "iframe", "svg", "template", "head", "object", "embed" };
+
+    private static readonly HashSet<string> Blocks = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "p", "div", "li", "br", "h1", "h2", "h3", "h4", "h5", "h6", "section", "article", "nav", "header", "footer", "aside", "main", "td", "th", "tr", "ul", "ol",
+        "blockquote", "label", "button", "address", "figcaption", "dd", "dt", "table", "form", "dl", "hr",
+    };
+
+    /// <summary>Elements that quote somebody else: what stands in them is not the business speaking about itself.</summary>
+    private static readonly System.Text.RegularExpressions.Regex TestimonialMarker = new(
+        @"testimonial|review|recensie|quote|referentie|reference|getuigenis|ervaring|klantverhaal|klantreactie|feedback|beoordeling|reactie|aanbeveling|cite",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    private const int MaxChars = 3_000_000;
+
     /// <summary>
-    /// Visible text of a page, including header and footer (where contact details and legal forms often are). Scripts, styles, the document
-    /// head and hidden elements are not visible, so text in them can never count as something the business says.
+    /// Visible text of a page, including header and footer (where contact details and legal forms often are). Scripts, styles, comments, the
+    /// document head and hidden elements are not visible, so text in them can never count as something the business says. One linear
+    /// pass; a page that nests too deep gives no text.
     /// </summary>
     public static string ToText(string html)
     {
-        if (string.IsNullOrWhiteSpace(html)) return "";
-        var doc = new HtmlDocument();
-        doc.LoadHtml(html);
-        foreach (var tag in new[] { "script", "style", "noscript", "iframe", "svg", "template", "head" })
-        {
-            var nodes = doc.DocumentNode.SelectNodes($"//{tag}");
-            if (nodes == null) continue;
-            foreach (var n in nodes.ToList()) n.Remove();
-        }
-        foreach (var xpath in new[] { "//*[@hidden]", "//*[contains(translate(@style,' ',''),'display:none')]", "//*[contains(translate(@style,' ',''),'visibility:hidden')]" })
-        {
-            var nodes = doc.DocumentNode.SelectNodes(xpath);
-            if (nodes == null) continue;
-            foreach (var n in nodes.ToList()) n.Remove();
-        }
-        // Block level elements and line breaks separate words and lines: "<p>a</p><p>b</p>" is "a b", not "ab" (word boundaries in the rules depend on it).
-        foreach (var n in doc.DocumentNode.SelectNodes("//p|//div|//li|//br|//h1|//h2|//h3|//h4|//h5|//h6|//section|//article|//nav|//header|//footer|//aside|//main|//td|//th|//tr|//ul|//ol|//blockquote|//label|//button|//address|//figcaption|//dd|//dt")?.ToList() ?? new List<HtmlNode>())
-        {
-            if (n.ParentNode == null) continue;
-            n.ParentNode.InsertBefore(doc.CreateTextNode("\n"), n);
-            n.ParentNode.InsertAfter(doc.CreateTextNode("\n"), n);
-        }
-        // Make tel: targets visible in the text, so facts survive the stripping of the markup.
-        foreach (var a in doc.DocumentNode.SelectNodes("//a[@href]")?.ToList() ?? new List<HtmlNode>())
-        {
-            var href = WebUtility.HtmlDecode(a.GetAttributeValue("href", ""));
-            if (href.StartsWith("tel:", StringComparison.OrdinalIgnoreCase))
-                a.AppendChild(doc.CreateTextNode(" " + href[4..] + " "));
-        }
-        var text = WebUtility.HtmlDecode(doc.DocumentNode.InnerText);
-        // A block boundary stays a line break (a name or a statement never runs from one block into the next); all other white space is one space.
-        text = Regex.Replace(text, @"[^\S\n]+", " ");
+        var doc = SafeHtml.TryLoad(html);
+        return doc == null ? "" : ToText(doc, ownerView: false);
+    }
+
+    /// <summary>
+    /// The text without the parts that quote other people (blockquote, cite, q and elements marked testimonial, review, quote, reference,
+    /// feedback, ...). Names and statements are read from this view.
+    /// </summary>
+    public static string ToOwnerText(FetchedPage page) => page.Dom == null ? "" : ToText(page.Dom, ownerView: true);
+
+    public static string ToText(HtmlDocument doc, bool ownerView)
+    {
+        var sb = new System.Text.StringBuilder(64 * 1024);
+        Walk(doc.DocumentNode, sb, 0, ownerView);
+        var text = Regex.Replace(sb.ToString(), @"[^\S\n]+", " ");
         text = Regex.Replace(text, @" ?\n[ \n]*", "\n");
         return text.Trim();
+    }
+
+    private static bool Hidden(HtmlNode el)
+    {
+        if (el.Attributes.Contains("hidden")) return true;
+        var style = el.GetAttributeValue("style", "");
+        if (style.Length == 0) return false;
+        style = style.Replace(" ", "");
+        return style.Contains("display:none", StringComparison.OrdinalIgnoreCase) || style.Contains("visibility:hidden", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsTestimonial(HtmlNode el)
+    {
+        var tag = el.Name;
+        if (tag.Equals("blockquote", StringComparison.OrdinalIgnoreCase) || tag.Equals("cite", StringComparison.OrdinalIgnoreCase) || tag.Equals("q", StringComparison.OrdinalIgnoreCase)) return true;
+        var cls = el.GetAttributeValue("class", "");
+        var id = el.GetAttributeValue("id", "");
+        return (cls.Length > 0 && TestimonialMarker.IsMatch(cls)) || (id.Length > 0 && TestimonialMarker.IsMatch(id));
+    }
+
+    private static void Walk(HtmlNode node, System.Text.StringBuilder sb, int depth, bool ownerView)
+    {
+        if (depth > SafeHtml.WalkGuard || sb.Length > MaxChars) return;
+        switch (node.NodeType)
+        {
+            case HtmlNodeType.Text:
+                sb.Append(WebUtility.HtmlDecode(((HtmlTextNode)node).Text));
+                return;
+            case HtmlNodeType.Comment:
+                return;
+        }
+
+        var element = node.NodeType == HtmlNodeType.Element;
+        var block = false;
+        if (element)
+        {
+            if (Skipped.Contains(node.Name) || Hidden(node)) return;
+            if (ownerView && IsTestimonial(node)) { sb.Append('\n'); return; }
+            block = Blocks.Contains(node.Name);
+            if (block) sb.Append('\n');
+        }
+        foreach (var child in node.ChildNodes) Walk(child, sb, depth + 1, ownerView);
+        if (element)
+        {
+            // Make tel: targets visible in the text, so facts survive the stripping of the markup.
+            if (node.Name.Equals("a", StringComparison.OrdinalIgnoreCase))
+            {
+                var href = WebUtility.HtmlDecode(node.GetAttributeValue("href", ""));
+                if (href.StartsWith("tel:", StringComparison.OrdinalIgnoreCase)) sb.Append(' ').Append(href, 4, href.Length - 4).Append(' ');
+            }
+            if (block) sb.Append('\n');
+        }
     }
 }

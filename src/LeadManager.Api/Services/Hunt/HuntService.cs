@@ -99,7 +99,7 @@ public class HuntService
         var name = TextSafety.Clean(sub.Name, MaxNameLength);
         if (name.Length < 2) return Done(HuntOutcomes.Rejected, "The company name is missing or too long.");
         if (!UrlGuard.TryNormalize(sub.Website ?? "", out var uri)) return Done(HuntOutcomes.Rejected, "The website is not a public http(s) address.");
-        var website = uri.GetLeftPart(UriPartial.Authority);
+        var website = UrlGuard.CanonicalWebsite(uri);   // keeps the path of a site that is shared by path (linktr.ee/name)
         var domain = UrlGuard.DomainOf(website);
 
         job.CurrentCandidate = name;
@@ -343,7 +343,8 @@ public class HuntService
             if (g?.GoogleRating != null && ListingIsThisBusiness(g, lead, result.Facts))
             {
                 var existing = lead.GoogleRating;
-                if (existing != null && Math.Abs(existing.Value - g.GoogleRating.Value) > 0.001f && !clear)
+                var differs = existing == null || Math.Abs(existing.Value - g.GoogleRating.Value) > 0.001f;
+                if (existing != null && differs && !clear)
                 {
                     kept?.Add($"googleRating {existing} differs from the Google listing ({g.GoogleRating:F1})");
                 }
@@ -352,7 +353,8 @@ public class HuntService
                     lead.GoogleRating = g.GoogleRating;
                     lead.GoogleReviewCount = g.GoogleReviewCount;
                     lead.GoogleMapsUrl = g.GoogleMapsUrl;
-                    HuntProvenance.Record(lead, new[] { "googleRating" });
+                    // A rating a person typed that equals Google's stays the person's: only a value the server changed is recorded as written by it.
+                    if (differs) HuntProvenance.Record(lead, new[] { "googleRating" });
                 }
                 result.GoogleNote = $"{g.GoogleRating:F1} from {g.GoogleReviewCount} reviews on the Google listing '{g.DisplayName}' (its website or phone number is this business's).";
             }
@@ -420,7 +422,7 @@ public class HuntService
     public static bool ListingIsThisBusiness(GooglePlacesResult g, Lead lead, EvidenceFacts facts)
     {
         if (!string.IsNullOrWhiteSpace(g.Website) && UrlGuard.TryNormalize(g.Website, out var listed) && UrlGuard.TryNormalize(lead.Website, out var own)
-            && UrlGuard.RegistrableDomain(listed.Host) == UrlGuard.RegistrableDomain(own.Host)) return true;
+            && UrlGuard.SiteKey(listed) == UrlGuard.SiteKey(own)) return true;
         var tail = System.Text.RegularExpressions.Regex.Replace(g.Phone ?? "", @"\D", "");
         if (tail.Length < 9) return false;
         tail = tail[^9..];

@@ -8,12 +8,14 @@ namespace LeadManager.Api.Services.Hunt;
 
 /// <summary>A mobile number on a page. Contact: it stands in a contact context. Credit: it stands next to a review, a testimonial or a web designer's credit.</summary>
 public record MobileFact(string Normalized, string AsWritten, string SourceUrl, string Quote, bool Contact = false, bool Credit = false);
-public record LinkedInFact(string Kind, string Url, string Handle, string SourceUrl);
+/// <summary>Trusted: the link stands in the header, footer or a social block of the site, or its handle resembles the business name or domain (a link in a text about clients does not).</summary>
+public record LinkedInFact(string Kind, string Url, string Handle, string SourceUrl, bool Trusted = true);
 public record EmailFact(string Address, bool FromMailto, bool Role, bool FreeProvider, bool SameDomain, string SourceUrl, string Quote,
     /// <summary>The visible text of the link shows another address than the link opens (or the link is not a mailto at all).</summary>
     string? Warning);
 public record LegalFact(string Kind, string SourceUrl, string Quote);
-public record YearFact(int Year, string Kind, bool CareerLike, string SourceUrl, string Quote);
+/// <summary>Rank: 0 the business was founded ('opgericht in', 'in 2010 ben ik gestart'), 1 'sinds 2009' said by the business about itself, 9 a copyright notice.</summary>
+public record YearFact(int Year, string Kind, bool CareerLike, string SourceUrl, string Quote, int Rank = 9);
 public record KvkFact(string Number, string SourceUrl, string Quote);
 /// <summary>A person named on the site WITH a role cue (owner, founder, director, 'my name is', JSON-LD founder, about heading).</summary>
 /// <summary>Rank: how strong the cue is (0 structured data, 1 about heading, 2 'my name is', 3 'I am', 4 and 5 name next to a role).</summary>
@@ -25,6 +27,7 @@ public record SmallFact(string Kind, string SourceUrl, string Quote);
 public class EvidenceFacts
 {
     public List<MobileFact> Mobiles { get; } = new();
+    internal Dictionary<string, int> MobileIndex { get; } = new();
     public List<LinkedInFact> LinkedIns { get; } = new();
     public List<EmailFact> Emails { get; } = new();
     public List<LegalFact> LegalForms { get; } = new();
@@ -67,7 +70,7 @@ public class LeadEvidenceService
     private static readonly Regex EmailRegex = new(@"[A-Za-z0-9._%+\-]{1,64}@[A-Za-z0-9\-]+(?:\.[A-Za-z0-9\-]+)*\.[A-Za-z]{2,}", RegexOptions.Compiled);
     private static readonly Regex LinkedInRegex = new(@"(?<![A-Za-z0-9=?&#%/.\-_])https?://(?:[a-z]{2,3}\.|www\.)?linkedin\.com/(in|company)/([A-Za-z0-9\-_%.]+)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex ContactCue = new(@"\b(?:bel|bellen|tel|telefoon|mobiel|mobile|gsm|whatsapp|bereikbaar|bereik|contact|afspraak|call|phone)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex CreditCue = new(@"(?:©|\bwebsite (?:door|by)\b|\bwebdesign\b|\bgemaakt door\b|\bontwerp door\b|\bpowered by\b|\brealisatie\b|\breview|\breferentie|\baanbeveling|\btestimonial|\bschreef\b|\bervaring(?:en)? van\b)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex CreditCue = new(@"(?:\bdesign by\b|\bontworpen door\b|\bgebouwd door\b|\bsite by\b|\bwebsite (?:door|by)\b|\bwebdesign\b|\bgemaakt door\b|\bontwerp door\b|\bpowered by\b|\brealisatie\b|\breview|\breferentie|\baanbeveling|\btestimonial|\bschreef\b|\bervaring(?:en)? van\b)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex TelHref = new(@"href\s*=\s*[""']tel:([^""']+)[""']", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex KvkRegex = new(@"\bkvk(?:[\s\-]*(?:nummer|nr\.?|number))?[\s:\-#]*(\d{8})\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex LandlineRegex = new(@"(?<![\d])0(?:[1-5]|[7-9])\d(?:[\s\-\.]*\d){7}(?![\d])", RegexOptions.Compiled);
@@ -86,7 +89,12 @@ public class LeadEvidenceService
         ("team", new Regex(@"\b(?:ons team|mijn collega'?s|onze (?:medewerkers|collega'?s)|\d+ medewerkers)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled)),
     };
 
-    private static readonly Regex SinceRegex = new(@"\b(?:sinds|since|vanaf)\s+(?:het jaar\s+)?(?:\d{1,2}\s+\w+\s+)?(19[5-9]\d|20[0-2]\d)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    // "sinds 2009" counts only when the business says it about itself: "sinds 2009 werk ik als ...", "actief sinds 2009". "vanaf" is no start. A sentence
+    // like "Sinds 2008 is er veel veranderd in de praktijk" or "Sinds 2004 werken wij samen met bureau X" is not a founding statement.
+    private const string YearPattern = @"(?<y>19[5-9]\d|20[0-2]\d)";
+    private static readonly Regex SinceSelfBefore = new(@"\b(?:sinds|since)\s+(?:het jaar\s+)?(?:\d{1,2}\s+\w+\s+)?" + YearPattern + @"\b,?\s+(?:ben ik|zijn wij|zijn we|werk ik|werken wij|werken we|help ik|helpen wij|adviseer ik|adviseren wij|ondernem\w*|run ik|runnen wij|bestaat|bestaan wij|i am|we are)\b(?!\s+(?:samen|bij|lid|aangesloten|getrouwd|verhuisd|ziek)\b)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex SinceSelfAfter = new(@"\b(?:ik ben|wij zijn|we zijn|ik werk|wij werken|ik help|wij helpen|actief|bestaat|bestaan wij|gevestigd|opgericht|gestart|ondernemer)\b[^.\n]{0,60}?\b(?:sinds|since)\s+(?:het jaar\s+)?(?:\d{1,2}\s+\w+\s+)?" + YearPattern + @"\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex Together = new(@"\bsamen met\b|\bin samenwerking\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex FoundedRegex = new(@"\b(?:opgericht|gestart|begonnen|ontstaan|founded|established|oprichting|bestaat)\b[^.]{0,40}?\b(19[5-9]\d|20[0-2]\d)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex InYearStartRegex = new(@"\bin\s+(19[5-9]\d|20[0-2]\d)\s+(?:ben ik|zijn wij|startte|starten|begon|begonnen|heb ik|hebben wij|ben|is)\b[^.]{0,80}?\b(?:start|opgericht|begon|gestart|oprichten|eigen bedrijf|onderneming|praktijk|bureau)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex CopyrightRegex = new(@"(?:©|&copy;|copyright)\s*(?:(\d{4})\s*[-–—]\s*)?(\d{4})", RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -109,10 +117,10 @@ public class LeadEvidenceService
         {
             if (string.IsNullOrEmpty(page.Html) && string.IsNullOrEmpty(page.Text)) continue;
             ExtractMobiles(page, facts);
-            ExtractLinkedIn(page, facts);
+            ExtractLinkedIn(page, facts, siteDomain);
             ExtractEmails(page, siteDomain, facts);
             ExtractTextFacts(page, facts);
-            ExtractOwners(page, facts);
+            ExtractOwners(page, facts, siteDomain);
             ExtractSmall(page, facts);
         }
         return facts;
@@ -135,18 +143,23 @@ public class LeadEvidenceService
         return Regex.Replace(text.Substring(start, end - start), @"\s+", " ").Trim();
     }
 
+    private static int MobileQuality(MobileFact m) => (m.Credit ? 0 : 2) + (m.Contact ? 1 : 0);
+
     private static void ExtractMobiles(FetchedPage page, EvidenceFacts facts)
     {
-        var seen = new HashSet<string>();
         var text = page.Text;
         var matches = PhoneRegexMatches(text);
         var contactPage = Regex.IsMatch(new Uri(page.Url).AbsolutePath, "contact|bereik|afspraak", RegexOptions.IgnoreCase);
         foreach (var (norm, written, index) in matches)
         {
-            if (!seen.Add(norm)) continue;
             var quote = Quote(text, index, written.Length);
-            facts.Mobiles.Add(new MobileFact(norm, written, page.Url, quote,
-                Contact: contactPage || ContactCue.IsMatch(quote), Credit: CreditCue.IsMatch(quote)));
+            var fact = new MobileFact(norm, written, page.Url, quote, Contact: contactPage || ContactCue.IsMatch(quote), Credit: CreditCue.IsMatch(quote));
+            // The same number can stand in a footer credit and in the contact block: the best occurrence counts, not the first.
+            if (facts.MobileIndex.TryGetValue(norm, out var at))
+            {
+                if (MobileQuality(fact) > MobileQuality(facts.Mobiles[at])) facts.Mobiles[at] = fact;
+            }
+            else { facts.MobileIndex[norm] = facts.Mobiles.Count; facts.Mobiles.Add(fact); }
         }
         foreach (Match m in LandlineRegex.Matches(text)) facts.Landlines.Add(m.Value.Trim());
         foreach (Match m in TelHref.Matches(page.Html ?? ""))
@@ -156,28 +169,55 @@ public class LeadEvidenceService
         }
     }
 
-    private static List<(string Norm, string Written, int Index)> PhoneRegexMatches(string text)
+    private static List<(string Norm, string Written, int Index)> PhoneRegexMatches(string text) =>
+        PhoneNumbers.FindMobilesWithIndex(text).Select(x => (x.Normalized, x.AsWritten, x.Index)).ToList();
+
+    private static readonly Regex SocialBlock = new(@"social|follow|volg|connect|footer|header|contact|socials", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    /// <summary>Does the link stand in the header, footer, navigation or a social block of the site (not in a text about clients)?</summary>
+    private static bool InSocialBlock(HtmlNode a)
     {
-        var list = new List<(string, string, int)>();
-        foreach (var (norm, written) in PhoneNumbers.FindMobiles(text))
+        var node = a.ParentNode;
+        for (var depth = 0; node != null && depth < SafeHtml.WalkGuard; depth++, node = node.ParentNode)
         {
-            var idx = text.IndexOf(written, StringComparison.Ordinal);
-            list.Add((norm, written, Math.Max(idx, 0)));
+            if (node.NodeType != HtmlNodeType.Element) continue;
+            var name = node.Name;
+            if (name.Equals("header", StringComparison.OrdinalIgnoreCase) || name.Equals("footer", StringComparison.OrdinalIgnoreCase) || name.Equals("nav", StringComparison.OrdinalIgnoreCase)) return true;
+            var cls = node.GetAttributeValue("class", "");
+            var id = node.GetAttributeValue("id", "");
+            if ((cls.Length > 0 && SocialBlock.IsMatch(cls)) || (id.Length > 0 && SocialBlock.IsMatch(id))) return true;
         }
-        return list;
+        return false;
     }
 
-    private static void ExtractLinkedIn(FetchedPage page, EvidenceFacts facts)
+    /// <summary>Does a LinkedIn handle resemble the business, as "goldenbeldadvies" does for goldenbeldadvies.nl?</summary>
+    private static bool HandleResemblesBusiness(string handle, string siteDomain)
+    {
+        var label = Fold(siteDomain.Split('.')[0]);
+        var folded = Fold(Uri.UnescapeDataString(handle));
+        if (label.Length < 4 || folded.Length < 4) return false;
+        return folded.Contains(label) || label.Contains(folded);
+    }
+
+    private static void ExtractLinkedIn(FetchedPage page, EvidenceFacts facts, string siteDomain)
     {
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (Match m in LinkedInRegex.Matches(WebUtility.HtmlDecode(page.Html)))
+        void Add(Match m, bool inBlock)
         {
             var kind = m.Groups[1].Value.ToLowerInvariant();
             var handle = m.Groups[2].Value.TrimEnd('/', '.');
-            var url = $"https://www.linkedin.com/{kind}/{handle}/";
-            if (kind == "in" && handle.Equals("share", StringComparison.OrdinalIgnoreCase)) continue;
-            if (seen.Add(kind + handle)) facts.LinkedIns.Add(new LinkedInFact(kind, url, handle, page.Url));
+            if (kind == "in" && handle.Equals("share", StringComparison.OrdinalIgnoreCase)) return;
+            if (!seen.Add(kind + handle)) return;
+            facts.LinkedIns.Add(new LinkedInFact(kind, $"https://www.linkedin.com/{kind}/{handle}/", handle, page.Url, Trusted: inBlock || HandleResemblesBusiness(handle, siteDomain)));
         }
+        // Links of the page first: where a link stands says whose it is.
+        foreach (var a in page.Dom?.DocumentNode.SelectNodes("//a[@href]")?.ToList() ?? new List<HtmlNode>())
+        {
+            var m = LinkedInRegex.Match(WebUtility.HtmlDecode(a.GetAttributeValue("href", "")));
+            if (m.Success) Add(m, InSocialBlock(a));
+        }
+        // Any other mention in the markup is not a link of the site.
+        foreach (Match m in LinkedInRegex.Matches(WebUtility.HtmlDecode(page.Html ?? ""))) Add(m, false);
     }
 
     private static bool PlausibleAddress(string address)
@@ -204,9 +244,8 @@ public class LeadEvidenceService
         }
 
         // Links first: they say where the address really goes.
-        var doc = new HtmlDocument();
-        doc.LoadHtml(page.Html ?? "");
-        foreach (var a in doc.DocumentNode.SelectNodes("//a[@href]")?.ToList() ?? new List<HtmlNode>())
+        var doc = page.Dom;
+        foreach (var a in doc?.DocumentNode.SelectNodes("//a[@href]")?.ToList() ?? new List<HtmlNode>())
         {
             var href = WebUtility.HtmlDecode(a.GetAttributeValue("href", "")).Trim();
             var shown = Regex.Replace(WebUtility.HtmlDecode(a.InnerText ?? ""), @"\s+", " ").Trim();
@@ -254,29 +293,32 @@ public class LeadEvidenceService
             if (m.Success) facts.LegalForms.Add(new LegalFact(kind, page.Url, Quote(text, m.Index, m.Length, 70)));
         }
 
-        void AddYear(Match m, string kind, int group)
+        // What the business says about itself is read from the part of the page that does not quote other people.
+        var own = page.OwnerText;
+        void AddYear(string source, Match m, string kind, string group, int rank)
         {
             var year = int.Parse(m.Groups[group].Value, CultureInfo.InvariantCulture);
-            var quote = Quote(text, m.Index, m.Length, 70);
+            // The quote and the career check use the sentence of the year, not a window that runs into the neighbouring sentence.
+            var quote = kind == "Copyright" ? Quote(source, m.Index, m.Length, 70) : SentenceAround(source, m.Index, m.Length);
             var career = CareerRegex.IsMatch(quote);
             if (!facts.Years.Any(y => y.Year == year && y.Kind == kind && y.SourceUrl == page.Url))
-                facts.Years.Add(new YearFact(year, kind, career, page.Url, quote));
+                facts.Years.Add(new YearFact(year, kind, career, page.Url, quote, rank));
         }
-        foreach (Match m in SinceRegex.Matches(text))
+        bool SelfSentence(Match m)
         {
-            // "sinds 2019" in a copyright line or a sentence that is not about the business (a membership, a hobby) is no founding year.
-            var around = SentenceAround(text, m.Index, m.Length);
-            if (CopyrightLine.IsMatch(around) || NotBusinessTopic.IsMatch(around) || !BusinessCue.IsMatch(around)) continue;
-            AddYear(m, "Since", 1);
+            var around = SentenceAround(own, m.Index, m.Length);
+            return !CopyrightLine.IsMatch(around) && !NotBusinessTopic.IsMatch(around) && !Together.IsMatch(around);
         }
-        foreach (Match m in FoundedRegex.Matches(text))
-            if (FoundedCue(SentenceAround(text, m.Index, m.Length))) AddYear(m, "Founded", 1);
-        foreach (Match m in InYearStartRegex.Matches(text))
-            if (FoundedCue(SentenceAround(text, m.Index, m.Length))) AddYear(m, "Founded", 1);
+        foreach (Match m in SinceSelfBefore.Matches(own)) if (SelfSentence(m)) AddYear(own, m, "Since", "y", 1);
+        foreach (Match m in SinceSelfAfter.Matches(own)) if (SelfSentence(m)) AddYear(own, m, "Since", "y", 1);
+        foreach (Match m in FoundedRegex.Matches(own))
+            if (FoundedCue(SentenceAround(own, m.Index, m.Length))) AddYear(own, m, "Founded", "1", 0);
+        foreach (Match m in InYearStartRegex.Matches(own))
+            if (FoundedCue(SentenceAround(own, m.Index, m.Length))) AddYear(own, m, "Founded", "1", 0);
         foreach (Match m in CopyrightRegex.Matches(text))
         {
-            var group = m.Groups[1].Success ? 1 : 2; // the first year of a range "2020 - 2026" is when the site started, never the business
-            AddYear(m, "Copyright", group);
+            var group = m.Groups[1].Success ? "1" : "2"; // the first year of a range "2020 - 2026" is when the site started, never the business
+            AddYear(text, m, "Copyright", group, 9);
         }
     }
 
@@ -314,6 +356,21 @@ public class LeadEvidenceService
         return name;
     }
 
+    private static readonly Regex OrganisationAfterRole = new(@"^\s*(?:van|bij|of|at|,|-|–|—|\|)?\s*(?<org>[A-ZÀ-ÖØ-Þ][\p{L}&'.\-]+(?:\s+[A-ZÀ-ÖØ-Þ][\p{L}&'.\-]+){0,3})", RegexOptions.Compiled);
+
+    /// <summary>"Marieke de Boer, directeur Bakkerij Boer" on the site of tinevanwel.nl: the role belongs to another organisation than the site's own.</summary>
+    private static bool FollowedByOtherOrganisation(string line, Match m, string siteDomain)
+    {
+        var tail = line[(m.Index + m.Length)..];
+        if (tail.Length > 80) tail = tail[..80];
+        var org = OrganisationAfterRole.Match(tail);
+        if (!org.Success) return false;
+        var label = Fold(siteDomain.Split('.')[0]);
+        var tokens = org.Groups["org"].Value.Split(new[] { ' ', '-', '&', '.' }, StringSplitOptions.RemoveEmptyEntries).Select(Fold).Where(t => t.Length >= 4).ToList();
+        if (tokens.Count == 0) return false;
+        return label.Length < 4 || !tokens.Any(t => label.Contains(t) || (t.Length >= 6 && Fold(org.Groups["org"].Value).Contains(label)));
+    }
+
     /// <summary>A name in a testimonial signature ("Geweldig werk! - Marieke de Boer, directeur Bakkerij Boer"), a quotation or a credit is not the owner.</summary>
     private static bool LooksLikeTestimonialOrCredit(string text, Match m, string quote)
     {
@@ -344,28 +401,36 @@ public class LeadEvidenceService
         return m.Success ? char.ToUpperInvariant(m.Value[0]) + m.Value[1..].ToLowerInvariant() : null;
     }
 
-    private static void ExtractOwners(FetchedPage page, EvidenceFacts facts)
+    private static void ExtractOwners(FetchedPage page, EvidenceFacts facts, string siteDomain)
     {
-        var text = page.Text;
+        // The view without testimonials and quotations; each block on its own line.
+        var text = page.OwnerText;
         // Each block of the page (a heading, a paragraph, a list item) on its own: a name never runs from one block into the next.
         void Scan(Regex regex, string cue, int rank, int pad, Func<Match, bool>? accept = null)
         {
-            foreach (var line in text.Split('\n'))
+            var lines = text.Split('\n');
+            for (var k = 0; k < lines.Length; k++)
+            {
+                var line = lines[k];
+                // A block that follows a quotation is its signature ("Geweldig werk!" on one line, the name on the next).
+                var afterQuotation = k > 0 && lines[k - 1].IndexOfAny(QuoteMarks) >= 0;
                 foreach (Match m in regex.Matches(line))
                 {
-                    if (accept != null && !accept(m)) continue;
+                    if (afterQuotation || (accept != null && !accept(m))) continue;
                     var quote = Quote(line, m.Index, m.Length, pad);
                     if (LooksLikeTestimonialOrCredit(line, m, quote)) continue;
+                    if (rank >= 4 && FollowedByOtherOrganisation(line, m, siteDomain)) continue;
                     AddOwner(facts, m.Groups["n"].Value, cue, rank, page, quote);
                 }
+            }
         }
         Scan(OwnerMyNameIs, "my name is", 2, 70);
         Scan(OwnerIAm, "I am, with the business", 3, 30, m => OwnerIAmContext.IsMatch(m.Value));
         Scan(OwnerNameThenRole, "name and role", 4, 40);
         Scan(OwnerRoleThenName, "role and name", 5, 40);
 
-        var doc = new HtmlDocument();
-        doc.LoadHtml(page.Html ?? "");
+        var doc = page.Dom;
+        if (doc == null) return;
         // An about page heading that is just a person's name.
         if (AboutPath.IsMatch(new Uri(page.Url).AbsolutePath))
             foreach (var h in doc.DocumentNode.SelectNodes("//h1|//h2")?.ToList() ?? new List<HtmlNode>())
@@ -432,7 +497,7 @@ public class LeadEvidenceService
     /// </summary>
     private static void ExtractSmall(FetchedPage page, EvidenceFacts facts)
     {
-        foreach (var raw in SentenceSplit.Split(page.Text))
+        foreach (var raw in SentenceSplit.Split(page.OwnerText))
         {
             var sentence = raw.Trim();
             if (sentence.Length < 8 || sentence.Length > 400) continue;

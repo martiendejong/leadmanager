@@ -74,6 +74,21 @@ against private, loopback, link-local, IPv4-compatible, IPv4-translated, 6to4, N
 redirect to another registrable domain is not followed, so a site's facts are never attributed to another business; the body is capped
 and decoded with the response charset.
 
+## Hostile pages
+
+A page of a few hundred thousand nested tags fits in the 1.5 MB cap, and the HTML parser walks a page recursively: it overflowed the stack and
+ended the process (a stack overflow cannot be caught; reproduced in a test at 20,000 levels). Every page is therefore parsed through
+`SafeHtml` only:
+
+- a linear, non-recursive pre-scan measures the element nesting (comments, scripts and attribute values are skipped; elements whose end tag may
+  be left out do not count); a page deeper than 120 levels is **not parsed**: it gives no text and no facts;
+- the parser itself has the same limit (`OptionMaxNestedChildNodes`) as a second line, and every walk over a page has a depth guard;
+- the visible text is built in ONE linear pass (no per-node insertions); phone numbers use the match position; the HTML parser version is pinned;
+- the older enrichment code parses pages through the same loader.
+
+Tests: 250,000 nested `div`, `span`, `b`, `a`, `font`, `section`, `table` and `ul`, 100,000 unclosed `p`, `li`, `td` and `option`, and large flat
+pages must finish in a few seconds without a crash (they run alone, after the other tests, so a busy machine cannot make them flaky).
+
 ## Which values may be removed: provenance
 
 Every value the server writes (a hunt candidate, a verify, the old AI enrichment) is recorded per field as a short hash in
@@ -84,11 +99,22 @@ enrichment audit follows the same rule: it records what the enrichment run itsel
 those values; hand-entered mobile numbers, LinkedIn links, e-mail addresses and ratings are never wiped. Existing leads have no provenance,
 so a verify never clears anything on them without `confirm`.
 
+## What counts as the business speaking
+
+Names and statements are read from the page **without** quotations: `blockquote`, `cite`, `q` and elements whose class or id says testimonial,
+review, quote, reference or feedback are left out, a block that follows a quotation is its signature, and a role followed by another
+organisation than the site's own ("directeur Bakkerij Boer") is somebody else's. A name that only stands next to a role word (no structured
+data, no about heading, no "my name is") may confirm a name the lead already has, but is not enough to give a lead its first owner. A year counts
+only in a statement of the business about itself ("opgericht in", "in 2010 ben ik ... gestart", "sinds 2009 werk ik ...", "actief sinds 2009"); not
+in "Sinds 2008 is er veel veranderd in de praktijk", "sinds 2004 werken wij samen met bureau X", a membership, a newsletter or "vanaf". The year
+comes from the best ranked statement, not from the earliest year on the site. A company LinkedIn link counts when it stands in the header, footer
+or a social block of the site, or when its handle resembles the business or its domain; a link in a text about clients does not.
+
 ## Google rating
 
 Google Places is asked for the company name, but a listing counts only when its **website is on the business's own registrable domain**
 or its **phone number is one the business's pages publish**. A similar name proves nothing. Without such a match there is no Google point.
-Site builder and hosting domains (`wixsite.com`, `github.io`, `vercel.app`, ...) are treated as public suffixes, so `a.wixsite.com` and
+Hosts that many businesses share by path (`linktr.ee/name`, `medium.com/@name`, `bio.link/name`) are told apart by their first path segment, which is kept in the stored address. Site builder and hosting domains (`wixsite.com`, `github.io`, `vercel.app`, ...) are treated as public suffixes, so `a.wixsite.com` and
 `b.wixsite.com` are different businesses.
 
 ## Verify and rescore (existing leads)

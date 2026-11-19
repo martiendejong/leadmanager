@@ -45,6 +45,16 @@ public static class PhoneNumbers
 
     public static bool IsDutchMobile(string? raw) => NormalizeMobile(raw) != null;
 
+    /// <summary>Like <see cref="FindMobiles"/>, with the position of each number in the text (no second search of the whole text per number).</summary>
+    public static IEnumerable<(string Normalized, string AsWritten, int Index)> FindMobilesWithIndex(string text)
+    {
+        foreach (Match m in Candidate.Matches(text ?? ""))
+        {
+            var n = NormalizeMobile(m.Value);
+            if (n != null) yield return (n, m.Value.Trim(), m.Index + (m.Value.Length - m.Value.TrimStart().Length));
+        }
+    }
+
     /// <summary>All mobile numbers in a text, normalised, with the exact text they were written as.</summary>
     public static IEnumerable<(string Normalized, string AsWritten)> FindMobiles(string text)
     {

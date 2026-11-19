@@ -88,8 +88,8 @@ public class LeadVerifier
     {
         if (site.Home == null) return;
         var host = new Uri(site.Home.Url).Host.ToLowerInvariant().Replace("www.", "");
-        var doc = new HtmlDocument();
-        doc.LoadHtml(site.Home.Html);
+        var doc = site.Home.Dom;
+        if (doc == null) return; // a page that nests too deep gives no links
         var links = new List<(string Url, string Label)>();
         foreach (var a in doc.DocumentNode.SelectNodes("//a[@href]")?.ToList() ?? new List<HtmlNode>())
         {
@@ -189,7 +189,9 @@ public class LeadVerifier
             var key = LeadEvidenceService.NameKey(knownOwnerName);
             owner = f.Owners.FirstOrDefault(o => LeadEvidenceService.NameKey(o.Name) == key);
         }
-        owner ??= string.IsNullOrWhiteSpace(knownOwnerName) ? f.Owners.OrderBy(o => o.Rank).FirstOrDefault() : null; // structured data and about headings first
+        // Structured data, an about heading, 'my name is' or 'I am' first. A name that only stands next to a role word (rank 4 and 5) is not enough for a lead
+        // that has no owner yet: it can be a quoted person or somebody else's director. It may only confirm a name the lead already has.
+        owner ??= string.IsNullOrWhiteSpace(knownOwnerName) ? f.Owners.Where(o => o.Rank <= 3).OrderBy(o => o.Rank).FirstOrDefault() : null;
         if (owner != null)
         {
             claims["ownerName"] = new { value = owner.Name, quote = owner.Quote, source_url = owner.SourceUrl };
@@ -198,11 +200,12 @@ public class LeadVerifier
         }
         var mobile = f.Mobiles.Where(m => !m.Credit).OrderByDescending(m => m.Contact).FirstOrDefault();
         if (mobile != null) claims["ownerMobile"] = new { value = mobile.AsWritten, quote = mobile.Quote, source_url = mobile.SourceUrl };
-        var company = f.LinkedIns.FirstOrDefault(l => l.Kind == "company");
+        var company = f.LinkedIns.FirstOrDefault(l => l.Kind == "company" && l.Trusted);
         if (company != null) claims["companyLinkedInUrl"] = new { value = company.Url, quote = "linkedin.com/company/" + company.Handle, source_url = company.SourceUrl };
         var mail = f.Emails.FirstOrDefault(e => !e.Role && e.SameDomain && e.Warning == null);
         if (mail != null) claims["personalEmail"] = new { value = mail.Address, quote = mail.Quote, source_url = mail.SourceUrl };
-        var year = f.Years.Where(y => y.Kind != "Copyright" && !y.CareerLike).OrderBy(y => y.Year).FirstOrDefault();
+        // The year from the best-ranked statement of the business about itself (founded, then 'since'), not the earliest year found anywhere.
+        var year = f.Years.Where(y => y.Kind != "Copyright" && !y.CareerLike).OrderBy(y => y.Rank).FirstOrDefault();
         if (year != null) claims["foundingYear"] = new { value = year.Year.ToString(), quote = year.Quote, source_url = year.SourceUrl };
         var small = f.Small.FirstOrDefault();
         if (small != null) claims["smallCompany"] = new { value = "1", quote = small.Quote, source_url = small.SourceUrl };
@@ -311,8 +314,9 @@ public class LeadVerifier
                     var m = LinkedInCompany.Match(claim.Value);
                     if (!m.Success) return (null, "Not a company LinkedIn page address (linkedin.com/company/...).");
                     var fact = facts.LinkedIns.FirstOrDefault(l => l.Kind == "company" && l.Handle.Equals(m.Groups[1].Value.TrimEnd('/', '.'), StringComparison.OrdinalIgnoreCase));
-                    return fact == null ? (null, "The business does not publish this link on its own pages.")
-                        : (new Claim("companyLinkedInUrl", fact.Url, fact.SourceUrl, "linkedin.com/company/" + fact.Handle), null);
+                    if (fact == null) return (null, "The business does not publish this link on its own pages.");
+                    if (!fact.Trusted) return (null, "The link does not stand in the header, footer or a social block of the site and its name does not resemble the business: it may be a client's.");
+                    return (new Claim("companyLinkedInUrl", fact.Url, fact.SourceUrl, "linkedin.com/company/" + fact.Handle), null);
                 }
             case "ownerMobile":
                 {
@@ -344,10 +348,10 @@ public class LeadVerifier
                     {
                         var first = LeadEvidenceService.FirstName(n);
                         var last = LeadEvidenceService.LastName(n);
-                        if (first.Length >= 2 && parts.Contains(first)) return true;
-                        if (last.Length >= 3 && parts.Contains(last)) return true;
-                        if (first.Length >= 3 && foldedLocal.StartsWith(first)) return true;
-                        return last.Length >= 3 && first.Length >= 1 && foldedLocal.StartsWith(first[..1]) && foldedLocal.EndsWith(last);
+                        if (first.Length >= 2 && parts.Contains(first)) return true;                       // jan@, jan.devries@
+                        if (last.Length >= 3 && parts.Contains(last)) return true;                         // j.devries@
+                        if (first.Length >= 2 && last.Length >= 3 && (foldedLocal == first + last || foldedLocal == last + first)) return true; // jandevries@
+                        return first.Length >= 1 && last.Length >= 3 && foldedLocal == first[..1] + last;  // jdevries@ (initial and surname, exactly)
                     });
                     if (!tied) return (null, "The mailbox name is not tied to a person the site names as its owner.");
                     return (new Claim("personalEmail", best.Address, best.SourceUrl, best.Quote), null);
@@ -492,6 +496,7 @@ public class LeadVerifier
         // With clearUnverified a value that could not be verified is removed; without it the value stays and is listed in 'kept' (what a run with clearing would remove).
         void Drop(string field, string what, Action clear) { if (Clearable(field)) { removed.Add(what); clear(); } else kept?.Add(what); }
         string Val(string f) => r.Verified.TryGetValue(f, out var c) ? c.Value : "";
+        static bool Same(string? a, string? b) => string.Equals((a ?? "").Trim(), (b ?? "").Trim(), StringComparison.OrdinalIgnoreCase);
         // Without clearing, a value a person already has is never overwritten, not even by a verified one: it is listed and the person decides.
         bool CanWrite(string field, string? current, string verified)
         {
@@ -505,16 +510,20 @@ public class LeadVerifier
         if (r.Verified.ContainsKey("ownerName"))
         {
             if (!CanWrite("ownerName", lead.OwnerName, Val("ownerName"))) goto afterOwner;
-            lead.OwnerName = Val("ownerName");
-            written.Add("ownerName");
-            // The first name, the last name and the title come from the verified owner and his or her role word, not from the agent.
-            var parts = lead.OwnerName.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
-            lead.OwnerFirstName = parts[0];
-            lead.OwnerLastName = parts.Length > 1 ? parts[1] : "";
-            var role = LeadEvidenceService.RoleFromQuote(r.Verified["ownerName"].Quote);
-            if (role != null && string.IsNullOrWhiteSpace(lead.OwnerTitle)) lead.OwnerTitle = role;
+            if (!Same(lead.OwnerName, Val("ownerName")))   // the same name that a person typed stays the person's
+            {
+                lead.OwnerName = Val("ownerName");
+                written.Add("ownerName");
+                // The first name, the last name and the title come from the verified owner and his or her role word, not from the agent.
+                var parts = lead.OwnerName.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+                lead.OwnerFirstName = parts[0];
+                lead.OwnerLastName = parts.Length > 1 ? parts[1] : "";
+                var role = LeadEvidenceService.RoleFromQuote(r.Verified["ownerName"].Quote);
+                if (role != null && string.IsNullOrWhiteSpace(lead.OwnerTitle)) lead.OwnerTitle = role;
+            }
         }
-        else if (!string.IsNullOrWhiteSpace(lead.OwnerName)) Drop("ownerName", $"ownerName '{lead.OwnerName}'", () => lead.OwnerName = "");
+        else if (!string.IsNullOrWhiteSpace(lead.OwnerName))
+            Drop("ownerName", $"ownerName '{lead.OwnerName}'", () => { lead.OwnerName = ""; lead.OwnerFirstName = ""; lead.OwnerLastName = ""; lead.OwnerTitle = ""; });
         afterOwner:
 
         Set(r.Verified, "ownerLinkedInUrl", "ownerLinkedInUrl", v => lead.OwnerLinkedInUrl = v, () => lead.OwnerLinkedInUrl, () => lead.OwnerLinkedInUrl = null);
@@ -523,19 +532,19 @@ public class LeadVerifier
         Set(r.Verified, "personalEmail", "personalEmail", v => lead.PersonalEmail = v, () => lead.PersonalEmail, () => lead.PersonalEmail = "");
         if (r.Verified.ContainsKey("foundingYear") && int.TryParse(Val("foundingYear"), out var year))
         {
-            if (CanWrite("foundingYear", lead.FoundingYear?.ToString(), year.ToString())) { lead.FoundingYear = year; written.Add("foundingYear"); }
+            if (CanWrite("foundingYear", lead.FoundingYear?.ToString(), year.ToString()) && lead.FoundingYear != year) { lead.FoundingYear = year; written.Add("foundingYear"); }
         }
         else if (lead.FoundingYear != null) Drop("foundingYear", $"foundingYear {lead.FoundingYear}", () => lead.FoundingYear = null);
         if (r.Verified.ContainsKey("kvkNumber"))
         {
             var kvk = Regex.Replace(Val("kvkNumber"), @"\D", "");
-            if (CanWrite("kvkNumber", lead.KvkNumber, kvk)) { lead.KvkNumber = kvk; written.Add("kvkNumber"); }
+            if (CanWrite("kvkNumber", lead.KvkNumber, kvk) && !Same(lead.KvkNumber, kvk)) { lead.KvkNumber = kvk; written.Add("kvkNumber"); }
         }
 
         if (r.Verified.TryGetValue("smallCompany", out var small))
         {
-            if (CanWrite("employeeCount", lead.EmployeeCount, "1")) { lead.EmployeeCount = "1"; written.Add("employeeCount"); }
-            if (Regex.IsMatch(small.Quote, @"eenmanszaak", RegexOptions.IgnoreCase) && CanWrite("legalForm", lead.LegalForm, "Eenmanszaak")) { lead.LegalForm = "Eenmanszaak"; written.Add("legalForm"); }
+            if (CanWrite("employeeCount", lead.EmployeeCount, "1") && !Same(lead.EmployeeCount, "1")) { lead.EmployeeCount = "1"; written.Add("employeeCount"); }
+            if (Regex.IsMatch(small.Quote, @"eenmanszaak", RegexOptions.IgnoreCase) && CanWrite("legalForm", lead.LegalForm, "Eenmanszaak") && !Same(lead.LegalForm, "Eenmanszaak")) { lead.LegalForm = "Eenmanszaak"; written.Add("legalForm"); }
         }
         else
         {
@@ -544,9 +553,11 @@ public class LeadVerifier
         }
 
         // Phone: a mobile number in this field also scores, so it must be a published one.
-        if (r.Descriptive.TryGetValue("phone", out var phone) && CanWrite("phone", lead.Phone, phone)) { lead.Phone = phone; written.Add("phone"); }
-        else if (PhoneNumbers.IsDutchMobile(lead.Phone) && !r.Facts.Mobiles.Any(m => m.Normalized == PhoneNumbers.NormalizeMobile(lead.Phone)))
-            Drop("phone", $"phone '{lead.Phone}' (a mobile number that is not on the website)", () => lead.Phone = "");
+        if (r.Descriptive.TryGetValue("phone", out var phone) && CanWrite("phone", lead.Phone, phone)) { if (!Same(lead.Phone, phone)) { lead.Phone = phone; written.Add("phone"); } }
+        else if (PhoneNumbers.NormalizeMobile(lead.Phone) is { } existingMobile && PublishedMobile(r.Facts, existingMobile, out _) == null)
+            // The same rule as for the owner's mobile: a number that stands next to a review or a credit, or outside the contact context of a site
+            // with several numbers, is not the business's number, and it would score as one.
+            Drop("phone", $"phone '{lead.Phone}' (a mobile number that is not published as the business's own on the website)", () => lead.Phone = "");
 
         if (r.Descriptive.TryGetValue("companyEmail", out var ce) && string.IsNullOrWhiteSpace(lead.CompanyEmail)) lead.CompanyEmail = ce;
         FillIfEmpty(r, "description", v => lead.Description = v, () => lead.Description);
@@ -575,7 +586,7 @@ public class LeadVerifier
 
         void Set(Dictionary<string, Claim> verified, string field, string key, Action<string> set, Func<string?> get, Action clear)
         {
-            if (verified.TryGetValue(field, out var c)) { if (CanWrite(key, get(), c.Value)) { set(c.Value); written.Add(key); } }
+            if (verified.TryGetValue(field, out var c)) { if (CanWrite(key, get(), c.Value) && !Same(get(), c.Value)) { set(c.Value); written.Add(key); } }
             else if (!string.IsNullOrWhiteSpace(get())) Drop(key, $"{field} '{get()}'", clear);
         }
     }

@@ -82,18 +82,53 @@ public static class UrlGuard
     public static string RegistrableDomain(string host)
     {
         var labels = host.ToLowerInvariant().Trim('.').Split('.');
-        if (labels.Length <= 2) return string.Join('.', labels);
+        if (labels.Length < 2) return string.Join('.', labels);
         // Site builders and hosting platforms hand out sub domains to different people: the suffix is theirs, the registrable part is one label more.
-        if (SharedHostingSuffixes.Contains(string.Join('.', labels.Skip(labels.Length - 2)))) return string.Join('.', labels.Skip(labels.Length - 3));
+        foreach (var take in new[] { 3, 2 })
+            if (labels.Length > take && SharedHostingSuffixes.Contains(string.Join('.', labels.Skip(labels.Length - take))))
+                return string.Join('.', labels.Skip(labels.Length - take - 1));
         var secondLevel = new[] { "co", "com", "org", "net", "gov", "ac", "edu" };
-        var take = labels[^1].Length == 2 && secondLevel.Contains(labels[^2]) ? 3 : 2;
-        return string.Join('.', labels.Skip(labels.Length - take));
+        var keep = labels[^1].Length == 2 && secondLevel.Contains(labels[^2]) ? 3 : 2;
+        return string.Join('.', labels.Skip(labels.Length - keep));
+    }
+
+    /// <summary>Hosts where every business has a path, not a sub domain (linktr.ee/name, medium.com/@name, bio.link/name): the first path segment is part of the site.</summary>
+    public static readonly HashSet<string> PathBasedHosts = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "linktr.ee", "linktree.com", "medium.com", "bio.link", "beacons.ai", "linkin.bio", "sites.google.com", "facebook.com", "instagram.com", "linkedin.com",
+        "x.com", "twitter.com", "youtube.com", "tiktok.com", "pinterest.com", "github.com", "gitlab.com", "notion.so", "canva.site", "my.canva.site", "carrd.co",
+    };
+
+    private static string FirstSegment(Uri u) => u.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()?.ToLowerInvariant() ?? "";
+
+    /// <summary>
+    /// The identity of a site: its registrable domain, or for a host that many businesses share by path (linktr.ee, medium.com) that host AND
+    /// the first path segment. Two businesses on linktr.ee are two sites.
+    /// </summary>
+    public static string SiteKey(Uri u)
+    {
+        var host = u.Host.ToLowerInvariant();
+        if (host.StartsWith("www.")) host = host[4..];
+        if (PathBasedHosts.Contains(host)) { var seg = FirstSegment(u); return seg == "" ? host : host + "/" + seg; }
+        return RegistrableDomain(host);
+    }
+
+    /// <summary>The address under which a candidate is stored: the authority, plus the first path segment on a host that is shared by path.</summary>
+    public static string CanonicalWebsite(Uri u)
+    {
+        var host = u.Host.ToLowerInvariant();
+        if (host.StartsWith("www.")) host = host[4..];
+        if (!PathBasedHosts.Contains(host)) return u.GetLeftPart(UriPartial.Authority);
+        var seg = FirstSegment(u);
+        return u.GetLeftPart(UriPartial.Authority) + (seg == "" ? "" : "/" + seg);
     }
 
     public static string DomainOf(string? url)
     {
         if (!TryNormalize(url, out var u)) return "";
         var h = u.Host.ToLowerInvariant();
-        return h.StartsWith("www.") ? h[4..] : h;
+        h = h.StartsWith("www.") ? h[4..] : h;
+        if (PathBasedHosts.Contains(h)) { var seg = FirstSegment(u); return seg == "" ? h : h + "/" + seg; }
+        return h;
     }
 }

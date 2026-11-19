@@ -1,3 +1,4 @@
+using LeadManager.Api.Services.Hunt;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -108,8 +109,8 @@ public class CompanyProfileService
 
     private static string StripHtmlInline(string html)
     {
-        var doc = new HtmlDocument();
-        doc.LoadHtml(html);
+        var doc = SafeHtml.TryLoad(html);
+        if (doc == null) return ""; // empty, or nested too deep to be handled safely
         var text = doc.DocumentNode.InnerText;
         text = System.Net.WebUtility.HtmlDecode(text);
         text = Regex.Replace(text, @"\s+", " ").Trim();

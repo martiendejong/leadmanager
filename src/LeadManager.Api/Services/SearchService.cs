@@ -1,3 +1,4 @@
+using LeadManager.Api.Services.Hunt;
 using HtmlAgilityPack;
 using LeadManager.Api.DTOs;
 using System.Web;
@@ -70,8 +71,8 @@ public class SearchService
 
     private List<LeadSearchResult> ExtractFromDuckDuckGo(string html, string sector, HashSet<string> seenDomains)
     {
-        var doc = new HtmlDocument();
-        doc.LoadHtml(html);
+        var doc = SafeHtml.TryLoad(html);
+        if (doc == null) return new List<LeadSearchResult>(); // empty, or nested too deep to be handled safely
 
         var leads = new List<LeadSearchResult>();
 

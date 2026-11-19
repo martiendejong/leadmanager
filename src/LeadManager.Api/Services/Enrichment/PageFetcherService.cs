@@ -1,3 +1,4 @@
+using LeadManager.Api.Services.Hunt;
 using HtmlAgilityPack;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -32,8 +33,8 @@ public class PageFetcherService
     {
         if (string.IsNullOrWhiteSpace(html)) return "";
 
-        var doc = new HtmlDocument();
-        doc.LoadHtml(html);
+        var doc = SafeHtml.TryLoad(html);
+        if (doc == null) return ""; // empty, or nested too deep to be handled safely
 
         // Remove noise nodes
         var removeSelectors = new[] { "script", "style", "nav", "footer", "header", "noscript", "iframe", "svg", "form" };
