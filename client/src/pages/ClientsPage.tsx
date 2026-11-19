@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { getClients, createClient, type Client, type CreateClientData } from '../api/clients'
 import { useToast } from '../components/Toast'
 import { EngagementCategoryBadge, ENGAGEMENT_CATEGORIES } from '../components/EngagementCategory'
+import { ScoreBadge } from '../components/crm/PriorityCard'
 
 function PlanBadge({ plan }: { plan?: string | null }) {
   if (!plan) return null
@@ -119,11 +120,79 @@ function NewClientDialog({ onClose, onCreated }: { onClose: () => void; onCreate
   )
 }
 
+type View = 'cards' | 'list'
+type SortKey = 'score' | 'name' | 'next' | 'contact'
+
+const SORTS: { key: SortKey; label: string }[] = [
+  { key: 'score', label: 'Prioriteit' },
+  { key: 'name', label: 'Naam' },
+  { key: 'next', label: 'Volgende actie' },
+  { key: 'contact', label: 'Laatste contact' },
+]
+
+function sortClients(list: Client[], key: SortKey): Client[] {
+  const time = (v?: string | null, empty = Infinity) => (v ? new Date(v).getTime() : empty)
+  const out = [...list]
+  if (key === 'score') out.sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || a.name.localeCompare(b.name, 'nl'))
+  else if (key === 'name') out.sort((a, b) => a.name.localeCompare(b.name, 'nl'))
+  else if (key === 'next') out.sort((a, b) => time(a.nextActionAt) - time(b.nextActionAt) || a.name.localeCompare(b.name, 'nl'))
+  else out.sort((a, b) => time(b.lastContactAt, -Infinity) - time(a.lastContactAt, -Infinity) || a.name.localeCompare(b.name, 'nl'))
+  return out
+}
+
+function fmtDate(iso?: string | null) {
+  return iso ? new Date(iso).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' }) : '–'
+}
+
+function ClientTable({ clients }: { clients: Client[] }) {
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
+      <table className="min-w-full text-sm">
+        <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wider">
+          <tr>
+            <th className="text-left font-medium px-4 py-2">Klant</th>
+            <th className="text-left font-medium px-4 py-2">Prioriteit</th>
+            <th className="text-left font-medium px-4 py-2">Omgang</th>
+            <th className="text-left font-medium px-4 py-2">Contact</th>
+            <th className="text-right font-medium px-4 py-2">Projecten</th>
+            <th className="text-left font-medium px-4 py-2">Volgende actie</th>
+            <th className="text-left font-medium px-4 py-2">Laatste contact</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {clients.map((c) => (
+            <tr key={c.id} className="hover:bg-indigo-50/40">
+              <td className="px-4 py-2">
+                <Link to={`/clients/${c.id}`} className="font-medium text-gray-900 hover:text-indigo-700">{c.name}</Link>
+                {c.website && <div className="text-xs text-gray-400 truncate max-w-[220px]">{c.website}</div>}
+              </td>
+              <td className="px-4 py-2"><ScoreBadge score={c.score} /></td>
+              <td className="px-4 py-2"><EngagementCategoryBadge category={c.engagementCategory} /></td>
+              <td className="px-4 py-2 text-gray-600">{c.primaryContactName ?? '–'}</td>
+              <td className="px-4 py-2 text-right text-gray-600">{c.projects.length}</td>
+              <td className={`px-4 py-2 ${c.nextActionAt && new Date(c.nextActionAt) < new Date() ? 'text-red-600 font-medium' : 'text-gray-600'}`}>{fmtDate(c.nextActionAt)}</td>
+              <td className="px-4 py-2 text-gray-600">{fmtDate(c.lastContactAt)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 export default function ClientsPage() {
   const { showToast } = useToast()
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [showNew, setShowNew] = useState(false)
+  const [view, setViewState] = useState<View>(() => {
+    try { return localStorage.getItem('clients.view') === 'cards' ? 'cards' : 'list' } catch { return 'list' }
+  })
+  const [sort, setSortState] = useState<SortKey>(() => {
+    try { const v = localStorage.getItem('clients.sort'); return SORTS.some((s) => s.key === v) ? (v as SortKey) : 'score' } catch { return 'score' }
+  })
+  const setView = (v: View) => { setViewState(v); try { localStorage.setItem('clients.view', v) } catch { /* optional */ } }
+  const setSort = (v: SortKey) => { setSortState(v); try { localStorage.setItem('clients.sort', v) } catch { /* optional */ } }
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -148,6 +217,20 @@ export default function ClientsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Klanten</h1>
           <p className="text-sm text-gray-500 mt-1">{clients.length} klant{clients.length !== 1 ? 'en' : ''}</p>
         </div>
+        <div className="flex items-center gap-2 ml-auto mr-3">
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value as SortKey)}
+            className="text-sm border border-gray-300 rounded-lg px-2 py-1.5"
+            aria-label="Sorteren op"
+          >
+            {SORTS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
+          </select>
+          <div className="flex rounded-lg border border-gray-300 overflow-hidden" role="group" aria-label="Weergave">
+            <button onClick={() => setView('list')} aria-pressed={view === 'list'} className={`px-3 py-1.5 text-sm ${view === 'list' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600'}`}>Lijst</button>
+            <button onClick={() => setView('cards')} aria-pressed={view === 'cards'} className={`px-3 py-1.5 text-sm ${view === 'cards' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600'}`}>Kaarten</button>
+          </div>
+        </div>
         <button
           onClick={() => setShowNew(true)}
           className="px-4 py-2 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
@@ -167,9 +250,11 @@ export default function ClientsPage() {
             Naar leads →
           </Link>
         </div>
+      ) : view === 'list' ? (
+        <ClientTable clients={sortClients(clients, sort)} />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {clients.map((client) => (
+          {sortClients(clients, sort).map((client) => (
             <Link
               key={client.id}
               to={`/clients/${client.id}`}
@@ -180,6 +265,7 @@ export default function ClientsPage() {
                   {client.name}
                 </h3>
                 <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <ScoreBadge score={client.score} />
                   <EngagementCategoryBadge category={client.engagementCategory} />
                   <PlanBadge plan={client.plan} />
                 </div>

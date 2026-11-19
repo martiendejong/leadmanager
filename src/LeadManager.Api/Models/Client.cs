@@ -14,6 +14,10 @@ public class Client
     public string? Notes { get; set; }
     // Omgangscategorie: Actief / Beheercontract / Reactief (alleen op betaalde aanvraag)
     public string? EngagementCategory { get; set; }
+    // Priority sub-scores, same idea as JengoWork: score = value * urgency / effort^2 (Fibonacci scale).
+    public int? PriorityValue { get; set; }
+    public int? PriorityUrgency { get; set; }
+    public int? PriorityEffort { get; set; }
     public Guid? SourceLeadId { get; set; }
     public string? CreatedByUserId { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

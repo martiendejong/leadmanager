@@ -24,7 +24,15 @@ public record ClientDto(
     string? CreatedByUserId,
     DateTime CreatedAt,
     bool IsActive,
-    List<ProjectDto> Projects);
+    List<ProjectDto> Projects,
+    int? PriorityValue = null,
+    int? PriorityUrgency = null,
+    int? PriorityEffort = null,
+    double Score = 0,
+    DateTime? NextActionAt = null,
+    DateTime? LastContactAt = null);
+
+public record UpdatePriorityDto(int? Value, int? Urgency, int? Effort);
 
 public record ProjectDto(
     Guid Id,

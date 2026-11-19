@@ -32,10 +32,28 @@ public class ClientsController : ControllerBase
             .Include(c => c.Projects)
             .Where(c => c.CreatedByUserId == userId)
             .OrderByDescending(c => c.CreatedAt)
-            .Select(c => MapClientDto(c))
             .ToListAsync();
 
-        return Ok(clients);
+        var ids = clients.Select(c => c.Id).ToList();
+        var nextActions = (await _db.NextActions
+                .Where(a => a.ClientId != null && ids.Contains(a.ClientId.Value) && a.DoneAt == null)
+                .GroupBy(a => a.ClientId!.Value)
+                .Select(g => new { g.Key, At = g.Min(a => a.DueAt) })
+                .ToListAsync())
+            .ToDictionary(x => x.Key, x => x.At);
+        var lastContact = (await _db.Interactions
+                .Where(i => i.ClientId != null && ids.Contains(i.ClientId.Value))
+                .GroupBy(i => i.ClientId!.Value)
+                .Select(g => new { g.Key, At = g.Max(i => i.OccurredAt) })
+                .ToListAsync())
+            .ToDictionary(x => x.Key, x => x.At);
+
+        var result = clients.Select(c => MapClientDto(c) with
+        {
+            NextActionAt = nextActions.TryGetValue(c.Id, out var n) ? UtcDateTimeConverter.Normalize(n) : null,
+            LastContactAt = lastContact.TryGetValue(c.Id, out var l) ? UtcDateTimeConverter.Normalize(l) : null,
+        });
+        return Ok(result);
     }
 
     // GET /api/clients/{id}
@@ -142,6 +160,24 @@ public class ClientsController : ControllerBase
         return Ok(MapClientDto(client));
     }
 
+    // PUT /api/clients/{id}/priority  (own endpoint, so the full-record PUT above cannot wipe the scores)
+    [HttpPut("{id:guid}/priority")]
+    public async Task<IActionResult> UpdatePriority(Guid id, [FromBody] UpdatePriorityDto dto)
+    {
+        var userId = GetCurrentUserId();
+        var client = await _db.Clients.Include(c => c.Projects)
+            .FirstOrDefaultAsync(c => c.Id == id && c.CreatedByUserId == userId);
+        if (client == null) return NotFound();
+        if (!ClientPriority.InRange(dto.Value) || !ClientPriority.InRange(dto.Urgency) || !ClientPriority.InRange(dto.Effort))
+            return BadRequest(new { error = "Scores liggen tussen 1 en 144." });
+
+        client.PriorityValue = ClientPriority.Snap(dto.Value);
+        client.PriorityUrgency = ClientPriority.Snap(dto.Urgency);
+        client.PriorityEffort = ClientPriority.Snap(dto.Effort);
+        await _db.SaveChangesAsync();
+        return Ok(MapClientDto(client));
+    }
+
     // DELETE /api/clients/{id}
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> DeleteClient(Guid id)
@@ -173,6 +209,8 @@ public class ClientsController : ControllerBase
         c.CreatedByUserId,
         c.CreatedAt,
         c.IsActive,
-        c.Projects.OrderBy(p => p.CreatedAt).Select(p => new ProjectDto(p.Id, p.Name, p.Description, p.Status, p.CreatedAt)).ToList()
+        c.Projects.OrderBy(p => p.CreatedAt).Select(p => new ProjectDto(p.Id, p.Name, p.Description, p.Status, p.CreatedAt)).ToList(),
+        c.PriorityValue, c.PriorityUrgency, c.PriorityEffort,
+        ClientPriority.Score(c.PriorityValue, c.PriorityUrgency, c.PriorityEffort)
     );
 }

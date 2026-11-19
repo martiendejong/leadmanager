@@ -5,6 +5,7 @@ import { getClient, updateClient, type Client } from '../api/clients'
 import { useToast } from '../components/Toast'
 import CrmPanel from '../components/crm/CrmPanel'
 import ProjectsSection from '../components/crm/ProjectsSection'
+import PriorityCard from '../components/crm/PriorityCard'
 import {
   ENGAGEMENT_CATEGORIES,
   CATEGORY_DESCRIPTIONS,
@@ -164,6 +165,8 @@ export default function ClientDetailPage() {
           </div>
         )}
       </div>
+
+      <PriorityCard key={`${client.priorityValue}-${client.priorityUrgency}-${client.priorityEffort}`} client={client} onSaved={setClient} />
 
       {/* Primary contact */}
       {(client.primaryContactName || client.primaryContactEmail || client.primaryContactPhone) && (

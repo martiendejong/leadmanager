@@ -31,6 +31,7 @@ public class LeadManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<NextAction> NextActions { get; set; }
     public DbSet<EntityLink> EntityLinks { get; set; }
     public DbSet<ApiKey> ApiKeys { get; set; }
+    public DbSet<CalendarFeed> CalendarFeeds { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -163,6 +164,12 @@ public class LeadManagerDbContext : IdentityDbContext<ApplicationUser>
             e.HasOne<Lead>().WithMany().HasForeignKey(x => x.LeadId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<Client>().WithMany().HasForeignKey(x => x.ClientId).OnDelete(DeleteBehavior.Cascade);
             e.Property(x => x.Kind).HasConversion<string>();
+        });
+
+        builder.Entity<CalendarFeed>(e =>
+        {
+            e.HasIndex(x => x.Token).IsUnique();
+            e.HasIndex(x => x.UserId).IsUnique();
         });
 
         builder.Entity<ApiKey>(e =>
