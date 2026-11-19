@@ -27,6 +27,8 @@ public class Lead
     public DateTime? EnrichedAt { get; set; }
     public DateTime ImportedAt { get; set; } = DateTime.UtcNow;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    /// <summary>Last time anything on the lead changed; stamped by the DbContext on every save.</summary>
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     public string? ImportedByUserId { get; set; }
 
     // RAG enrichment fields

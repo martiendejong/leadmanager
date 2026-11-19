@@ -87,7 +87,8 @@ public record LeadDto(
     // Stale-lead reminder (869ck3j52/869ck3j58)
     DateTime? ReminderDate,
     // Lead-to-client conversion (869ck3j56)
-    Guid? ConvertedToClientId);
+    Guid? ConvertedToClientId,
+    DateTime? UpdatedAt = null);
 
 public record CreateLeadDto(
     string Name,
@@ -168,3 +169,17 @@ public record UpdateLeadNoteDto(string Content);
 
 // Lead Status DTO
 public record UpdateLeadStatusDto(string Status);
+
+/// <summary>
+/// Partial update of the researched profile of a lead. A null field is left as it is; an empty string clears a text
+/// field. The sales priority score is recalculated from the profile on every call.
+/// </summary>
+public record PatchLeadProfileDto(
+    string? Name, string? Website, string? Sector, string? City, string? Phone, string? CompanyEmail,
+    string? OwnerName, string? OwnerFirstName, string? OwnerLastName, string? OwnerTitle,
+    string? OwnerLinkedInUrl, string? OwnerMobile, string? PersonalEmail, string? LinkedInUrl,
+    string? Street, string? ZipCode, string? KvkNumber, string? LegalForm, string? EmployeeCount, int? FoundingYear,
+    float? GoogleRating, int? GoogleReviewCount, string? GoogleMapsUrl,
+    string? FacebookUrl, string? InstagramUrl, string? TwitterUrl,
+    string? Description, string? Services, string? TargetAudience, string? AiSummary, string? SalesPitch,
+    string? WorkingArea, string? Certifications, string? PricingInfo, string? OpeningHours, string? NotableClients);

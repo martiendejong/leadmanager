@@ -12,6 +12,8 @@ import LeadDetailPanel from '../components/leads/LeadDetailPanel'
 import CreateLeadForm from '../components/leads/CreateLeadForm'
 import CsvImportDropzone from '../components/leads/CsvImportDropzone'
 
+const DESC_FIRST = new Set(['createdAt', 'updatedAt', 'importedAt', 'enrichedAt', 'salesPriorityScore'])
+
 const PAGE_SIZE = 50
 
 function buildInitialFilter(searchParams: URLSearchParams): LeadFilter {
@@ -143,7 +145,8 @@ export default function LeadsPage() {
     setFilter((prev) => ({
       ...prev,
       sortBy: col,
-      sortDesc: prev.sortBy === col ? !prev.sortDesc : false,
+      // Dates and the score start with the newest / highest on top; text columns start A to Z.
+      sortDesc: prev.sortBy === col ? !prev.sortDesc : DESC_FIRST.has(col),
       page: 1,
     }))
   }, [])

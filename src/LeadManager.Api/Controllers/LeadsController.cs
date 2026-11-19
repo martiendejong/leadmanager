@@ -25,8 +25,12 @@ public class LeadsController : ControllerBase
     private readonly IConfiguration _configuration;
     private readonly EnrichmentChannel _enrichmentChannel;
 
-    public LeadsController(LeadManagerDbContext db, SearchService search, IConfiguration configuration, EnrichmentChannel enrichmentChannel)
+    private readonly SalesScoreService _scoring;
+
+    public LeadsController(LeadManagerDbContext db, SearchService search, IConfiguration configuration, EnrichmentChannel enrichmentChannel,
+        SalesScoreService? scoring = null)
     {
+        _scoring = scoring ?? new SalesScoreService();
         _db = db;
         _search = search;
         _configuration = configuration;
@@ -117,6 +121,10 @@ public class LeadsController : ControllerBase
             "city"                => filters.SortDesc ? query.OrderByDescending(l => l.City)               : query.OrderBy(l => l.City),
             "source"              => filters.SortDesc ? query.OrderByDescending(l => l.Source)             : query.OrderBy(l => l.Source),
             "createdat"           => filters.SortDesc ? query.OrderByDescending(l => l.CreatedAt)          : query.OrderBy(l => l.CreatedAt),
+            "updatedat"           => filters.SortDesc ? query.OrderByDescending(l => l.UpdatedAt)          : query.OrderBy(l => l.UpdatedAt),
+            "enrichedat"          => filters.SortDesc ? query.OrderByDescending(l => l.EnrichedAt)         : query.OrderBy(l => l.EnrichedAt),
+            "ownername"           => filters.SortDesc ? query.OrderByDescending(l => l.OwnerName)          : query.OrderBy(l => l.OwnerName),
+            "isenriched"          => filters.SortDesc ? query.OrderByDescending(l => l.IsEnriched)         : query.OrderBy(l => l.IsEnriched),
             "importedat"          => filters.SortDesc ? query.OrderByDescending(l => l.ImportedAt)         : query.OrderBy(l => l.ImportedAt),
             "salespriorityscore"  => filters.SortDesc ? query.OrderByDescending(l => l.SalesPriorityScore) : query.OrderBy(l => l.SalesPriorityScore),
             _                     => filters.SortDesc ? query.OrderByDescending(l => l.Name)               : query.OrderBy(l => l.Name),
@@ -173,6 +181,135 @@ public class LeadsController : ControllerBase
         lead.OwnerLastName = dto.OwnerLastName;
         lead.PersonalEmail = dto.PersonalEmail;
         lead.LinkedInUrl = dto.LinkedInUrl;
+
+        await _db.SaveChangesAsync();
+        return Ok(ToDto(lead));
+    }
+
+    // PATCH /api/leads/{id}/profile
+    // Updates the researched profile (owner, LinkedIn, mobile, size, rating, ...) and recalculates the sales priority score
+    // from it. Only the fields that are sent change; the score is always derived, never set by hand.
+    [HttpPatch("{id:guid}/profile")]
+    public async Task<IActionResult> PatchProfile(Guid id, [FromBody] PatchLeadProfileDto dto)
+    {
+        var userId = GetCurrentUserId();
+        var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == userId);
+        if (lead == null) return NotFound();
+
+        string? error = null;
+        string? Text(string? v, string field, int max = 2000)
+        {
+            if (v == null) return null;
+            v = v.Trim();
+            if (v.Length > max) { error ??= $"{field} is too long (max {max})."; return null; }
+            return v;
+        }
+        string? Url(string? v, string field)
+        {
+            if (v == null) return null;
+            v = v.Trim();
+            if (v == "") return "";
+            // A bare address gets https://; an address with any other scheme (ftp:, javascript:, ...) is refused, not rewritten.
+            if (!v.Contains("://") && !v.StartsWith("javascript:", StringComparison.OrdinalIgnoreCase) && !v.Contains(':')) v = "https://" + v;
+            if (!CrmRules.IsSafeHttpUrl(v)) { error ??= $"{field} must be a valid http(s) address."; return null; }
+            return v;
+        }
+        string? Phone(string? v, string field)
+        {
+            if (v == null) return null;
+            v = v.Trim();
+            if (v != "" && !System.Text.RegularExpressions.Regex.IsMatch(v, @"^[0-9 +().\-/]{5,25}$")) { error ??= $"{field} is not a valid phone number."; return null; }
+            return v;
+        }
+        string? Mail(string? v, string field)
+        {
+            if (v == null) return null;
+            v = v.Trim();
+            if (v != "" && (v.Length > 320 || !System.Net.Mail.MailAddress.TryCreate(v, out _))) { error ??= $"{field} is not a valid e-mail address."; return null; }
+            return v;
+        }
+
+        var name = Text(dto.Name, "Name", 300);
+        var website = dto.Website == null ? null : Url(dto.Website, "Website");
+        var sector = Text(dto.Sector, "Sector", 200);
+        var city = Text(dto.City, "City", 200);
+        var phone = Phone(dto.Phone, "Phone");
+        var companyEmail = Mail(dto.CompanyEmail, "Company e-mail");
+        var ownerName = Text(dto.OwnerName, "Owner name", 200);
+        var ownerFirst = Text(dto.OwnerFirstName, "Owner first name", 100);
+        var ownerLast = Text(dto.OwnerLastName, "Owner last name", 100);
+        var ownerTitle = Text(dto.OwnerTitle, "Owner title", 200);
+        var ownerLinkedIn = Url(dto.OwnerLinkedInUrl, "Owner LinkedIn");
+        var ownerMobile = Phone(dto.OwnerMobile, "Owner mobile");
+        var personalEmail = Mail(dto.PersonalEmail, "Personal e-mail");
+        var linkedIn = Url(dto.LinkedInUrl, "Company LinkedIn");
+        var street = Text(dto.Street, "Street", 200);
+        var zip = Text(dto.ZipCode, "Zip code", 20);
+        var kvk = Text(dto.KvkNumber, "KvK number", 20);
+        var legalForm = Text(dto.LegalForm, "Legal form", 100);
+        var employees = Text(dto.EmployeeCount, "Employee count", 50);
+        var mapsUrl = Url(dto.GoogleMapsUrl, "Google Maps URL");
+        var facebook = Url(dto.FacebookUrl, "Facebook URL");
+        var instagram = Url(dto.InstagramUrl, "Instagram URL");
+        var twitter = Url(dto.TwitterUrl, "Twitter URL");
+        var description = Text(dto.Description, "Description", 8000);
+        var services = Text(dto.Services, "Services", 8000);
+        var audience = Text(dto.TargetAudience, "Target audience", 4000);
+        var summary = Text(dto.AiSummary, "Summary", 8000);
+        var pitch = Text(dto.SalesPitch, "Sales pitch", 8000);
+        var area = Text(dto.WorkingArea, "Working area", 500);
+        var certs = Text(dto.Certifications, "Certifications", 500);
+        var pricing = Text(dto.PricingInfo, "Pricing info", 1000);
+        var hours = Text(dto.OpeningHours, "Opening hours", 500);
+        var clients = Text(dto.NotableClients, "Notable clients", 2000);
+
+        if (dto.FoundingYear is < 1800 || dto.FoundingYear > DateTime.UtcNow.Year) error ??= "Founding year is not valid.";
+        if (dto.GoogleRating is < 0 or > 5) error ??= "Google rating is between 0 and 5.";
+        if (dto.GoogleReviewCount is < 0) error ??= "Review count cannot be negative.";
+        if (name == "") error ??= "Name cannot be empty.";
+        if (error != null) return BadRequest(new { error });
+
+        if (name != null) lead.Name = name;
+        if (website != null && website != "") lead.Website = website;
+        if (sector != null) lead.Sector = sector;
+        if (city != null) lead.City = city;
+        if (phone != null) lead.Phone = phone;
+        if (companyEmail != null) lead.CompanyEmail = companyEmail;
+        if (ownerName != null) lead.OwnerName = ownerName;
+        if (ownerFirst != null) lead.OwnerFirstName = ownerFirst;
+        if (ownerLast != null) lead.OwnerLastName = ownerLast;
+        if (ownerTitle != null) lead.OwnerTitle = ownerTitle;
+        if (ownerLinkedIn != null) lead.OwnerLinkedInUrl = ownerLinkedIn;
+        if (ownerMobile != null) lead.OwnerMobile = ownerMobile;
+        if (personalEmail != null) lead.PersonalEmail = personalEmail;
+        if (linkedIn != null) lead.LinkedInUrl = linkedIn;
+        if (street != null) lead.Street = street;
+        if (zip != null) lead.ZipCode = zip;
+        if (kvk != null) lead.KvkNumber = kvk;
+        if (legalForm != null) lead.LegalForm = legalForm;
+        if (employees != null) lead.EmployeeCount = employees;
+        if (dto.FoundingYear.HasValue) lead.FoundingYear = dto.FoundingYear;
+        if (dto.GoogleRating.HasValue) lead.GoogleRating = dto.GoogleRating;
+        if (dto.GoogleReviewCount.HasValue) lead.GoogleReviewCount = dto.GoogleReviewCount;
+        if (mapsUrl != null) lead.GoogleMapsUrl = mapsUrl;
+        if (facebook != null) lead.FacebookUrl = facebook;
+        if (instagram != null) lead.InstagramUrl = instagram;
+        if (twitter != null) lead.TwitterUrl = twitter;
+        if (description != null) lead.Description = description;
+        if (services != null) lead.Services = services;
+        if (audience != null) lead.TargetAudience = audience;
+        if (summary != null) lead.AiSummary = summary;
+        if (pitch != null) lead.SalesPitch = pitch;
+        if (area != null) lead.WorkingArea = area;
+        if (certs != null) lead.Certifications = certs;
+        if (pricing != null) lead.PricingInfo = pricing;
+        if (hours != null) lead.OpeningHours = hours;
+        if (clients != null) lead.NotableClients = clients;
+
+        var scored = _scoring.CalculateScore(lead);
+        lead.SalesPriorityScore = scored.Score;
+        lead.SalesPriorityLabel = scored.Label;
+        lead.SalesPriorityReasoning = scored.Reasoning;
 
         await _db.SaveChangesAsync();
         return Ok(ToDto(lead));
@@ -1170,5 +1307,6 @@ public class LeadsController : ControllerBase
         // Stale-lead reminder
         l.ReminderDate,
         // Lead-to-client conversion
-        l.ConvertedToClientId);
+        l.ConvertedToClientId,
+        l.UpdatedAt);
 }
