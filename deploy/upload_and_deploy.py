@@ -55,10 +55,11 @@ ENVS = {
     "acc": dict(ip=TEST_ACC_IP, url="https://clients-acc.martiendejong.nl", host="clients-acc.martiendejong.nl", aliases=[],
                 zone="martiendejong.nl", network="proxy_net", gateway_dir="/opt/jengo-gateway",
                 caddy="jengo-gateway-caddy-1"),
-    # Since 2026-11-19 prod IS leads.prospergenics.com (the old Windows installation was archived). The other
-    # names reach the same container; the canonical address is the primary host (PUBLIC_URL, SSO callback).
-    "prod": dict(ip=PROD_IP, url="https://leads.prospergenics.com", host="leads.prospergenics.com",
-                 aliases=["api.leads.prospergenics.com", "clients.prospergenics.com"],
+    # Since 2026-11-19 prod replaced the old Windows installation of leads.prospergenics.com, and since the same
+    # day the canonical address is clients.prospergenics.com (PUBLIC_URL, SSO callback). api.leads... keeps
+    # serving the same container (old API address); leads... redirects (308, keeps the method) to the canonical host.
+    "prod": dict(ip=PROD_IP, url="https://clients.prospergenics.com", host="clients.prospergenics.com",
+                 aliases=["api.leads.prospergenics.com"], redirects=["leads.prospergenics.com"],
                  zone="prospergenics.com", network="maaride_net", gateway_dir="/opt/maaride-gateway",
                  caddy="maaride-gateway-caddy-1"),
 }
@@ -325,6 +326,80 @@ def cmd_gateway(args) -> None:
     ssh.close()
 
 
+def rehost_caddy(current: str, cfg: dict) -> str:
+    """The Caddyfile with the canonical host first, its aliases next to it, and a permanent redirect block for
+    every old host. Idempotent: running it on an already converted file changes nothing."""
+    want = [cfg["host"], *cfg["aliases"]]
+    out = []
+    for line in current.split("\n"):
+        stripped = line.strip()
+        if not stripped.startswith("#") and stripped.endswith("{"):
+            hosts = [p.strip() for p in stripped[:-1].split(",")]
+            if cfg["host"] in hosts and hosts != want:
+                line = line[: len(line) - len(line.lstrip())] + ", ".join(want) + " {"
+        out.append(line)
+    text = "\n".join(out)
+    for old in cfg.get("redirects", []):
+        if not has_site(text, old):
+            text = text.rstrip("\n") + (f"\n\n{old} {{\n    redir https://{cfg['host']}{{uri}} 308\n}}\n")
+    return text
+
+
+def cmd_rehost(args) -> None:
+    """Makes the canonical host of an environment the one in ENVS: PUBLIC_URL in .env (CORS, SSO callback,
+    calendar feed links), a container restart without a rebuild, and the gateway: the old host redirects.
+    Run `sso <env>` first so the new SSO callback is registered, and `dns <env>` if the host is new."""
+    cfg = ENVS[args.env]
+    ssh = connect(cfg["ip"])
+    stack = stack_dir(args.env)
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+
+    env_path = f"{stack}/deploy/.env"
+    env_text = read_text(ssh, env_path)
+    if f"PUBLIC_URL={cfg['url']}" not in env_text.splitlines():
+        run(ssh, f"cp -p {env_path} {env_path}.bak-{stamp}-rehost", show=False)
+        new_env = "\n".join(f"PUBLIC_URL={cfg['url']}" if l.startswith("PUBLIC_URL=") else l for l in env_text.split("\n"))
+        put_bytes(ssh, new_env.encode(), f"{env_path}.new", mode=0o600)
+        run(ssh, f"cat {env_path}.new > {env_path} && rm -f {env_path}.new", show=False)
+        run(ssh, f"cd {stack}/deploy && NO_BUILD=1 ./deploy.sh")
+    else:
+        print(f"[rehost] PUBLIC_URL is already {cfg['url']}")
+
+    path = f"{cfg['gateway_dir']}/Caddyfile"
+    current = read_text(ssh, path)
+    updated = rehost_caddy(current, cfg)
+    if updated == current:
+        print("[rehost] the gateway already has this layout; nothing to do.")
+        ssh.close()
+        return
+    backup = f"{path}.bak-{stamp}-rehost"
+    staged = f"{path}.new-{stamp}-rehost"
+    validate = f"docker exec {cfg['caddy']} caddy validate --config /etc/caddy/Caddyfile"
+    run(ssh, f"cp -p {path} {backup}", show=False)
+    try:
+        put_bytes(ssh, updated.encode(), staged)
+        run(ssh, f"cat {staged} > {path}", show=False)
+        rc, _ = run(ssh, validate, show=False, check=False)
+        if rc != 0:
+            raise RuntimeError("Caddy rejected the new config")
+        run(ssh, f"docker exec {cfg['caddy']} caddy reload --config /etc/caddy/Caddyfile", show=False)
+        run(ssh, f"rm -f {staged}", show=False, check=False)
+    except BaseException as err:
+        try:
+            ssh.close()
+        except Exception:
+            pass
+        fresh = connect(cfg["ip"])
+        run(fresh, f"cat {backup} > {path}", show=False)
+        rc, _ = run(fresh, validate, show=False, check=False)
+        run(fresh, f"rm -f {staged}", show=False, check=False)
+        fresh.close()
+        raise SystemExit(f"[rehost] {err}; the old Caddyfile is restored "
+                         f"({'valid' if rc == 0 else 'STILL INVALID: restore ' + backup + ' by hand'}).")
+    print(f"[rehost] {cfg['host']} is canonical, redirects {cfg.get('redirects', [])} (backup: {backup})")
+    ssh.close()
+
+
 def upload_source(ssh, env: str, ref: str, ws_ref: str) -> str:
     lm_tar, revision = archive(LEADMANAGER_REPO, ref)
     ws_tar, ws_revision = archive(WEBSEARCH_REPO, ws_ref)
@@ -497,7 +572,8 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="command", required=True)
     for name, fn in [("init-env", cmd_init_env), ("dns", cmd_dns), ("gateway", cmd_gateway),
-                     ("deploy", cmd_deploy), ("smoke", cmd_smoke), ("status", cmd_status), ("sso", cmd_sso)]:
+                     ("deploy", cmd_deploy), ("smoke", cmd_smoke), ("status", cmd_status), ("sso", cmd_sso),
+                     ("rehost", cmd_rehost)]:
         p = sub.add_parser(name)
         p.add_argument("env", choices=sorted(ENVS))
         p.set_defaults(fn=fn)

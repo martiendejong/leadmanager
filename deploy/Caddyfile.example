@@ -27,11 +27,15 @@ clients-acc.martiendejong.nl {
 }
 
 # --- productieserver (46.62.219.14, gateway /opt/maaride-gateway) ---
-clients.prospergenics.com {
+clients.prospergenics.com, api.leads.prospergenics.com {
     encode zstd gzip
     reverse_proxy prod-clients:8080 {
         header_up X-Forwarded-For {remote_host}
         header_up X-Forwarded-Proto {scheme}
         header_up X-Forwarded-Host {host}
     }
+}
+
+leads.prospergenics.com {
+    redir https://clients.prospergenics.com{uri} 308
 }
