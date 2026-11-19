@@ -1006,6 +1006,9 @@ namespace LeadManager.Api.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Needs")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("NotableClients")
                         .HasColumnType("TEXT");
 
@@ -1048,6 +1051,9 @@ namespace LeadManager.Api.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("PricingInfo")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ProductFitJson")
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("ReminderDate")
@@ -1109,6 +1115,9 @@ namespace LeadManager.Api.Migrations
 
                     b.Property<int>("WebsiteStatus")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("WhyLead")
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("WorkflowDataJson")
                         .HasColumnType("TEXT");

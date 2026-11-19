@@ -127,7 +127,8 @@ public static class HuntPrompt
             .Replace("{{DATA}}", data)
             .Replace("{{HUNT_ID}}", job.Id.ToString())
             .Replace("{{API_BASE}}", apiBase.TrimEnd('/'))
-            .Replace("{{AGENT_TOKEN}}", agentToken);
+            .Replace("{{AGENT_TOKEN}}", agentToken)
+            .Replace("{{PRODUCTS}}", ProductCatalog.Text);
     }
 }
 

@@ -140,6 +140,7 @@ public class HuntService
                     };
                     LeadVerifier.Apply(lead, result, clearUnverified: false, _scoring);
                     await ApplyGoogleAsync(lead, result, budget.Token);
+                    LeadInsight.Apply(lead, result);   // why, needs and product fit: the verified parts only
                     var score = lead.SalesPriorityScore ?? 0;
                     cand.Score = score;
                     cand.MaxReachable = LeadVerifier.MaxReachable(result.Facts, _places.IsConfigured);

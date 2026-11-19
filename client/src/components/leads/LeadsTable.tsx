@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import type { Lead } from '../../api/leads'
+import { ProductChips } from './ProductChips'
 
 interface LeadsTableProps {
   leads: Lead[]
@@ -220,8 +221,8 @@ export default function LeadsTable({
                     className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                   />
                 </td>
-                <td className="px-4 py-3 text-sm font-medium text-gray-900 max-w-48 truncate">
-                  <span className="flex items-center gap-1.5">
+                <td className="px-4 py-3 text-sm font-medium text-gray-900 max-w-64">
+                  <span className="flex items-center gap-1.5 truncate">
                     <Link
                       to={`/leads/${lead.id}`}
                       onClick={(e) => e.stopPropagation()}
@@ -241,6 +242,12 @@ export default function LeadsTable({
                       </span>
                     )}
                   </span>
+                  {lead.whyLead && (
+                    <div className="mt-0.5 text-xs font-normal text-gray-500 truncate" title={lead.whyLead}>{lead.whyLead}</div>
+                  )}
+                  {lead.productFit && lead.productFit.length > 0 && (
+                    <div className="mt-1"><ProductChips fit={lead.productFit} compact /></div>
+                  )}
                 </td>
                 <td className="hidden sm:table-cell px-4 py-3 text-sm text-gray-500 max-w-40 truncate">
                   {lead.website ? (

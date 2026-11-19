@@ -10,6 +10,7 @@ import LeadActivityTimeline from './LeadActivityTimeline'
 import ConvertToClientWizard from './ConvertToClientWizard'
 import LeadNotesPanel from './LeadNotesPanel'
 import EvidencePanel from './EvidencePanel'
+import LeadInsightBlock from './LeadInsightBlock'
 
 interface Props {
   lead: Lead | null
@@ -363,6 +364,9 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
 
             {/* Scrollable body */}
             <div className="flex-1 overflow-y-auto p-5 space-y-6">
+
+              {/* Why this lead, what they need, how we can help */}
+              <LeadInsightBlock lead={lead} />
 
               {/* Sales Priority Score - most prominent */}
               {lead.salesPriorityScore !== null && lead.salesPriorityScore !== undefined && (

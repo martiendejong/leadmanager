@@ -45,6 +45,10 @@ public class HuntController : ControllerBase
     private bool AgentTokenConfigured => !string.IsNullOrWhiteSpace(_config["Hunt:AgentSecret"]);
     private int MaxPerDay => Math.Clamp(int.TryParse(_config["Hunt:MaxPerUserPerDay"], out var n) ? n : 5, 1, 50);
 
+    // GET /api/leads/products : the catalog of our products that a lead's product fit may name (one file: Agent/PRODUCTS.md)
+    [HttpGet("products")]
+    public IActionResult Products() => Ok(ProductCatalog.All.Select(p => new { key = p.Key, name = p.Name, forWhom = p.ForWhom, whatTheyGet = p.WhatTheyGet, trigger = p.Trigger }));
+
     // GET /api/leads/hunt/capabilities
     [HttpGet("hunt/capabilities")]
     public async Task<IActionResult> Capabilities()

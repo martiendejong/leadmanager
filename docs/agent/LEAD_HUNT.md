@@ -95,6 +95,30 @@ depth cap and a node cap, checked before the document is loaded.
 Tests: 250,000 nested `div`, `span`, `b`, `a`, `font`, `section`, `table` and `ul`, 100,000 unclosed `p`, `li`, `td` and `option`, and large flat
 pages must finish in a few seconds without a crash (they run alone, after the other tests, so a busy machine cannot make them flaky).
 
+## Why this lead, what it needs, how we can help
+
+Every lead shows three things at the top of its panel (and a one-line why plus product chips in the list): **why it is a lead**, **what the business
+needs** and **which of OUR products can help**. They live in `Lead.WhyLead` (max 1000 characters), `Lead.Needs` (max 1000) and
+`Lead.ProductFitJson` (a list of `{product, reason, evidenceQuote, sourceUrl}`), and the lead DTO returns them as `whyLead`, `needs` and `productFit`.
+
+**Decision: STRICT, nothing is stored unverified.** A need or a product fit is stored only when its quote occurs in the visible text of a
+fetched page of the business itself (not in a testimonial, a script or a hidden element, at least 25 letters). An entry whose quote the server cannot find is
+dropped, listed in the evidence note and the evidence viewer as "not stored", and never stored with an "unverified" flag. Product keys outside the catalog are refused;
+each product once; at most 5 needs and 4 fits. The agent's `need` and `reason` texts are short interpretations that are only kept next to a verified quote, and are cleaned
+and clamped like all agent text.
+
+- **The product catalog** is one file: `src/LeadManager.Api/Agent/PRODUCTS.md` (an embedded resource that is also pasted into the agent prompt). The keys are TRIP, STUDIO, PROV,
+  WEB, REALTOR, AIMEDEW, AIDEV and AIVIND; `ProductCatalog.Keys` lists them for validation and a test keeps the list and the file identical. Edit the file to change the catalog
+  (and the list of keys with it). `GET /api/leads/products` returns the catalog to the app.
+- **"No clear fit" is a valid answer**: `productFit: []` with `noClearFit: true` is stored as `[]` and shown as "No clear fit with our products". Not saying anything stores nothing and
+  shows "Not assessed yet". A verified fit wins over the flag.
+- **Why this lead is written by the server**, never by the agent: the score and its reasons (who can be reached), the sector and place, the one-person statement and the start year
+  in the business's own words (verified quotes), and one verified `observation` quote. Nothing in it comes from the agent unverified; a `whyLead` field in the submission is ignored.
+- **The agent submits** under `claims`: `observation` (quote), `needs` (need, quote), `productFit` (product, reason, quote) and `noClearFit`; see the prompt.
+- **PATCH `/api/leads/{id}/profile`** accepts `whyLead`, `needs` and `productFit` (only catalog keys, a reason of 3 to 300 characters, an http(s) source) and `clearFields` may name
+  `whyLead`, `needs` and `productFit`. A hunt records them as written by the server (`HuntWrittenJson`), like the other fields.
+- **Verify and rescore never touches them**: the verifier has no code path for these three fields, with or without `confirm`.
+
 ## Which values may be removed: provenance
 
 Every value the server writes (a hunt candidate, a verify, the old AI enrichment) is recorded per field as a short hash in
@@ -162,7 +186,7 @@ Without the dispatch settings or the secret, **Find new leads** answers `503` ("
 ## Endpoints
 
 User (JWT or API key): `GET /api/leads/hunt/capabilities`, `POST /api/leads/hunt`, `GET /api/leads/hunt`, `GET /api/leads/hunt/{id}`,
-`POST /api/leads/hunt/{id}/cancel`, `POST /api/leads/verify`, `POST /api/leads/{id}/verify[?dryRun=true&confirm=true]`,
+`POST /api/leads/hunt/{id}/cancel`, `GET /api/leads/products`, `POST /api/leads/verify`, `POST /api/leads/{id}/verify[?dryRun=true&confirm=true]`,
 `GET /api/leads/{id}/evidence`. MCP: `start_lead_hunt`, `get_lead_hunt`.
 
 Agent (the token of that hunt only; no login or API key opens them): `GET /api/agent/hunts/{id}`, `POST /api/agent/hunts/{id}/check`,

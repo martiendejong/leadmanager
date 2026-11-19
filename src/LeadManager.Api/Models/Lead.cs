@@ -25,6 +25,15 @@ public class Lead
 
     /// <summary>JSON: per field a hash of the value the server (a hunt or an enrichment) wrote. Only such values may be cleared again without confirmation.</summary>
     public string? HuntWrittenJson { get; set; }
+
+    /// <summary>Why this is a lead: facts the server verified (who can be reached, sector, size) plus one verified quote from the business's own pages. At most 1000 characters.</summary>
+    public string? WhyLead { get; set; }
+
+    /// <summary>What the business needs, one line per need, each with the quote from its own pages that shows it. At most 1000 characters.</summary>
+    public string? Needs { get; set; }
+
+    /// <summary>JSON list of {product, reason, evidenceQuote, sourceUrl}: which of our products can help. "[]" means "assessed, no clear fit"; null means not assessed.</summary>
+    public string? ProductFitJson { get; set; }
     public LeadStatus Status { get; set; } = LeadStatus.Lead;
     public bool IsEnriched { get; set; } = false;
     public DateTime? EnrichedAt { get; set; }

@@ -24,6 +24,8 @@ public class VerificationResult
     /// <summary>Plain descriptive fields (not score bearing).</summary>
     public Dictionary<string, string> Descriptive { get; } = new(StringComparer.OrdinalIgnoreCase);
     public string? GoogleNote { get; set; }
+    /// <summary>What the agent said about the business beyond the score (why, needs, product fit), only the parts whose quote the server verified.</summary>
+    public InsightResult Insight { get; set; } = new();
     /// <summary>True when the pages were read and the claims were checked (false when the website did not answer).</summary>
     public bool Checked { get; set; }
 }
@@ -169,6 +171,7 @@ public class LeadVerifier
             else result.Dropped.Add(new DroppedClaim(field, TextSafety.Clean(claim.Value, 80), reason ?? "Not verified."));
         }
         ReadDescriptive(submitted, site, result);
+        result.Insight = LeadInsight.Read(submitted, site);
         return result;
     }
 
@@ -626,10 +629,32 @@ public class LeadVerifier
             foreach (var d in r.Dropped.Where(d => d.Field != "all" || d.Reason.Length > 0).Take(12))
                 sb.AppendLine($"- {d.Field}{(string.IsNullOrEmpty(d.Value) ? "" : " " + Trim(d.Value, 80))}: {d.Reason}");
         }
+        AppendInsight(sb, r.Insight);
         if (removed.Count > 0) sb.AppendLine("Removed because it could not be verified: " + string.Join("; ", removed));
         if (!string.IsNullOrEmpty(r.GoogleNote)) sb.AppendLine("Google: " + r.GoogleNote);
         sb.AppendLine("Pages read: " + string.Join(", ", r.PageUrls));
         return sb.ToString().TrimEnd();
+    }
+
+    private static void AppendInsight(StringBuilder sb, InsightResult i)
+    {
+        if (i.Observation != null) sb.AppendLine($"Observation (quote and source): \"{Trim(i.Observation.Quote, 240)}\" | {i.Observation.SourceUrl}");
+        if (i.Needs.Count > 0)
+        {
+            sb.AppendLine("Needs (each with the quote that shows it):");
+            foreach (var n in i.Needs) sb.AppendLine($"- {n.Need} | {n.SourceUrl} | \"{Trim(n.Quote, 200)}\"");
+        }
+        if (i.ProductFit.Count > 0)
+        {
+            sb.AppendLine("Product fit (each with the trigger on the business's own pages):");
+            foreach (var f in i.ProductFit) sb.AppendLine($"- {f.Product}: {f.Reason} | {f.SourceUrl} | \"{Trim(f.EvidenceQuote, 200)}\"");
+        }
+        else if (i.NoClearFit) sb.AppendLine("Product fit: the agent found no clear fit.");
+        if (i.Dropped.Count > 0)
+        {
+            sb.AppendLine("Needs and fit not stored (no verified quote):");
+            foreach (var d in i.Dropped.Take(12)) sb.AppendLine($"- {d.Field}{(string.IsNullOrEmpty(d.Value) ? "" : " " + Trim(d.Value, 60))}: {d.Reason}");
+        }
     }
 
     public static string BuildEvidenceJson(VerificationResult r, int? maxReachable)
@@ -643,6 +668,14 @@ public class LeadVerifier
             verified = r.Verified.Values.Select(c => new { field = c.Field, value = c.Value, source = c.SourceUrl, quote = Trim(c.Quote, 300),  }),
             dropped = r.Dropped.Select(d => new { field = d.Field, value = Trim(d.Value, 120), reason = d.Reason }),
             google = r.GoogleNote,
+            insight = new
+            {
+                observation = r.Insight.Observation == null ? null : new { quote = Trim(r.Insight.Observation.Quote, 300), source = r.Insight.Observation.SourceUrl },
+                needs = r.Insight.Needs.Select(n => new { need = n.Need, quote = Trim(n.Quote, 300), source = n.SourceUrl }),
+                productFit = r.Insight.ProductFit.Select(f => new { product = f.Product, reason = f.Reason, quote = Trim(f.EvidenceQuote, 300), source = f.SourceUrl }),
+                noClearFit = r.Insight.NoClearFit,
+                dropped = r.Insight.Dropped.Select(d => new { field = d.Field, value = Trim(d.Value, 80), reason = d.Reason }),
+            },
         }, new JsonSerializerOptions(JsonSerializerDefaults.Web));
     }
 

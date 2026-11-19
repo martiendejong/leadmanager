@@ -1,5 +1,13 @@
 import apiClient from './client'
 
+/** One of our products that can help a lead, with the trigger observed on the business's own pages. */
+export interface ProductFit {
+  product: string
+  reason: string
+  evidenceQuote?: string | null
+  sourceUrl?: string | null
+}
+
 export interface Lead {
   id: string
   name: string
@@ -86,6 +94,10 @@ export interface Lead {
   // Workflow automation (steps 1-10)
   workflowStep?: number
   workflowDataJson?: string | null
+  // Why this lead, what it needs, which of our products can help (null/undefined = not assessed; [] = no clear fit)
+  whyLead?: string | null
+  needs?: string | null
+  productFit?: ProductFit[] | null
 }
 
 export interface LeadsResponse {

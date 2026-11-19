@@ -35,6 +35,8 @@
   <ItemGroup>
     <!-- The versioned prompt of the lead hunt agent: rendered into the JengoWork task. -->
     <EmbeddedResource Include="Agent\LEAD_HUNT_PROMPT.md" />
+    <!-- The product catalog the hunt agent chooses from, and the keys a lead may name: one file. -->
+    <EmbeddedResource Include="Agent\PRODUCTS.md" />
   </ItemGroup>
 
   <PropertyGroup>

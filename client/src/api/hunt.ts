@@ -72,7 +72,27 @@ export interface LeadEvidence {
     verified: { field: string; value: string; source: string; quote: string }[]
     dropped: { field: string; value: string; reason: string }[]
     google?: string | null
+    insight?: {
+      observation: { quote: string; source: string } | null
+      needs: { need: string; quote: string; source: string }[]
+      productFit: { product: string; reason: string; quote: string; source: string }[]
+      noClearFit: boolean
+      dropped: { field: string; value: string; reason: string }[]
+    }
   }
+}
+
+export interface Product {
+  key: string
+  name: string
+  forWhom: string
+  whatTheyGet: string
+  trigger: string
+}
+
+/** Our products (the catalog a lead's product fit may name). */
+export async function getProducts(): Promise<Product[]> {
+  return (await apiClient.get<Product[]>('/api/leads/products')).data
 }
 
 export const isActive = (s: HuntStatus) => s === 'Pending' || s === 'Running'

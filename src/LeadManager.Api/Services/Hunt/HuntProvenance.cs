@@ -16,6 +16,7 @@ public static class HuntProvenance
     public static readonly string[] Fields =
     {
         "ownerName", "ownerLinkedInUrl", "linkedInUrl", "ownerMobile", "personalEmail", "foundingYear", "employeeCount", "legalForm", "phone", "googleRating", "kvkNumber",
+        "whyLead", "needs", "productFit",
     };
 
     public static string? ValueOf(Lead l, string field) => field switch
@@ -31,6 +32,9 @@ public static class HuntProvenance
         "phone" => l.Phone,
         "googleRating" => l.GoogleRating?.ToString("F1", CultureInfo.InvariantCulture),
         "kvkNumber" => l.KvkNumber,
+        "whyLead" => l.WhyLead,
+        "needs" => l.Needs,
+        "productFit" => l.ProductFitJson,
         _ => null,
     };
 
