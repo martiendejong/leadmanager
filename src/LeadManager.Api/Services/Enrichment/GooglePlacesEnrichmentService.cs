@@ -10,6 +10,8 @@ public class GooglePlacesEnrichmentService
     private readonly ILogger<GooglePlacesEnrichmentService> _logger;
     private readonly string? _apiKey;
 
+    public bool IsConfigured => !string.IsNullOrWhiteSpace(_apiKey);
+
     public GooglePlacesEnrichmentService(HttpClient http, IConfiguration configuration, ILogger<GooglePlacesEnrichmentService> logger)
     {
         _http = http;
@@ -63,7 +65,8 @@ public class GooglePlacesEnrichmentService
             {
                 GoogleRating = firstPlace.Rating,
                 GoogleReviewCount = firstPlace.UserRatingCount,
-                GoogleMapsUrl = firstPlace.GoogleMapsUri
+                GoogleMapsUrl = firstPlace.GoogleMapsUri,
+                DisplayName = firstPlace.DisplayName?.Text
             };
         }
         catch (Exception ex)
@@ -91,4 +94,6 @@ public record GooglePlacesResult
     public float? GoogleRating { get; init; }
     public int? GoogleReviewCount { get; init; }
     public string? GoogleMapsUrl { get; init; }
+    /// <summary>The name Google lists the place under; callers check it matches the company before trusting the rating.</summary>
+    public string? DisplayName { get; init; }
 }

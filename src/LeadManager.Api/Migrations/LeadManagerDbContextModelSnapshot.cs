@@ -664,6 +664,140 @@ namespace LeadManager.Api.Migrations
                         });
                 });
 
+            modelBuilder.Entity("LeadManager.Api.Models.HuntCandidate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EvidenceJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("JobId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("LeadId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("MaxReachable")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("Score")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Website")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("JobId");
+
+                    b.HasIndex("LeadId");
+
+                    b.ToTable("HuntCandidates");
+                });
+
+            modelBuilder.Entity("LeadManager.Api.Models.HuntJob", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("BestScore")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("CancelRequested")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CurrentCandidate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Error")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LeadIds")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("LlmCalls")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("MaxCandidates")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("MaxLlmCalls")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("MinScore")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Qualified")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("Ratchet")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Region")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Screened")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Segment")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("StartedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("TargetCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Total")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("UserId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "CreatedAt");
+
+                    b.ToTable("HuntJobs");
+                });
+
             modelBuilder.Entity("LeadManager.Api.Models.Interaction", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1552,6 +1686,17 @@ namespace LeadManager.Api.Migrations
                         .OnDelete(DeleteBehavior.Cascade);
                 });
 
+            modelBuilder.Entity("LeadManager.Api.Models.HuntCandidate", b =>
+                {
+                    b.HasOne("LeadManager.Api.Models.HuntJob", "Job")
+                        .WithMany("Candidates")
+                        .HasForeignKey("JobId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Job");
+                });
+
             modelBuilder.Entity("LeadManager.Api.Models.Interaction", b =>
                 {
                     b.HasOne("LeadManager.Api.Models.Client", null)
@@ -1723,6 +1868,11 @@ namespace LeadManager.Api.Migrations
             modelBuilder.Entity("LeadManager.Api.Models.ClientDocument", b =>
                 {
                     b.Navigation("Files");
+                });
+
+            modelBuilder.Entity("LeadManager.Api.Models.HuntJob", b =>
+                {
+                    b.Navigation("Candidates");
                 });
 
             modelBuilder.Entity("LeadManager.Api.Models.Lead", b =>

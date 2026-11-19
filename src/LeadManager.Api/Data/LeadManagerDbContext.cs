@@ -24,6 +24,8 @@ public class LeadManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<ClientBundle> ClientBundles { get; set; }
     public DbSet<SalesSettings> SalesSettings { get; set; }
     public DbSet<LeadNote> LeadNotes { get; set; }
+    public DbSet<HuntJob> HuntJobs { get; set; }
+    public DbSet<HuntCandidate> HuntCandidates { get; set; }
 
     // Jengo Clients CRM core (task 8023)
     public DbSet<Contact> Contacts { get; set; }
@@ -70,6 +72,20 @@ public class LeadManagerDbContext : IdentityDbContext<ApplicationUser>
                 v => System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions?)null),
                 v => System.Text.Json.JsonSerializer.Deserialize<List<Guid>>(v, (System.Text.Json.JsonSerializerOptions?)null) ?? new List<Guid>()
             );
+
+        builder.Entity<HuntJob>(e =>
+        {
+            e.Property(j => j.LeadIds).HasConversion(
+                v => System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions?)null),
+                v => System.Text.Json.JsonSerializer.Deserialize<List<Guid>>(v, (System.Text.Json.JsonSerializerOptions?)null) ?? new List<Guid>());
+            e.HasIndex(j => new { j.UserId, j.CreatedAt });
+            e.HasMany(j => j.Candidates).WithOne(c => c.Job).HasForeignKey(c => c.JobId).OnDelete(DeleteBehavior.Cascade);
+        });
+        builder.Entity<HuntCandidate>(e =>
+        {
+            e.HasIndex(c => c.LeadId);
+            e.HasIndex(c => c.JobId);
+        });
 
         // Seed roles with fixed GUIDs so they don't change on every migration
         builder.Entity<IdentityRole>().HasData(

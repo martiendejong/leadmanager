@@ -214,8 +214,21 @@ builder.Services.AddHttpClient<SearchService>(c =>
 
 // Profile + Smart Search services
 builder.Services.AddHttpClient<CompanyProfileService>();
-builder.Services.AddHttpClient<GptLeadGeneratorService>();
-builder.Services.AddScoped<SmartSearchService>();
+// Evidence based lead hunt: real web search for candidates, then verified facts from the business's own website.
+builder.Services.AddSingleton<LeadManager.Api.Services.Hunt.LeadEvidenceService>();
+builder.Services.AddHttpClient<LeadManager.Api.Services.Hunt.IPageFetcher, LeadManager.Api.Services.Hunt.SafePageFetcher>(c =>
+{
+    c.Timeout = TimeSpan.FromSeconds(15);
+    c.DefaultRequestHeaders.UserAgent.ParseAdd("JengoClientsBot/1.0 (+public company websites only)");
+}).ConfigurePrimaryHttpMessageHandler(() => LeadManager.Api.Services.Hunt.SafePageFetcher.CreateHandler());
+builder.Services.AddHttpClient<LeadManager.Api.Services.Hunt.OpenAiLeadLlm>();
+builder.Services.AddScoped<LeadManager.Api.Services.Hunt.ILeadLlm>(sp => sp.GetRequiredService<LeadManager.Api.Services.Hunt.OpenAiLeadLlm>());
+builder.Services.AddScoped<LeadManager.Api.Services.Hunt.ILeadDiscovery>(sp => sp.GetRequiredService<LeadManager.Api.Services.Hunt.OpenAiLeadLlm>());
+builder.Services.AddScoped<LeadManager.Api.Services.Hunt.LeadVerifier>();
+builder.Services.AddScoped<LeadManager.Api.Services.Hunt.HuntService>();
+builder.Services.AddSingleton<LeadManager.Api.Services.Hunt.HuntQueue>();
+builder.Services.AddSingleton<LeadManager.Api.Services.Hunt.HuntRegistry>();
+builder.Services.AddHostedService<LeadManager.Api.Services.Hunt.HuntBackgroundService>();
 // Named client for CompanyProfileService's WordPress REST probe
 builder.Services.AddHttpClient("wp-probe", c =>
 {

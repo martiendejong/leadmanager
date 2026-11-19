@@ -475,8 +475,37 @@ public class EnrichmentBackgroundService : BackgroundService
             finalLead.EnrichedAt = DateTime.UtcNow;
 
             await db.SaveChangesAsync(stoppingToken);
+
+            // The model answers above are claims, not facts: audit the score bearing ones against the website and rescore.
+            await AuditAsync(scope, db, finalLead, salesScoreService, stoppingToken);
         }
 
         return finalLead?.OwnerName ?? "";
+    }
+
+    private async Task AuditAsync(IServiceScope scope, LeadManagerDbContext db, Lead lead, SalesScoreService scoring, CancellationToken ct)
+    {
+        try
+        {
+            var verifier = scope.ServiceProvider.GetRequiredService<LeadManager.Api.Services.Hunt.LeadVerifier>();
+            var budget = new LeadManager.Api.Services.Hunt.HuntBudget(8);
+            var site = await verifier.QuickLookAsync(lead.Website, ct);
+            await verifier.DeepenAsync(site, ct);
+            var result = await verifier.VerifyAsync(site, lead.Name, budget, ct);
+            if (!result.LlmRan) return;
+            var removed = LeadManager.Api.Services.Hunt.LeadVerifier.Apply(lead, result, clearUnverified: true, scoring);
+            LeadManager.Api.Services.Hunt.LeadVerifier.ClearUnsourcedGoogle(lead, removed, scoring);
+            db.LeadNotes.Add(new LeadNote
+            {
+                LeadId = lead.Id, CreatedByUserId = lead.ImportedByUserId ?? "",
+                Content = LeadManager.Api.Services.Hunt.LeadVerifier.BuildNote("Enrichment audit " + DateTime.UtcNow.ToString("yyyy-MM-dd"), lead.SalesPriorityScore ?? 0, result, removed),
+            });
+            await db.SaveChangesAsync(ct);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Score audit failed for lead {LeadId}; the unaudited score stays", lead.Id);
+        }
     }
 }

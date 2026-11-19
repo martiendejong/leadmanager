@@ -14,11 +14,13 @@ public class EnrichmentController : ControllerBase
 {
     private readonly LeadManagerDbContext _db;
     private readonly EnrichmentChannel _channel;
+    private readonly LeadManager.Api.Services.Hunt.ILeadLlm? _llm;
 
-    public EnrichmentController(LeadManagerDbContext db, EnrichmentChannel channel)
+    public EnrichmentController(LeadManagerDbContext db, EnrichmentChannel channel, LeadManager.Api.Services.Hunt.ILeadLlm? llm = null)
     {
         _db = db;
         _channel = channel;
+        _llm = llm;
     }
 
     [HttpPost]
@@ -26,6 +28,10 @@ public class EnrichmentController : ControllerBase
     {
         if (request.Ids == null || request.Ids.Length == 0)
             return BadRequest("No lead IDs provided.");
+
+        // Without the AI key every step of the enrichment fails behind the scenes; say so instead of starting a job that does nothing.
+        if (_llm != null && !_llm.IsConfigured)
+            return StatusCode(503, new { error = HuntController.NotConfigured, code = "ai_key_missing" });
 
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
 

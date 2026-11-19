@@ -58,7 +58,7 @@ public class AiSalesApproachService
     {
         var ownerKnown = !string.IsNullOrWhiteSpace(lead.OwnerName);
         var hasLinkedIn = !string.IsNullOrWhiteSpace(lead.OwnerLinkedInUrl) || !string.IsNullOrWhiteSpace(lead.LinkedInUrl);
-        var hasPhone = !string.IsNullOrWhiteSpace(lead.OwnerMobile) || (!string.IsNullOrWhiteSpace(lead.Phone) && lead.Phone.Contains("06"));
+        var hasPhone = !string.IsNullOrWhiteSpace(lead.OwnerMobile) || LeadManager.Api.Services.Hunt.PhoneNumbers.IsDutchMobile(lead.Phone);
         var hasEmail = !string.IsNullOrWhiteSpace(lead.PersonalEmail);
 
         var channelPriority = hasLinkedIn ? "linkedin" : hasPhone ? "phone" : "email";
