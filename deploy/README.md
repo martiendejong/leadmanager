@@ -8,7 +8,7 @@ De gedeelde Caddy-gateway van de server bereikt de container via een Docker-netw
 |---|---|---|---|---|---|
 | test | https://clients-test.martiendejong.nl | 46.224.114.149 | `/opt/clients-test` | `/opt/jengo-gateway` (`proxy_net`) | `test-clients` |
 | acc | https://clients-acc.martiendejong.nl | 46.224.114.149 | `/opt/clients-acc` | idem | `acc-clients` |
-| prod | https://leads.prospergenics.com (ook `api.leads...` en `clients.prospergenics.com`) | 46.62.219.14 | `/opt/clients-prod` | `/opt/maaride-gateway` (`maaride_net`) | `prod-clients` |
+| prod | https://clients.prospergenics.com (`leads.prospergenics.com` verwijst door, `api.leads...` bedient dezelfde app) | 46.62.219.14 | `/opt/clients-prod` | `/opt/maaride-gateway` (`maaride_net`) | `prod-clients` |
 
 Test en acc starten leeg, zonder AI-sleutels en zonder koppelingen. Prod draait sinds 19-11-2026 op de data van de
 oude Windows-installatie (zie "Overstap" onderaan).
@@ -144,7 +144,8 @@ dezelfde app als Docker-stack op de prodserver.
 - **Wachtwoorden:** de oude admin-wachtwoorden stonden in git. Beide admin-accounts zijn bij de overstap met de
   eenmalige reset op nieuwe, willekeurige wachtwoorden gezet (vault project 12). Andere gebruikers bestonden niet.
 - **DNS:** `leads.prospergenics.com` en `api.leads.prospergenics.com` wijzen naar 46.62.219.14 (alleen DNS);
-  `clients.prospergenics.com` blijft werken. De hoofdnaam (`PUBLIC_URL`, SSO-callback) is `leads.prospergenics.com`.
+  `clients.prospergenics.com` blijft werken. Sinds de hostwissel (19-11-2026, zie onder) is de hoofdnaam (`PUBLIC_URL`,
+  SSO-callback) `clients.prospergenics.com`.
 - **Oude installatie:** gearchiveerd, niet verwijderd, in `C:\archive\leadmanager-20261119` op 85.215.217.154 (878 MB):
   de hele map, de database zoals ze was, de watchdog, en de geëxporteerde IIS-sites, app pools, geplande taak en
   service (`config\`), met een README met herstelstappen. IIS-sites `leads` en `LeadManagerAPI`, hun app pools, de
@@ -152,3 +153,23 @@ dezelfde app als Docker-stack op de prodserver.
 - **Terugdraaien** kan alleen samen met DNS terug naar 85.215.217.154; zie de README in het archief.
 - Sessies: de JWT-sleutel is nieuw, dus iedereen logt één keer opnieuw in (met IAM of met zijn wachtwoord).
 - Let op: de certificaatverlenging van win-acme op de oude server voor `leads` en `api.leads` heeft geen doel meer.
+
+## Hostwissel: clients.prospergenics.com is de hoofdnaam (19-11-2026)
+
+`leads.prospergenics.com` was de naam van de oude installatie; de app heet Jengo Clients. De hoofdnaam is nu
+`clients.prospergenics.com`:
+
+```
+python deploy/upload_and_deploy.py sso prod       # extra IAM-callback voor de nieuwe naam (de oude blijft staan)
+python deploy/upload_and_deploy.py rehost prod    # PUBLIC_URL in .env, herstart zonder build, gateway aanpassen
+python deploy/upload_and_deploy.py smoke prod
+```
+
+- `leads.prospergenics.com` geeft een permanente doorverwijzing (308, behoudt de methode en het pad) naar de nieuwe
+  naam. `api.leads.prospergenics.com` bedient de app nog steeds rechtstreeks, voor wie die naam nog gebruikt.
+- Browsers bewaren de login per adres: iedereen logt één keer opnieuw in op de nieuwe naam (IAM of wachtwoord).
+- API-sleutels, de MCP-sleutel en de agenda-feed werken op beide namen; nieuwe feed-links gebruiken de nieuwe naam
+  (bestaande links blijven werken via de doorverwijzing, maar Google Agenda volgt geen doorverwijzing altijd: koppel
+  opnieuw als een agenda stopt met verversen).
+- `rehost` maakt een back-up van `.env` en de Caddyfile, valideert Caddy en zet bij elke fout het oude bestand terug
+  over een verse verbinding.
