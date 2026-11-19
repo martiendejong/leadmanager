@@ -48,7 +48,7 @@ public class JengoWorkHuntDispatcher : IHuntDispatcher
         _status = (config["Hunt:Dispatch:Status"] ?? "").Trim();
     }
 
-    public bool IsConfigured => _baseUrl != "" && _apiKey != "" && Regex.IsMatch(_boardId, @"^\d{1,9}$") && Uri.IsWellFormedUriString(_baseUrl, UriKind.Absolute);
+    public bool IsConfigured => _baseUrl != "" && _apiKey != "" && HuntRegex.IsMatch(_boardId, @"^\d{1,9}$") && Uri.IsWellFormedUriString(_baseUrl, UriKind.Absolute);
 
     public async Task<DispatchResult> DispatchAsync(HuntJob job, string prompt, CancellationToken ct)
     {
@@ -107,7 +107,7 @@ public static class HuntPrompt
             else if (char.IsLetterOrDigit(ch) || ch is '-' or ',' or '.' or '&' or '/' or '(' or ')' or '\'') kept.Append(ch);
             if (kept.Length >= max) break;
         }
-        return Regex.Replace(kept.ToString(), @"\s+", " ").Trim();
+        return HuntRegex.Replace(kept.ToString(), @"\s+", " ").Trim();
     }
 
     public static string TaskTitle(HuntJob job) => $"Lead hunt {job.Id.ToString()[..8]}: {Sanitize(job.Segment, 60)}";

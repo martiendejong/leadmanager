@@ -7,8 +7,8 @@ public static class PhoneNumbers
 {
     // 06 or +31 6 followed by eight digits, with spaces, dots, dashes or a "(0)" in between.
     private const string Pattern = @"(?<![\d])(?:\+\s?31|0031|0)[\s\-\.\(\)]*(?:0[\s\-\.\)]*)?6(?:[\s\-\.]*\d){8}(?![\d])";
-    private static readonly Regex Candidate = new(Pattern, RegexOptions.Compiled);
-    private static readonly Regex Whole = new(@"^\s*" + Pattern + @"\s*$", RegexOptions.Compiled);
+    private static readonly Regex Candidate = HuntRegex.New(Pattern, RegexOptions.Compiled);
+    private static readonly Regex Whole = HuntRegex.New(@"^\s*" + Pattern + @"\s*$", RegexOptions.Compiled);
 
     /// <summary>"06 12 34 56 78" or "+31 (0)6-12345678" become "0612345678"; anything else (landline, 085, 088, 0800, 0900) is null.</summary>
     public static string? NormalizeMobile(string? raw)

@@ -130,4 +130,73 @@ public class HuntPerformanceTests
         Assert.True(sw.ElapsedMilliseconds < 4000, $"took {sw.ElapsedMilliseconds} ms");
         Assert.Single(facts.Owners);
     }
+
+    // ---- the review of the regular expressions: one hostile line of 1.4 MB must not hold a worker -------------------
+
+    private static string OneLine(string unit, int chars)
+    {
+        var sb = new StringBuilder("<html><body><p>", chars + 64);
+        while (sb.Length < chars) sb.Append(unit);
+        return sb.Append("</p></body></html>").ToString();
+    }
+
+    [Fact]
+    public void One_very_long_capitalised_word_is_scanned_in_linear_time()
+    {
+        // the pattern of a name was quadratic on this: 25,000 letters took 4 s, 50,000 16 s and 100,000 66 s
+        _ = Extract("<p>Bel 06 12 34 56 78. Ik ben Tine van Wel, eigenaar.</p>");   // warm up the compiled patterns
+        var sw = Stopwatch.StartNew();
+        var facts = Extract(OneLine("A", 1_400_000));
+        Assert.True(sw.ElapsedMilliseconds < 3000, $"took {sw.ElapsedMilliseconds} ms");
+        Assert.Empty(facts.Owners);
+    }
+
+    [Theory]
+    [InlineData("a")]                       // one long lowercase word
+    [InlineData("1")]                       // digits
+    [InlineData("A-")]                      // capitals and hyphens
+    [InlineData("Aa ")]                     // capitalised words, one after the other (a candidate name everywhere)
+    [InlineData("Van ")]                    // name particles
+    [InlineData("Ik ben ")]
+    [InlineData("Mijn naam is ")]
+    [InlineData("Eigenaar ")]
+    [InlineData("Jan Jansen, eigenaar ")]
+    [InlineData("06 ")]
+    [InlineData("0 ")]
+    [InlineData("0-")]
+    [InlineData("sinds 2009 werk ik ")]
+    [InlineData("opgericht in 2010 ")]
+    [InlineData("@")]
+    [InlineData("a@b.")]
+    [InlineData("... ")]
+    [InlineData("- ")]
+    [InlineData("ik werk alleen ")]
+    [InlineData("KvK 1234567 ")]
+    [InlineData("linkedin.com/in/")]
+    [InlineData("© 2020 - ")]
+    public void A_hostile_line_of_a_repeated_unit_is_processed_quickly(string unit)
+    {
+        _ = Extract("<p>Bel 06 12 34 56 78. Ik ben Tine van Wel, eigenaar.</p>");   // warm up
+        var html = OneLine(unit, 1_400_000);
+        Assert.True(html.Length < SafePageFetcher.MaxBytes);
+        var sw = Stopwatch.StartNew();
+        var page = FetchedPage.Parse(Site, 200, html);
+        var facts = new LeadEvidenceService().Extract(new[] { page }, Site);
+        _ = TextSafety.Suspicious(page.Text.Length > 100_000 ? page.Text[..100_000] : page.Text);
+        Assert.True(sw.ElapsedMilliseconds < 4000, $"'{unit}' took {sw.ElapsedMilliseconds} ms");
+        Assert.NotNull(facts);
+    }
+
+    [Fact]
+    public void A_long_line_is_scanned_in_overlapping_windows_so_a_name_on_a_border_is_still_found()
+    {
+        var filler = new string('x', 1800);
+        var line = filler + " Mijn naam is Tine van Wel, eigenaar. " + new string('y', 5000);
+        var windows = LeadEvidenceService.BoundedLines(line);
+        Assert.All(windows, w => Assert.True(w.Length <= LeadEvidenceService.MaxLineChars));
+        Assert.True(windows.Count >= 3);
+        Assert.Contains(Extract("<p>" + line + "</p>").Owners, o => o.Name == "Tine van Wel");
+        // a line of any length gives a bounded number of windows
+        Assert.True(LeadEvidenceService.BoundedLines(new string('z', 5_000_000)).Count <= 200);
+    }
 }

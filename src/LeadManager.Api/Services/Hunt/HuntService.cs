@@ -423,10 +423,10 @@ public class HuntService
     {
         if (!string.IsNullOrWhiteSpace(g.Website) && UrlGuard.TryNormalize(g.Website, out var listed) && UrlGuard.TryNormalize(lead.Website, out var own)
             && UrlGuard.SiteKey(listed) == UrlGuard.SiteKey(own)) return true;
-        var tail = System.Text.RegularExpressions.Regex.Replace(g.Phone ?? "", @"\D", "");
+        var tail = HuntRegex.Replace(g.Phone ?? "", @"\D", "");
         if (tail.Length < 9) return false;
         tail = tail[^9..];
-        string Tail(string n) { var d = System.Text.RegularExpressions.Regex.Replace(n, @"\D", ""); return d.Length >= 9 ? d[^9..] : ""; }
+        string Tail(string n) { var d = HuntRegex.Replace(n, @"\D", ""); return d.Length >= 9 ? d[^9..] : ""; }
         return facts.Mobiles.Any(m => Tail(m.Normalized) == tail) || facts.Landlines.Any(l => Tail(l) == tail) || facts.TelNumbers.Any(t => Tail(t) == tail);
     }
 

@@ -86,6 +86,12 @@ ended the process (a stack overflow cannot be caught; reproduced in a test at 20
 - the visible text is built in ONE linear pass (no per-node insertions); phone numbers use the match position; the HTML parser version is pinned;
 - the older enrichment code parses pages through the same loader.
 
+Regular expressions run over text from the web, so every one has a match timeout (`HuntRegex`, 1 s; a rule that times out finds nothing and the
+other rules still run), the name pattern fails in linear time on one very long capitalised word (it was quadratic: 25,000 letters took 4 s), lines
+longer than 2,000 characters are scanned in overlapping windows, sentence lookups search a bounded window, and a rule looks at its first 2,000
+matches only. An XML sitemap is read through `SafeXml`: no DOCTYPE (a billion laughs document is refused unexpanded), no resolver, a size cap, a
+depth cap and a node cap, checked before the document is loaded.
+
 Tests: 250,000 nested `div`, `span`, `b`, `a`, `font`, `section`, `table` and `ul`, 100,000 unclosed `p`, `li`, `td` and `option`, and large flat
 pages must finish in a few seconds without a crash (they run alone, after the other tests, so a busy machine cannot make them flaky).
 

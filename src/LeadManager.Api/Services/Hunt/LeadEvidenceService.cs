@@ -67,47 +67,53 @@ public class LeadEvidenceService
         "png", "jpg", "jpeg", "gif", "svg", "webp", "css", "js", "ico", "woff", "woff2", "ttf", "map", "pdf", "mp4",
     };
 
-    private static readonly Regex EmailRegex = new(@"[A-Za-z0-9._%+\-]{1,64}@[A-Za-z0-9\-]+(?:\.[A-Za-z0-9\-]+)*\.[A-Za-z]{2,}", RegexOptions.Compiled);
-    private static readonly Regex LinkedInRegex = new(@"(?<![A-Za-z0-9=?&#%/.\-_])https?://(?:[a-z]{2,3}\.|www\.)?linkedin\.com/(in|company)/([A-Za-z0-9\-_%.]+)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex ContactCue = new(@"\b(?:bel|bellen|tel|telefoon|mobiel|mobile|gsm|whatsapp|bereikbaar|bereik|contact|afspraak|call|phone)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex CreditCue = new(@"(?:\bdesign by\b|\bontworpen door\b|\bgebouwd door\b|\bsite by\b|\bwebsite (?:door|by)\b|\bwebdesign\b|\bgemaakt door\b|\bontwerp door\b|\bpowered by\b|\brealisatie\b|\breview|\breferentie|\baanbeveling|\btestimonial|\bschreef\b|\bervaring(?:en)? van\b)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex TelHref = new(@"href\s*=\s*[""']tel:([^""']+)[""']", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex KvkRegex = new(@"\bkvk(?:[\s\-]*(?:nummer|nr\.?|number))?[\s:\-#]*(\d{8})\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex LandlineRegex = new(@"(?<![\d])0(?:[1-5]|[7-9])\d(?:[\s\-\.]*\d){7}(?![\d])", RegexOptions.Compiled);
+    private static readonly Regex EmailRegex = HuntRegex.New(@"[A-Za-z0-9._%+\-]{1,64}@[A-Za-z0-9\-]+(?:\.[A-Za-z0-9\-]+)*\.[A-Za-z]{2,}", RegexOptions.Compiled);
+    private static readonly Regex LinkedInRegex = HuntRegex.New(@"(?<![A-Za-z0-9=?&#%/.\-_])https?://(?:[a-z]{2,3}\.|www\.)?linkedin\.com/(in|company)/([A-Za-z0-9\-_%.]+)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex ContactCue = HuntRegex.New(@"\b(?:bel|bellen|tel|telefoon|mobiel|mobile|gsm|whatsapp|bereikbaar|bereik|contact|afspraak|call|phone)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex CreditCue = HuntRegex.New(@"(?:\bdesign by\b|\bontworpen door\b|\bgebouwd door\b|\bsite by\b|\bwebsite (?:door|by)\b|\bwebdesign\b|\bgemaakt door\b|\bontwerp door\b|\bpowered by\b|\brealisatie\b|\breview|\breferentie|\baanbeveling|\btestimonial|\bschreef\b|\bervaring(?:en)? van\b)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex TelHref = HuntRegex.New(@"href\s*=\s*[""']tel:([^""']+)[""']", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex KvkRegex = HuntRegex.New(@"\bkvk(?:[\s\-]*(?:nummer|nr\.?|number))?[\s:\-#]*(\d{8})\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex LandlineRegex = HuntRegex.New(@"(?<![\d])0(?:[1-5]|[7-9])\d(?:[\s\-\.]*\d){7}(?![\d])", RegexOptions.Compiled);
 
     private static readonly (string Kind, Regex Pattern)[] LegalPatterns =
     {
-        ("eenmanszaak", new Regex(@"\beenmanszaak\b", RegexOptions.IgnoreCase | RegexOptions.Compiled)),
-        ("zzp", new Regex(@"\bzzp(?:'er|er)?\b", RegexOptions.IgnoreCase | RegexOptions.Compiled)),
-        ("zelfstandig", new Regex(@"\bzelfstandig(?:e)?\b", RegexOptions.IgnoreCase | RegexOptions.Compiled)),
-        ("alleen", new Regex(@"\b(?:ik werk (?:graag )?alleen|één persoon|een[- ]persoons|one[- ]person|solo[- ]?(?:ondernemer|onderneemster))\b", RegexOptions.IgnoreCase | RegexOptions.Compiled)),
-        ("vof", new Regex(@"\b(?:v\.o\.f\.?|vof)\b", RegexOptions.Compiled)),
-        ("bv", new Regex(@"(?<!\w)(?:B\.V\.|BV|b\.v\.|Besloten Vennootschap)(?!\w)", RegexOptions.Compiled)),
-        ("nv", new Regex(@"(?<!\w)(?:N\.V\.|Naamloze Vennootschap)(?!\w)", RegexOptions.Compiled)),
-        ("maatschap", new Regex(@"\bmaatschap\b", RegexOptions.IgnoreCase | RegexOptions.Compiled)),
-        ("stichting", new Regex(@"\bstichting\b", RegexOptions.IgnoreCase | RegexOptions.Compiled)),
-        ("team", new Regex(@"\b(?:ons team|mijn collega'?s|onze (?:medewerkers|collega'?s)|\d+ medewerkers)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled)),
+        ("eenmanszaak", HuntRegex.New(@"\beenmanszaak\b", RegexOptions.IgnoreCase | RegexOptions.Compiled)),
+        ("zzp", HuntRegex.New(@"\bzzp(?:'er|er)?\b", RegexOptions.IgnoreCase | RegexOptions.Compiled)),
+        ("zelfstandig", HuntRegex.New(@"\bzelfstandig(?:e)?\b", RegexOptions.IgnoreCase | RegexOptions.Compiled)),
+        ("alleen", HuntRegex.New(@"\b(?:ik werk (?:graag )?alleen|één persoon|een[- ]persoons|one[- ]person|solo[- ]?(?:ondernemer|onderneemster))\b", RegexOptions.IgnoreCase | RegexOptions.Compiled)),
+        ("vof", HuntRegex.New(@"\b(?:v\.o\.f\.?|vof)\b", RegexOptions.Compiled)),
+        ("bv", HuntRegex.New(@"(?<!\w)(?:B\.V\.|BV|b\.v\.|Besloten Vennootschap)(?!\w)", RegexOptions.Compiled)),
+        ("nv", HuntRegex.New(@"(?<!\w)(?:N\.V\.|Naamloze Vennootschap)(?!\w)", RegexOptions.Compiled)),
+        ("maatschap", HuntRegex.New(@"\bmaatschap\b", RegexOptions.IgnoreCase | RegexOptions.Compiled)),
+        ("stichting", HuntRegex.New(@"\bstichting\b", RegexOptions.IgnoreCase | RegexOptions.Compiled)),
+        ("team", HuntRegex.New(@"\b(?:ons team|mijn collega'?s|onze (?:medewerkers|collega'?s)|\d+ medewerkers)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled)),
     };
 
     // "sinds 2009" counts only when the business says it about itself: "sinds 2009 werk ik als ...", "actief sinds 2009". "vanaf" is no start. A sentence
     // like "Sinds 2008 is er veel veranderd in de praktijk" or "Sinds 2004 werken wij samen met bureau X" is not a founding statement.
     private const string YearPattern = @"(?<y>19[5-9]\d|20[0-2]\d)";
-    private static readonly Regex SinceSelfBefore = new(@"\b(?:sinds|since)\s+(?:het jaar\s+)?(?:\d{1,2}\s+\w+\s+)?" + YearPattern + @"\b,?\s+(?:ben ik|zijn wij|zijn we|werk ik|werken wij|werken we|help ik|helpen wij|adviseer ik|adviseren wij|ondernem\w*|run ik|runnen wij|bestaat|bestaan wij|i am|we are)\b(?!\s+(?:samen|bij|lid|aangesloten|getrouwd|verhuisd|ziek)\b)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex SinceSelfAfter = new(@"\b(?:ik ben|wij zijn|we zijn|ik werk|wij werken|ik help|wij helpen|actief|bestaat|bestaan wij|gevestigd|opgericht|gestart|ondernemer)\b[^.\n]{0,60}?\b(?:sinds|since)\s+(?:het jaar\s+)?(?:\d{1,2}\s+\w+\s+)?" + YearPattern + @"\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex Together = new(@"\bsamen met\b|\bin samenwerking\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex FoundedRegex = new(@"\b(?:opgericht|gestart|begonnen|ontstaan|founded|established|oprichting|bestaat)\b[^.]{0,40}?\b(19[5-9]\d|20[0-2]\d)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex InYearStartRegex = new(@"\bin\s+(19[5-9]\d|20[0-2]\d)\s+(?:ben ik|zijn wij|startte|starten|begon|begonnen|heb ik|hebben wij|ben|is)\b[^.]{0,80}?\b(?:start|opgericht|begon|gestart|oprichten|eigen bedrijf|onderneming|praktijk|bureau)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex CopyrightRegex = new(@"(?:©|&copy;|copyright)\s*(?:(\d{4})\s*[-–—]\s*)?(\d{4})", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex BusinessCue = new(@"\b(?:bedrijf|praktijk|bureau|kantoor|onderneming|studio|zaak|atelier|opgericht|gestart|actief|bestaat|ondernem\w*|zelfstandig\w*|werk ik|werken wij|zijn wij|helpen wij|help ik|adviseer\w*|ontwerp\w*|bieden wij|bied ik)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex SinceSelfBefore = HuntRegex.New(@"\b(?:sinds|since)\s+(?:het jaar\s+)?(?:\d{1,2}\s+\w+\s+)?" + YearPattern + @"\b,?\s+(?:ben ik|zijn wij|zijn we|werk ik|werken wij|werken we|help ik|helpen wij|adviseer ik|adviseren wij|ondernem\w*|run ik|runnen wij|bestaat|bestaan wij|i am|we are)\b(?!\s+(?:samen|bij|lid|aangesloten|getrouwd|verhuisd|ziek)\b)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex SinceSelfAfter = HuntRegex.New(@"\b(?:ik ben|wij zijn|we zijn|ik werk|wij werken|ik help|wij helpen|actief|bestaat|bestaan wij|gevestigd|opgericht|gestart|ondernemer)\b[^.\n]{0,60}?\b(?:sinds|since)\s+(?:het jaar\s+)?(?:\d{1,2}\s+\w+\s+)?" + YearPattern + @"\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex Together = HuntRegex.New(@"\bsamen met\b|\bin samenwerking\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex FoundedRegex = HuntRegex.New(@"\b(?:opgericht|gestart|begonnen|ontstaan|founded|established|oprichting|bestaat)\b[^.]{0,40}?\b(19[5-9]\d|20[0-2]\d)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex InYearStartRegex = HuntRegex.New(@"\bin\s+(19[5-9]\d|20[0-2]\d)\s+(?:ben ik|zijn wij|startte|starten|begon|begonnen|heb ik|hebben wij|ben|is)\b[^.]{0,80}?\b(?:start|opgericht|begon|gestart|oprichten|eigen bedrijf|onderneming|praktijk|bureau)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex CopyrightRegex = HuntRegex.New(@"(?:©|&copy;|copyright)\s*(?:(\d{4})\s*[-–—]\s*)?(\d{4})", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex BusinessCue = HuntRegex.New(@"\b(?:bedrijf|praktijk|bureau|kantoor|onderneming|studio|zaak|atelier|opgericht|gestart|actief|bestaat|ondernem\w*|zelfstandig\w*|werk ik|werken wij|zijn wij|helpen wij|help ik|adviseer\w*|ontwerp\w*|bieden wij|bied ik)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     /// <summary>The sentence must be about a business ("het bedrijf is opgericht in"), not about a newsletter, a website or a course.</summary>
-    private static readonly Regex BusinessNoun = new(@"\b(?:\w*(?:bureau|praktijk|kantoor|studio|atelier)|bedrijf|onderneming|zaak|firma|organisatie|eenmanszaak|zelfstandig\w*)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex NotBusinessTopic = new(@"\b(?:nieuwsbrief|blog|podcast|webshop|website|site|campagne|cursus|training|workshop|actie|forum|vereniging|opleiding|studie|school|app|project)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex BusinessNoun = HuntRegex.New(@"\b(?:\w*(?:bureau|praktijk|kantoor|studio|atelier)|bedrijf|onderneming|zaak|firma|organisatie|eenmanszaak|zelfstandig\w*)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex NotBusinessTopic = HuntRegex.New(@"\b(?:nieuwsbrief|blog|podcast|webshop|website|site|campagne|cursus|training|workshop|actie|forum|vereniging|opleiding|studie|school|app|project)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     /// <summary>The owner (or "we") starting something is a start too: "In 2010 ben ik met Goldenbeld Advies gestart" has no business noun.</summary>
-    private static readonly Regex OwnerStarted = new(@"\b(?:ik|wij|we)\b[^.]{0,80}?\b(?:gestart|begonnen|opgericht|startte|begon|oprichten|starten)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex OwnerStarted = HuntRegex.New(@"\b(?:ik|wij|we)\b[^.]{0,80}?\b(?:gestart|begonnen|opgericht|startte|begon|oprichten|starten)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static bool FoundedCue(string sentence) =>
         (BusinessNoun.IsMatch(sentence) || OwnerStarted.IsMatch(sentence)) && !NotBusinessTopic.IsMatch(sentence) && !CopyrightLine.IsMatch(sentence);
-    private static readonly Regex CopyrightLine = new(@"(?:©|&copy;|copyright|alle rechten|all rights|website (?:door|by)|webdesign|powered by)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex CareerRegex = new(@"\b(?:werk ik als|werkzaam als|ervaring|carrière|loopbaan|werkte|werkte ik|in dienst|bij (?:de|het)\b)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex CopyrightLine = HuntRegex.New(@"(?:©|&copy;|copyright|alle rechten|all rights|website (?:door|by)|webdesign|powered by)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex CareerRegex = HuntRegex.New(@"\b(?:werk ik als|werkzaam als|ervaring|carrière|loopbaan|werkte|werkte ik|in dienst|bij (?:de|het)\b)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static void Guarded(Action rule)
+    {
+        try { rule(); }
+        catch (RegexMatchTimeoutException) { /* no match from this rule on this page */ }
+    }
 
     public EvidenceFacts Extract(IReadOnlyList<FetchedPage> pages, string? websiteUrl)
     {
@@ -116,31 +122,43 @@ public class LeadEvidenceService
         foreach (var page in pages)
         {
             if (string.IsNullOrEmpty(page.Html) && string.IsNullOrEmpty(page.Text)) continue;
-            ExtractMobiles(page, facts);
-            ExtractLinkedIn(page, facts, siteDomain);
-            ExtractEmails(page, siteDomain, facts);
-            ExtractTextFacts(page, facts);
-            ExtractOwners(page, facts, siteDomain);
-            ExtractSmall(page, facts);
+            // A rule that takes too long on a hostile page (RegexMatchTimeoutException) finds nothing; the other rules still run.
+            Guarded(() => ExtractMobiles(page, facts));
+            Guarded(() => ExtractLinkedIn(page, facts, siteDomain));
+            Guarded(() => ExtractEmails(page, siteDomain, facts));
+            Guarded(() => ExtractTextFacts(page, facts));
+            Guarded(() => ExtractOwners(page, facts, siteDomain));
+            Guarded(() => ExtractSmall(page, facts));
         }
         return facts;
     }
 
     /// <summary>The sentence a match stands in (between the neighbouring full stops), at most 300 characters.</summary>
+    private static readonly char[] SentenceEnds = { '.', '!', '?', '\u00A9', '\n' };
+    private const int SentenceReach = 300;
+
     private static string SentenceAround(string text, int index, int length)
     {
-        var start = text.LastIndexOfAny(new[] { '.', '!', '?', '©', '\n' }, Math.Max(0, index - 1)) + 1;
-        var endAt = text.IndexOfAny(new[] { '.', '!', '?', '©', '\n' }, Math.Min(text.Length - 1, index + length));
-        var end = endAt < 0 ? text.Length : endAt + 1;
-        if (end - start > 300) { start = Math.Max(start, index - 150); end = Math.Min(end, index + length + 150); }
-        return Regex.Replace(text.Substring(start, end - start), @"\s+", " ").Trim();
+        // Only a window of 300 characters on each side is searched: on a line without a full stop the old search ran to the start of the text for
+        // every match, which was quadratic on a hostile page.
+        var from = Math.Max(0, index - SentenceReach);
+        var back = index > from ? text.LastIndexOfAny(SentenceEnds, index - 1, index - from) : -1;
+        var start = back >= 0 ? back + 1 : from;
+        var after = Math.Min(text.Length, index + length);
+        var limit = Math.Min(text.Length, index + length + SentenceReach);
+        var endAt = after < limit ? text.IndexOfAny(SentenceEnds, after, limit - after) : -1;
+        var end = endAt < 0 ? limit : endAt + 1;
+        return HuntRegex.Replace(text.Substring(start, end - start), @"\s+", " ").Trim();
     }
+
+    /// <summary>The first <paramref name="max"/> matches of a pattern: a hostile page with a hundred thousand of them is not worked through.</summary>
+    private static IEnumerable<Match> First(Regex regex, string text, int max = 2000) => regex.Matches(text).Cast<Match>().Take(max);
 
     private static string Quote(string text, int index, int length, int pad = 90)
     {
         var start = Math.Max(0, index - pad);
         var end = Math.Min(text.Length, index + length + pad);
-        return Regex.Replace(text.Substring(start, end - start), @"\s+", " ").Trim();
+        return HuntRegex.Replace(text.Substring(start, end - start), @"\s+", " ").Trim();
     }
 
     private static int MobileQuality(MobileFact m) => (m.Credit ? 0 : 2) + (m.Contact ? 1 : 0);
@@ -149,7 +167,7 @@ public class LeadEvidenceService
     {
         var text = page.Text;
         var matches = PhoneRegexMatches(text);
-        var contactPage = Regex.IsMatch(new Uri(page.Url).AbsolutePath, "contact|bereik|afspraak", RegexOptions.IgnoreCase);
+        var contactPage = HuntRegex.IsMatch(new Uri(page.Url).AbsolutePath, "contact|bereik|afspraak", RegexOptions.IgnoreCase);
         foreach (var (norm, written, index) in matches)
         {
             var quote = Quote(text, index, written.Length);
@@ -164,7 +182,7 @@ public class LeadEvidenceService
         foreach (Match m in LandlineRegex.Matches(text)) facts.Landlines.Add(m.Value.Trim());
         foreach (Match m in TelHref.Matches(page.Html ?? ""))
         {
-            var digits = Regex.Replace(WebUtility.HtmlDecode(m.Groups[1].Value), @"[^\d+]", "");
+            var digits = HuntRegex.Replace(WebUtility.HtmlDecode(m.Groups[1].Value), @"[^\d+]", "");
             if (digits.Length >= 9 && !facts.TelNumbers.Contains(digits)) facts.TelNumbers.Add(digits);
         }
     }
@@ -172,7 +190,7 @@ public class LeadEvidenceService
     private static List<(string Norm, string Written, int Index)> PhoneRegexMatches(string text) =>
         PhoneNumbers.FindMobilesWithIndex(text).Select(x => (x.Normalized, x.AsWritten, x.Index)).ToList();
 
-    private static readonly Regex SocialBlock = new(@"social|follow|volg|connect|footer|header|contact|socials", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex SocialBlock = HuntRegex.New(@"social|follow|volg|connect|footer|header|contact|socials", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     /// <summary>Does the link stand in the header, footer, navigation or a social block of the site (not in a text about clients)?</summary>
     private static bool InSocialBlock(HtmlNode a)
@@ -226,7 +244,7 @@ public class LeadEvidenceService
         if (at < 1) return false;
         var domain = address[(at + 1)..];
         var tld = domain[(domain.LastIndexOf('.') + 1)..];
-        return !NotATld.Contains(tld) && !Regex.IsMatch(address, @"@\d+x\b|\d+x\.");
+        return !NotATld.Contains(tld) && !HuntRegex.IsMatch(address, @"@\d+x\b|\d+x\.");
     }
 
     private static void ExtractEmails(FetchedPage page, string siteDomain, EvidenceFacts facts)
@@ -248,7 +266,7 @@ public class LeadEvidenceService
         foreach (var a in doc?.DocumentNode.SelectNodes("//a[@href]")?.ToList() ?? new List<HtmlNode>())
         {
             var href = WebUtility.HtmlDecode(a.GetAttributeValue("href", "")).Trim();
-            var shown = Regex.Replace(WebUtility.HtmlDecode(a.InnerText ?? ""), @"\s+", " ").Trim();
+            var shown = HuntRegex.Replace(WebUtility.HtmlDecode(a.InnerText ?? ""), @"\s+", " ").Trim();
             string? target = null;
             string? warning = null;
             if (href.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase))
@@ -309,13 +327,13 @@ public class LeadEvidenceService
             var around = SentenceAround(own, m.Index, m.Length);
             return !CopyrightLine.IsMatch(around) && !NotBusinessTopic.IsMatch(around) && !Together.IsMatch(around);
         }
-        foreach (Match m in SinceSelfBefore.Matches(own)) if (SelfSentence(m)) AddYear(own, m, "Since", "y", 1);
-        foreach (Match m in SinceSelfAfter.Matches(own)) if (SelfSentence(m)) AddYear(own, m, "Since", "y", 1);
-        foreach (Match m in FoundedRegex.Matches(own))
+        foreach (var m in First(SinceSelfBefore, own)) if (SelfSentence(m)) AddYear(own, m, "Since", "y", 1);
+        foreach (var m in First(SinceSelfAfter, own)) if (SelfSentence(m)) AddYear(own, m, "Since", "y", 1);
+        foreach (var m in First(FoundedRegex, own))
             if (FoundedCue(SentenceAround(own, m.Index, m.Length))) AddYear(own, m, "Founded", "1", 0);
-        foreach (Match m in InYearStartRegex.Matches(own))
+        foreach (var m in First(InYearStartRegex, own))
             if (FoundedCue(SentenceAround(own, m.Index, m.Length))) AddYear(own, m, "Founded", "1", 0);
-        foreach (Match m in CopyrightRegex.Matches(text))
+        foreach (var m in First(CopyrightRegex, text))
         {
             var group = m.Groups[1].Success ? "1" : "2"; // the first year of a range "2020 - 2026" is when the site started, never the business
             AddYear(text, m, "Copyright", group, 9);
@@ -324,23 +342,25 @@ public class LeadEvidenceService
 
     // ---- owners ---------------------------------------------------------------------------------------------
 
-    private const string NamePattern = @"[A-ZÀ-ÖØ-Þ][\p{L}'’\-]+(?:\s+(?:van|de|der|den|het|ten|ter|te|von|op|aan)){0,2}(?:\s+[A-ZÀ-ÖØ-Þ][\p{L}'’\-]+){1,2}";
+    // A name starts where a word starts (the lookbehind), and every word is atomic: on one very long capitalised word the pattern fails in linear
+    // time instead of trying every start inside the word and every split of it (that was quadratic: 25,000 letters took 4 s, 100,000 over a minute).
+    private const string NamePattern = @"(?<![\p{L}'’\-])[A-ZÀ-ÖØ-Þ](?>[\p{L}'’\-]+)(?:\s+(?:van|de|der|den|het|ten|ter|te|von|op|aan)){0,2}(?:\s+[A-ZÀ-ÖØ-Þ](?>[\p{L}'’\-]+)){1,2}";
     private const string RoleCue = @"(?:eigenaar|eigenares|oprichter|oprichtster|directeur|directrice|founder|co-?founder|owner|zaakvoerder|bedrijfsleider|ondernemer)";
-    private static readonly Regex OwnerMyNameIs = new(@"(?i:mijn naam is|ik heet|my name is)\s+(?<n>" + NamePattern + ")", RegexOptions.Compiled);
-    private static readonly Regex OwnerIAm = new(@"(?i:ik ben|i am)\s+(?<n>" + NamePattern + @")(?<rest>[^.!?]{0,160})", RegexOptions.Compiled);
-    private static readonly Regex OwnerIAmContext = new(@"\b(?:mijn|onze|my)\s+(?:eigen\s+)?(?:bedrijf|praktijk|bureau|kantoor|onderneming|studio|zaak|atelier|company|practice)\b|\b(?:eigenaar|oprichter|owner|founder|zelfstandig\w*|eenmanszaak)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex OwnerNameThenRole = new(@"(?<n>" + NamePattern + @")\s*[,\-–—|:(]\s*(?:[\p{L}& ]{0,25}?)(?i:" + RoleCue + ")", RegexOptions.Compiled);
-    private static readonly Regex OwnerRoleThenName = new(@"(?i:" + RoleCue + @")\s*[:\-–—]?\s*(?<n>" + NamePattern + ")", RegexOptions.Compiled);
-    private static readonly Regex AboutPath = new(@"/(?:over|about|wie|team|mij|ik|praktijk|bureau)(?:[-/_]|$)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex RoleWord = new(@"\b" + RoleCue + @"\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex OwnerMyNameIs = HuntRegex.New(@"(?i:mijn naam is|ik heet|my name is)\s+(?<n>" + NamePattern + ")", RegexOptions.Compiled);
+    private static readonly Regex OwnerIAm = HuntRegex.New(@"(?i:ik ben|i am)\s+(?<n>" + NamePattern + @")(?<rest>[^.!?]{0,160})", RegexOptions.Compiled);
+    private static readonly Regex OwnerIAmContext = HuntRegex.New(@"\b(?:mijn|onze|my)\s+(?:eigen\s+)?(?:bedrijf|praktijk|bureau|kantoor|onderneming|studio|zaak|atelier|company|practice)\b|\b(?:eigenaar|oprichter|owner|founder|zelfstandig\w*|eenmanszaak)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex OwnerNameThenRole = HuntRegex.New(@"(?<n>" + NamePattern + @")\s*[,\-–—|:(]\s*(?:[\p{L}& ]{0,25}?)(?i:" + RoleCue + ")", RegexOptions.Compiled);
+    private static readonly Regex OwnerRoleThenName = HuntRegex.New(@"(?i:" + RoleCue + @")\s*[:\-–—]?\s*(?<n>" + NamePattern + ")", RegexOptions.Compiled);
+    private static readonly Regex AboutPath = HuntRegex.New(@"/(?:over|about|wie|team|mij|ik|praktijk|bureau)(?:[-/_]|$)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex RoleWord = HuntRegex.New(@"\b" + RoleCue + @"\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly char[] QuoteMarks = { '"', '“', '”', '„', '‟', '«', '»', '‘', '’' };
-    private static readonly Regex SignatureDash = new(@"[!?.""”»]\s*[-–—]\s*$", RegexOptions.Compiled);
+    private static readonly Regex SignatureDash = HuntRegex.New(@"[!?.""”»]\s*[-–—]\s*$", RegexOptions.Compiled);
 
     private static readonly HashSet<string> NotANameWord = new(StringComparer.OrdinalIgnoreCase)
     { "contact", "bel", "mail", "neem", "over", "home", "welkom", "meer", "lees", "klik", "diensten", "mijn", "onze", "ons", "het", "een", "ontwerp", "tevreden", "blij", "ervaring", "praktijk", "bureau", "studio", "team", "gratis" };
 
     /// <summary>Words that make a capitalised pair an organisation or a place, not a person: "Gemeente Zwolle", "Bakkerij Boer", "Boer B.V.".</summary>
-    private static readonly Regex OrganisationOrPlace = new(
+    private static readonly Regex OrganisationOrPlace = HuntRegex.New(
         @"^(?:gemeente|provincie|stichting|vereniging|bakkerij|slagerij|kapsalon|restaurant|hotel|café|cafe|holding|groep|bv|b\.v\.|vof|v\.o\.f\.|nv|n\.v\.|advocaten|notarissen|accountants|adviseurs|adviesbureau|"
         + @"zwolle|amsterdam|rotterdam|utrecht|haag|groningen|eindhoven|tilburg|almere|breda|nijmegen|apeldoorn|arnhem|haarlem|enschede|amersfoort|maastricht|leiden|dordrecht|zoetermeer|deventer|"
         + @"nederland|holland|drenthe|friesland|gelderland|overijssel|limburg|brabant|zeeland|flevoland|benelux|europa|international|nederlandse|koninklijke|ministerie|universiteit|hogeschool|ziekenhuis|school)$",
@@ -348,7 +368,7 @@ public class LeadEvidenceService
 
     private static string? CleanName(string raw)
     {
-        var name = Regex.Replace(raw.Trim(' ', ',', '.', '-', '–', '—'), @"\s+", " ");
+        var name = HuntRegex.Replace(raw.Trim(' ', ',', '.', '-', '–', '—'), @"\s+", " ");
         if (name.Length is < 5 or > 60) return null;
         var tokens = name.Split(' ');
         if (tokens.Length is < 2 or > 5) return null;
@@ -356,7 +376,7 @@ public class LeadEvidenceService
         return name;
     }
 
-    private static readonly Regex OrganisationAfterRole = new(@"^\s*(?:van|bij|of|at|,|-|–|—|\|)?\s*(?<org>[A-ZÀ-ÖØ-Þ][\p{L}&'.\-]+(?:\s+[A-ZÀ-ÖØ-Þ][\p{L}&'.\-]+){0,3})", RegexOptions.Compiled);
+    private static readonly Regex OrganisationAfterRole = HuntRegex.New(@"^\s*(?:van|bij|of|at|,|-|–|—|\|)?\s*(?<org>[A-ZÀ-ÖØ-Þ][\p{L}&'.\-]+(?:\s+[A-ZÀ-ÖØ-Þ][\p{L}&'.\-]+){0,3})", RegexOptions.Compiled);
 
     /// <summary>"Marieke de Boer, directeur Bakkerij Boer" on the site of tinevanwel.nl: the role belongs to another organisation than the site's own.</summary>
     private static bool FollowedByOtherOrganisation(string line, Match m, string siteDomain)
@@ -401,6 +421,27 @@ public class LeadEvidenceService
         return m.Success ? char.ToUpperInvariant(m.Value[0]) + m.Value[1..].ToLowerInvariant() : null;
     }
 
+    public const int MaxLineChars = 2000;
+    private const int LineOverlap = 300;
+    private const int MaxWindowsPerLine = 200;
+
+    /// <summary>
+    /// The lines of a text, none longer than <see cref="MaxLineChars"/>: a longer line is cut into overlapping windows (at most 200 per line), so
+    /// a pattern never runs over a very long line in one go and a name on the border of two windows is still seen whole.
+    /// </summary>
+    public static List<string> BoundedLines(string text)
+    {
+        var result = new List<string>();
+        foreach (var line in text.Split('\n'))
+        {
+            if (line.Length <= MaxLineChars) { result.Add(line); continue; }
+            var step = MaxLineChars - LineOverlap;
+            for (int start = 0, w = 0; start < line.Length && w < MaxWindowsPerLine; start += step, w++)
+                result.Add(line.Substring(start, Math.Min(MaxLineChars, line.Length - start)));
+        }
+        return result;
+    }
+
     private static void ExtractOwners(FetchedPage page, EvidenceFacts facts, string siteDomain)
     {
         // The view without testimonials and quotations; each block on its own line.
@@ -408,8 +449,8 @@ public class LeadEvidenceService
         // Each block of the page (a heading, a paragraph, a list item) on its own: a name never runs from one block into the next.
         void Scan(Regex regex, string cue, int rank, int pad, Func<Match, bool>? accept = null)
         {
-            var lines = text.Split('\n');
-            for (var k = 0; k < lines.Length; k++)
+            var lines = BoundedLines(text);
+            for (var k = 0; k < lines.Count; k++)
             {
                 var line = lines[k];
                 // A block that follows a quotation is its signature ("Geweldig werk!" on one line, the name on the next).
@@ -435,8 +476,8 @@ public class LeadEvidenceService
         if (AboutPath.IsMatch(new Uri(page.Url).AbsolutePath))
             foreach (var h in doc.DocumentNode.SelectNodes("//h1|//h2")?.ToList() ?? new List<HtmlNode>())
             {
-                var t = Regex.Replace(WebUtility.HtmlDecode(h.InnerText ?? ""), @"\s+", " ").Trim();
-                if (Regex.IsMatch(t, "^" + NamePattern + "$")) AddOwner(facts, t, "about page heading", 1, page, t);
+                var t = HuntRegex.Replace(WebUtility.HtmlDecode(h.InnerText ?? ""), @"\s+", " ").Trim();
+                if (HuntRegex.IsMatch(t, "^" + NamePattern + "$")) AddOwner(facts, t, "about page heading", 1, page, t);
             }
         // JSON-LD: a Person that is the founder or owner, or that has a role cue as job title. The strongest cue.
         foreach (var script in doc.DocumentNode.SelectNodes("//script[@type='application/ld+json']")?.ToList() ?? new List<HtmlNode>())
@@ -463,7 +504,7 @@ public class LeadEvidenceService
         if (isPerson && el.TryGetProperty("name", out var name) && name.ValueKind == System.Text.Json.JsonValueKind.String)
         {
             var job = el.TryGetProperty("jobTitle", out var jt) ? jt.ToString() : "";
-            if (roleParent || Regex.IsMatch(job, RoleCue, RegexOptions.IgnoreCase))
+            if (roleParent || HuntRegex.IsMatch(job, RoleCue, RegexOptions.IgnoreCase))
                 AddOwner(facts, name.GetString() ?? "", "structured data: founder or owner", 0, page, name.GetString() ?? "");
         }
         foreach (var prop in el.EnumerateObject())
@@ -476,19 +517,19 @@ public class LeadEvidenceService
 
     // ---- "small" ----------------------------------------------------------------------------------------------
 
-    private static readonly Regex SentenceSplit = new(@"(?<=[.!?])\s+|\n", RegexOptions.Compiled);
-    private static readonly Regex FirstPerson = new(@"\b(?:ik|mijn|mij|me|mezelf|ikzelf|i|my)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex Negation = new(@"\b(?:geen|niet|nooit|zonder|not|no)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex PluralOrCustomers = new(@"\b(?:zzp['’]?ers|zzp-ers|zelfstandigen|eenmanszaken)\b|\b(?:voor|aan|bij|helpen|klanten|opdrachtgevers|cliënten|reviews?|testimonial|aanbevelingen?|ervaring van)\b[^.]{0,30}\b(?:zzp|zelfstandig|eenmanszaak)|\b(?:met|van|bij|door|via|voor|aan|tegen)\s+(?:(?:mijn|onze|een|de|deze|die|uw|jouw|je)\s+)?(?:\w+\s+)?(?:zzp|zelfstandig|eenmanszaak)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex SentenceSplit = HuntRegex.New(@"(?<=[.!?])\s+|\n", RegexOptions.Compiled);
+    private static readonly Regex FirstPerson = HuntRegex.New(@"\b(?:ik|mijn|mij|me|mezelf|ikzelf|i|my)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex Negation = HuntRegex.New(@"\b(?:geen|niet|nooit|zonder|not|no)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex PluralOrCustomers = HuntRegex.New(@"\b(?:zzp['’]?ers|zzp-ers|zelfstandigen|eenmanszaken)\b|\b(?:voor|aan|bij|helpen|klanten|opdrachtgevers|cliënten|reviews?|testimonial|aanbevelingen?|ervaring van)\b[^.]{0,30}\b(?:zzp|zelfstandig|eenmanszaak)|\b(?:met|van|bij|door|via|voor|aan|tegen)\s+(?:(?:mijn|onze|een|de|deze|die|uw|jouw|je)\s+)?(?:\w+\s+)?(?:zzp|zelfstandig|eenmanszaak)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     /// <summary>Somebody else is the subject: a husband, a brother, pupils, clients. "Ik ben blij dat mijn man zzp'er is" is not about the owner.</summary>
-    private static readonly Regex OtherSubject = new(@"\b(?:mijn|onze)\s+(?:man|vrouw|broer|zus|zoon|dochter|vader|moeder|partner|collega|collega's|klant|klanten|leerlingen?|kinderen|kind|vriend|vriendin|buurman|ouders)\b|\b(?:hem|haar|hen|leerlingen?|kinderen|kind|cliënten|klanten)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex OtherSubject = HuntRegex.New(@"\b(?:mijn|onze)\s+(?:man|vrouw|broer|zus|zoon|dochter|vader|moeder|partner|collega|collega's|klant|klanten|leerlingen?|kinderen|kind|vriend|vriendin|buurman|ouders)\b|\b(?:hem|haar|hen|leerlingen?|kinderen|kind|cliënten|klanten)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     // The phrase must be the predicate of the owner: "ik ben ... zelfstandig/zzp'er", "ik werk alleen", "ik werk als zelfstandig ...", "mijn eenmanszaak", or a labelled legal form.
-    private static readonly Regex SmallIkBen = new(@"\bik ben\b(?<mid>[^.!?]{0,80}?)\b(?:zzp['’]?er|zelfstandig(?:e)?|eenmanszaak)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex SmallIkWerk = new(@"\bik werk (?:graag )?alleen\b|\bik werk als (?:zelfstandig\w*|zzp\w*)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex SmallMijnEenmanszaak = new(@"\bmijn\s+(?:eigen\s+)?eenmanszaak\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex SmallLegalLine = new(@"\b(?:rechtsvorm|juridische vorm|bedrijfsvorm|legal form)\b\s*[:\-–]?\s*[^.]{0,30}\beenmanszaak\b|\bkvk\b[^.]{0,60}\beenmanszaak\b|\beenmanszaak\b[^.]{0,60}\bkvk\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex SmallOnePerson = new(@"\b(?:één persoon|een[- ]persoons|one[- ]person|solo[- ]?(?:ondernemer|onderneemster))\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex IsOnePerson = new(@"\bis\s+(?:één|een)\s+persoon\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex SmallIkBen = HuntRegex.New(@"\bik ben\b(?<mid>[^.!?]{0,80}?)\b(?:zzp['’]?er|zelfstandig(?:e)?|eenmanszaak)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex SmallIkWerk = HuntRegex.New(@"\bik werk (?:graag )?alleen\b|\bik werk als (?:zelfstandig\w*|zzp\w*)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex SmallMijnEenmanszaak = HuntRegex.New(@"\bmijn\s+(?:eigen\s+)?eenmanszaak\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex SmallLegalLine = HuntRegex.New(@"\b(?:rechtsvorm|juridische vorm|bedrijfsvorm|legal form)\b\s*[:\-–]?\s*[^.]{0,30}\beenmanszaak\b|\bkvk\b[^.]{0,60}\beenmanszaak\b|\beenmanszaak\b[^.]{0,60}\bkvk\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex SmallOnePerson = HuntRegex.New(@"\b(?:één persoon|een[- ]persoons|one[- ]person|solo[- ]?(?:ondernemer|onderneemster))\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex IsOnePerson = HuntRegex.New(@"\bis\s+(?:één|een)\s+persoon\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     /// <summary>
     /// A statement counts only when the OWNER says it about the business: the phrase is the predicate of "ik ben" or "ik werk", it is
@@ -571,7 +612,7 @@ public class LeadEvidenceService
         return folded.Contains(first) && folded.Contains(last);
     }
 
-    private static readonly Regex SmallPhrase = new(
+    private static readonly Regex SmallPhrase = HuntRegex.New(
         @"\b(eenmanszaak|zzp(?:'er|er)?|zelfstandig(?:e)?\b|ik werk (?:graag )?alleen|één persoon|een[- ]persoons|one[- ]person|solo[- ]?ondernemer)",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 

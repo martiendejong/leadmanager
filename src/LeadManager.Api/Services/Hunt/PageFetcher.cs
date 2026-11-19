@@ -149,7 +149,7 @@ public class SafePageFetcher : IPageFetcher
         if (string.IsNullOrEmpty(name))
         {
             var head = Encoding.Latin1.GetString(bytes, 0, Math.Min(bytes.Length, 2048));
-            var m = Regex.Match(head, @"<meta[^>]+charset\s*=\s*[""']?\s*([A-Za-z0-9_\-]+)", RegexOptions.IgnoreCase);
+            var m = HuntRegex.Match(head, @"<meta[^>]+charset\s*=\s*[""']?\s*([A-Za-z0-9_\-]+)", RegexOptions.IgnoreCase);
             if (m.Success) name = m.Groups[1].Value;
         }
         if (!string.IsNullOrEmpty(name))
@@ -172,7 +172,7 @@ public static class HtmlText
     };
 
     /// <summary>Elements that quote somebody else: what stands in them is not the business speaking about itself.</summary>
-    private static readonly System.Text.RegularExpressions.Regex TestimonialMarker = new(
+    private static readonly System.Text.RegularExpressions.Regex TestimonialMarker = HuntRegex.New(
         @"testimonial|review|recensie|quote|referentie|reference|getuigenis|ervaring|klantverhaal|klantreactie|feedback|beoordeling|reactie|aanbeveling|cite",
         System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
 
@@ -199,8 +199,8 @@ public static class HtmlText
     {
         var sb = new System.Text.StringBuilder(64 * 1024);
         Walk(doc.DocumentNode, sb, 0, ownerView);
-        var text = Regex.Replace(sb.ToString(), @"[^\S\n]+", " ");
-        text = Regex.Replace(text, @" ?\n[ \n]*", "\n");
+        var text = HuntRegex.Replace(sb.ToString(), @"[^\S\n]+", " ");
+        text = HuntRegex.Replace(text, @" ?\n[ \n]*", "\n");
         return text.Trim();
     }
 

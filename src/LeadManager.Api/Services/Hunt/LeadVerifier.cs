@@ -117,7 +117,7 @@ public class LeadVerifier
 
     private static string Canon(string url)
     {
-        var u = Regex.Replace(url.ToLowerInvariant(), @"^https?://(www\.)?", "");
+        var u = HuntRegex.Replace(url.ToLowerInvariant(), @"^https?://(www\.)?", "");
         return u.Split('#')[0].Split('?')[0].TrimEnd('/');
     }
 
@@ -275,9 +275,9 @@ public class LeadVerifier
         return false;
     }
 
-    private static readonly Regex LinkedInPersonal = new(@"^https?://(?:[a-z]{2,3}\.|www\.)?linkedin\.com/in/([A-Za-z0-9\-_%.]{2,100})/?$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex LinkedInCompany = new(@"^https?://(?:[a-z]{2,3}\.|www\.)?linkedin\.com/company/([A-Za-z0-9\-_%.]{2,100})/?$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex EmailWhole = new(@"^[A-Za-z0-9._%+\-]{1,64}@[A-Za-z0-9\-]+(?:\.[A-Za-z0-9\-]+)*\.[A-Za-z]{2,}$", RegexOptions.Compiled);
+    private static readonly Regex LinkedInPersonal = HuntRegex.New(@"^https?://(?:[a-z]{2,3}\.|www\.)?linkedin\.com/in/([A-Za-z0-9\-_%.]{2,100})/?$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex LinkedInCompany = HuntRegex.New(@"^https?://(?:[a-z]{2,3}\.|www\.)?linkedin\.com/company/([A-Za-z0-9\-_%.]{2,100})/?$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex EmailWhole = HuntRegex.New(@"^[A-Za-z0-9._%+\-]{1,64}@[A-Za-z0-9\-]+(?:\.[A-Za-z0-9\-]+)*\.[A-Za-z]{2,}$", RegexOptions.Compiled);
 
     /// <summary>
     /// The canonical claim (the value taken from the matching fact the server found on the site) or the reason the claim is dropped.
@@ -375,7 +375,7 @@ public class LeadVerifier
                 }
             case "kvkNumber":
                 {
-                    var m = Regex.Match(claim.Value, @"^\s*(?:kvk[\s:\-]*)?(\d{8})\s*$", RegexOptions.IgnoreCase);
+                    var m = HuntRegex.Match(claim.Value, @"^\s*(?:kvk[\s:\-]*)?(\d{8})\s*$", RegexOptions.IgnoreCase);
                     if (!m.Success) return (null, "Not an 8 digit KvK number.");
                     var fact = facts.Kvk.FirstOrDefault(k => k.Number == m.Groups[1].Value);
                     return fact == null ? (null, "The KvK number is not published on the business's own pages.") : (new Claim("kvkNumber", fact.Number, fact.SourceUrl, fact.Quote), null);
@@ -400,13 +400,13 @@ public class LeadVerifier
         return fact;
     }
 
-    private static readonly Regex ZipWhole = new(@"^\d{4}\s?[A-Za-z]{2}$", RegexOptions.Compiled);
-    private static readonly Regex SocialWhole = new(@"^https://(?:www\.)?(facebook|instagram)\.com/[A-Za-z0-9._\-/]{1,100}$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex ZipWhole = HuntRegex.New(@"^\d{4}\s?[A-Za-z]{2}$", RegexOptions.Compiled);
+    private static readonly Regex SocialWhole = HuntRegex.New(@"^https://(?:www\.)?(facebook|instagram)\.com/[A-Za-z0-9._\-/]{1,100}$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     /// <summary>A text value that must literally stand on ONE page (digits and words are never joined across tokens or pages).</summary>
     private static bool LiteralOnOnePage(string value, SitePages site)
     {
-        var v = Regex.Replace(value, @"\s+", " ").Trim();
+        var v = HuntRegex.Replace(value, @"\s+", " ").Trim();
         return v.Length >= 4 && site.Pages.Any(p => p.Text.Contains(v, StringComparison.OrdinalIgnoreCase));
     }
 
@@ -415,15 +415,15 @@ public class LeadVerifier
     {
         var norm = PhoneNumbers.NormalizeMobileStrict(value);
         if (norm != null) return PublishedMobile(facts, norm, out _) != null ? PhoneNumbers.Format(norm) : null;
-        if (!Regex.IsMatch(value, @"^[0-9 +\-().]{9,20}$")) return null;
-        var digits = Regex.Replace(value, @"\D", "");
+        if (!HuntRegex.IsMatch(value, @"^[0-9 +\-().]{9,20}$")) return null;
+        var digits = HuntRegex.Replace(value, @"\D", "");
         if (digits.Length < 9) return null;
         // A number that is a mobile number in another spelling must pass the mobile rule, not the landline route.
         if (PhoneNumbers.NormalizeMobile(value) != null) return null;
-        var landline = facts.Landlines.FirstOrDefault(l => Regex.Replace(l, @"\D", "") == digits);
-        if (landline != null) return Regex.Replace(landline, @"\s+", " ").Trim();
+        var landline = facts.Landlines.FirstOrDefault(l => HuntRegex.Replace(l, @"\D", "") == digits);
+        if (landline != null) return HuntRegex.Replace(landline, @"\s+", " ").Trim();
         var tail = digits[^9..];
-        return facts.TelNumbers.Any(t => Regex.Replace(t, @"\D", "").EndsWith(tail)) ? value.Trim() : null;
+        return facts.TelNumbers.Any(t => HuntRegex.Replace(t, @"\D", "").EndsWith(tail)) ? value.Trim() : null;
     }
 
     private static void ReadDescriptive(JsonElement root, SitePages site, VerificationResult result)
@@ -537,14 +537,14 @@ public class LeadVerifier
         else if (lead.FoundingYear != null) Drop("foundingYear", $"foundingYear {lead.FoundingYear}", () => lead.FoundingYear = null);
         if (r.Verified.ContainsKey("kvkNumber"))
         {
-            var kvk = Regex.Replace(Val("kvkNumber"), @"\D", "");
+            var kvk = HuntRegex.Replace(Val("kvkNumber"), @"\D", "");
             if (CanWrite("kvkNumber", lead.KvkNumber, kvk) && !Same(lead.KvkNumber, kvk)) { lead.KvkNumber = kvk; written.Add("kvkNumber"); }
         }
 
         if (r.Verified.TryGetValue("smallCompany", out var small))
         {
             if (CanWrite("employeeCount", lead.EmployeeCount, "1") && !Same(lead.EmployeeCount, "1")) { lead.EmployeeCount = "1"; written.Add("employeeCount"); }
-            if (Regex.IsMatch(small.Quote, @"eenmanszaak", RegexOptions.IgnoreCase) && CanWrite("legalForm", lead.LegalForm, "Eenmanszaak") && !Same(lead.LegalForm, "Eenmanszaak")) { lead.LegalForm = "Eenmanszaak"; written.Add("legalForm"); }
+            if (HuntRegex.IsMatch(small.Quote, @"eenmanszaak", RegexOptions.IgnoreCase) && CanWrite("legalForm", lead.LegalForm, "Eenmanszaak") && !Same(lead.LegalForm, "Eenmanszaak")) { lead.LegalForm = "Eenmanszaak"; written.Add("legalForm"); }
         }
         else
         {
