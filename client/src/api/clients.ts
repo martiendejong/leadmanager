@@ -36,6 +36,25 @@ export interface ConvertLeadData {
   notes?: string | null
 }
 
+export interface CreateClientData {
+  name: string
+  plan?: string | null
+  primaryContactName?: string | null
+  primaryContactEmail?: string | null
+  primaryContactPhone?: string | null
+  city?: string | null
+  sector?: string | null
+  website?: string | null
+  notes?: string | null
+  engagementCategory?: string | null
+  projects?: { name: string; description?: string | null; status?: string | null }[]
+}
+
+export async function createClient(data: CreateClientData): Promise<Client> {
+  const res = await apiClient.post<Client>('/api/clients', data)
+  return res.data
+}
+
 export async function getClients(): Promise<Client[]> {
   const res = await apiClient.get<Client[]>('/api/clients')
   return res.data

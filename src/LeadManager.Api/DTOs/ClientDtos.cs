@@ -44,3 +44,18 @@ public record UpdateClientDto(
     string? Website,
     string? Notes,
     string? EngagementCategory);
+
+public record CreateClientProjectDto(string Name, string? Description, string? Status);
+
+public record CreateClientDto(
+    string Name,
+    string? Plan,
+    string? PrimaryContactName,
+    string? PrimaryContactEmail,
+    string? PrimaryContactPhone,
+    string? City,
+    string? Sector,
+    string? Website,
+    string? Notes,
+    string? EngagementCategory,
+    List<CreateClientProjectDto>? Projects = null);

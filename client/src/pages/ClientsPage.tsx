@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { getClients, type Client } from '../api/clients'
+import { Link, useNavigate } from 'react-router-dom'
+import { getClients, createClient, type Client, type CreateClientData } from '../api/clients'
 import { useToast } from '../components/Toast'
-import { EngagementCategoryBadge } from '../components/EngagementCategory'
+import { EngagementCategoryBadge, ENGAGEMENT_CATEGORIES } from '../components/EngagementCategory'
 
 function PlanBadge({ plan }: { plan?: string | null }) {
   if (!plan) return null
@@ -19,10 +19,112 @@ function PlanBadge({ plan }: { plan?: string | null }) {
   )
 }
 
+const EMPTY_FORM: CreateClientData = {
+  name: '', primaryContactName: '', primaryContactEmail: '', primaryContactPhone: '',
+  city: '', sector: '', website: '', notes: '', engagementCategory: '',
+}
+
+function NewClientDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (c: Client) => void }) {
+  const { showToast } = useToast()
+  const [form, setForm] = useState<CreateClientData>(EMPTY_FORM)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const set = (key: keyof CreateClientData) => (e: { target: { value: string } }) =>
+    setForm((f) => ({ ...f, [key]: e.target.value }))
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault()
+    if (saving) return
+    if (!form.name.trim()) { setError('Naam is verplicht.'); return }
+    setSaving(true)
+    setError(null)
+    try {
+      const client = await createClient(form)
+      showToast('Klant toegevoegd', 'success')
+      onCreated(client)
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
+      setError(msg ?? 'Toevoegen mislukt')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !saving) onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [saving, onClose])
+
+  const input = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500'
+  const label = 'block text-xs font-medium text-gray-600 mb-1'
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="nc-title">
+      <form onSubmit={submit} className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 space-y-4">
+        <h2 id="nc-title" className="text-lg font-semibold text-gray-900">Nieuwe klant</h2>
+        <div>
+          <label className={label} htmlFor="nc-name">Naam *</label>
+          <input id="nc-name" className={input} value={form.name} onChange={set('name')} autoFocus maxLength={200} required />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={label} htmlFor="nc-contact">Contactpersoon</label>
+            <input id="nc-contact" className={input} value={form.primaryContactName ?? ''} onChange={set('primaryContactName')} maxLength={200} />
+          </div>
+          <div>
+            <label className={label} htmlFor="nc-phone">Telefoon</label>
+            <input id="nc-phone" className={input} value={form.primaryContactPhone ?? ''} onChange={set('primaryContactPhone')} maxLength={200} />
+          </div>
+        </div>
+        <div>
+          <label className={label} htmlFor="nc-email">E-mail</label>
+          <input id="nc-email" type="email" className={input} value={form.primaryContactEmail ?? ''} onChange={set('primaryContactEmail')} />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={label} htmlFor="nc-city">Plaats</label>
+            <input id="nc-city" className={input} value={form.city ?? ''} onChange={set('city')} maxLength={200} />
+          </div>
+          <div>
+            <label className={label} htmlFor="nc-sector">Sector</label>
+            <input id="nc-sector" className={input} value={form.sector ?? ''} onChange={set('sector')} maxLength={200} />
+          </div>
+        </div>
+        <div>
+          <label className={label} htmlFor="nc-site">Website</label>
+          <input id="nc-site" className={input} value={form.website ?? ''} onChange={set('website')} placeholder="bedrijf.nl" />
+        </div>
+        <div>
+          <label className={label} htmlFor="nc-cat">Omgang</label>
+          <select id="nc-cat" className={input} value={form.engagementCategory ?? ''} onChange={set('engagementCategory')}>
+            <option value="">Nog niet bepaald</option>
+            {ENGAGEMENT_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className={label} htmlFor="nc-notes">Notities</label>
+          <textarea id="nc-notes" rows={3} className={input} value={form.notes ?? ''} onChange={set('notes')} maxLength={4000} />
+        </div>
+        {error && <p className="text-sm text-red-600" role="alert">{error}</p>}
+        <div className="flex justify-end gap-2 pt-2">
+          <button type="button" onClick={onClose} disabled={saving} className="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">Annuleren</button>
+          <button type="submit" disabled={saving} className="px-4 py-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">
+            {saving ? 'Opslaan...' : 'Klant toevoegen'}
+          </button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
 export default function ClientsPage() {
   const { showToast } = useToast()
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
+  const [showNew, setShowNew] = useState(false)
+  const navigate = useNavigate()
 
   useEffect(() => {
     getClients()
@@ -46,6 +148,12 @@ export default function ClientsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Klanten</h1>
           <p className="text-sm text-gray-500 mt-1">{clients.length} klant{clients.length !== 1 ? 'en' : ''}</p>
         </div>
+        <button
+          onClick={() => setShowNew(true)}
+          className="px-4 py-2 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
+        >
+          + Nieuwe klant
+        </button>
       </div>
 
       {clients.length === 0 ? (
@@ -54,7 +162,7 @@ export default function ClientsPage() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
           <p className="text-sm font-medium">Nog geen klanten</p>
-          <p className="text-xs mt-1 text-gray-400">Converteer een lead naar klant om hier te beginnen.</p>
+          <p className="text-xs mt-1 text-gray-400">Voeg een klant toe, of converteer een lead naar klant.</p>
           <Link to="/leads" className="mt-4 inline-block text-sm text-indigo-600 hover:underline">
             Naar leads →
           </Link>
@@ -119,6 +227,12 @@ export default function ClientsPage() {
             </Link>
           ))}
         </div>
+      )}
+      {showNew && (
+        <NewClientDialog
+          onClose={() => setShowNew(false)}
+          onCreated={(c) => { setShowNew(false); navigate(`/clients/${c.id}`) }}
+        />
       )}
     </div>
   )
