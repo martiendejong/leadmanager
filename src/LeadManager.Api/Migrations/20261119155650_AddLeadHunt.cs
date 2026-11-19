@@ -26,7 +26,6 @@ namespace LeadManager.Api.Migrations
                     TargetCount = table.Column<int>(type: "INTEGER", nullable: false),
                     MaxCandidates = table.Column<int>(type: "INTEGER", nullable: false),
                     Ratchet = table.Column<bool>(type: "INTEGER", nullable: false),
-                    ConfirmClear = table.Column<bool>(type: "INTEGER", nullable: false),
                     LeadIds = table.Column<string>(type: "TEXT", nullable: false),
                     Total = table.Column<int>(type: "INTEGER", nullable: false),
                     Screened = table.Column<int>(type: "INTEGER", nullable: false),
@@ -83,13 +82,6 @@ namespace LeadManager.Api.Migrations
                 name: "IX_HuntCandidates_LeadId",
                 table: "HuntCandidates",
                 column: "LeadId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_HuntJobs_OneActivePerUser",
-                table: "HuntJobs",
-                column: "UserId",
-                unique: true,
-                filter: "\"Status\" IN ('Pending', 'Running')");
 
             migrationBuilder.CreateIndex(
                 name: "IX_HuntJobs_UserId_CreatedAt",
