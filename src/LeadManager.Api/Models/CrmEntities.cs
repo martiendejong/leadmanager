@@ -45,6 +45,8 @@ public class Interaction
     public Guid? LeadId { get; set; }
     public Guid? ClientId { get; set; }
     public Guid? ContactId { get; set; }
+    /// <summary>Optional: the client project this item belongs to (clients only).</summary>
+    public Guid? ProjectId { get; set; }
     public InteractionKind Kind { get; set; } = InteractionKind.Note;
     public InteractionDirection Direction { get; set; } = InteractionDirection.Outbound;
     public DateTime OccurredAt { get; set; } = DateTime.UtcNow;

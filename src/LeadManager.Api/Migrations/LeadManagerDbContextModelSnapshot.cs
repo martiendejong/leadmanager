@@ -544,6 +544,9 @@ namespace LeadManager.Api.Migrations
                     b.Property<string>("Outcome")
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid?>("ProjectId")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("SourceRef")
                         .HasColumnType("TEXT");
 
@@ -566,6 +569,8 @@ namespace LeadManager.Api.Migrations
                     b.HasIndex("LeadId", "SourceRef")
                         .IsUnique()
                         .HasFilter("\"LeadId\" IS NOT NULL AND \"SourceRef\" IS NOT NULL");
+
+                    b.HasIndex("ProjectId", "OccurredAt");
 
                     b.ToTable("Interactions", t =>
                         {
@@ -1370,6 +1375,11 @@ namespace LeadManager.Api.Migrations
                         .WithMany()
                         .HasForeignKey("LeadId")
                         .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("LeadManager.Api.Models.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("LeadManager.Api.Models.LeadActivity", b =>

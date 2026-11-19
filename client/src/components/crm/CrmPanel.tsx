@@ -293,6 +293,7 @@ function TimelineCard({ items }: { items: TimelineItem[] }) {
                     <span className="text-xs text-gray-400">{i.direction === 'Inbound' ? 'inkomend' : 'uitgaand'}</span>
                   )}
                   {i.outcome && <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700">{i.outcome}</span>}
+                  {i.projectName && <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{i.projectName}</span>}
                   <span className="text-xs text-gray-400 ml-auto">{fmtDateTime(i.at)}</span>
                 </div>
                 {i.summary && <p className="text-gray-600 whitespace-pre-wrap break-words">{i.summary}</p>}

@@ -173,6 +173,6 @@ public class ClientsController : ControllerBase
         c.CreatedByUserId,
         c.CreatedAt,
         c.IsActive,
-        c.Projects.Select(p => new ProjectDto(p.Id, p.Name, p.Description, p.Status, p.CreatedAt)).ToList()
+        c.Projects.OrderBy(p => p.CreatedAt).Select(p => new ProjectDto(p.Id, p.Name, p.Description, p.Status, p.CreatedAt)).ToList()
     );
 }
