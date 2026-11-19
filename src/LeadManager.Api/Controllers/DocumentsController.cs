@@ -168,6 +168,7 @@ public class DocumentsController : ControllerBase
 
     // DELETE /api/documents/{id}  (its files go too; documents that followed from it stay, without the link)
     [HttpDelete("api/documents/{id:guid}")]
+    [DenyApiKey]
     public async Task<IActionResult> Delete(Guid id)
     {
         var doc = await FindOwned(id);
@@ -240,6 +241,7 @@ public class DocumentsController : ControllerBase
 
     // GET /api/documents/files/{fileId}  (always a download, never rendered by the browser)
     [HttpGet("api/documents/files/{fileId:guid}")]
+    [DenyApiKey]
     public async Task<IActionResult> Download(Guid fileId)
     {
         var row = await FindOwnedFile(fileId);
@@ -254,6 +256,7 @@ public class DocumentsController : ControllerBase
 
     // DELETE /api/documents/files/{fileId}
     [HttpDelete("api/documents/files/{fileId:guid}")]
+    [DenyApiKey]
     public async Task<IActionResult> DeleteFile(Guid fileId)
     {
         var row = await FindOwnedFile(fileId);

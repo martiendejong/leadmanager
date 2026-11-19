@@ -242,4 +242,30 @@ public class DocumentsTests : IDisposable
     [InlineData("a.svg")]
     [InlineData("noextension")]
     public void ContentType_RefusesRiskyTypes(string name) => Assert.Null(DocumentStorage.ContentTypeFor(name));
+
+    [Fact]
+    public void DownloadAndDeletes_StayClosedToApiKeys()
+    {
+        foreach (var action in new[] { nameof(DocumentsController.Download), nameof(DocumentsController.DeleteFile), nameof(DocumentsController.Delete) })
+            Assert.NotNull(typeof(DocumentsController).GetMethod(action)!.GetCustomAttributes(typeof(DenyApiKeyAttribute), false).FirstOrDefault());
+    }
+
+    [Fact]
+    public void CleanName_DropsBidiOverridesAndPaths()
+    {
+        Assert.Equal("reportfdp.exe", DocumentStorage.CleanName("report\u202Efdp.exe"));
+        Assert.Equal("c.pdf", DocumentStorage.CleanName("a/b\\c.pdf"));
+        Assert.Equal("document", DocumentStorage.CleanName("   "));
+    }
+
+    [Fact]
+    public async Task RootWithTrailingSlash_StillWorks()
+    {
+        var storage = new DocumentStorage(new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["Documents:Path"] = _root + Path.DirectorySeparatorChar }).Build());
+        await using var content = new MemoryStream(Encoding.UTF8.GetBytes("x"));
+        var (path, size, _) = await storage.SaveAsync(content, CancellationToken.None);
+        Assert.Equal(1, size);
+        using var stream = storage.Open(path);
+        Assert.NotNull(stream);
+    }
 }

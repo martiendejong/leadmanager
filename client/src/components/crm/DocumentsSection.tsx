@@ -254,10 +254,13 @@ function DocumentCard({
     if (!files || files.length === 0) return
     setUploading(true)
     try {
-      for (const file of Array.from(files)) await uploadDocumentFile(doc.id, file)
-      onChanged()
-    } catch (err) {
-      showToast(errorMessage(err, 'Uploaden mislukt'), 'error')
+      for (const file of Array.from(files)) {
+        try {
+          await uploadDocumentFile(doc.id, file)
+        } catch (err) {
+          showToast(`${file.name}: ${errorMessage(err, 'uploaden mislukt')}`, 'error')
+        }
+      }
       onChanged()
     } finally {
       setUploading(false)
@@ -314,11 +317,16 @@ function DocumentCard({
         {doc.files.map((f) => <FileRow key={f.id} file={f} onChanged={onChanged} />)}
       </ul>
       <div className="mt-2">
-        <input ref={fileInput} type="file" multiple className="hidden" id={`up-${doc.id}`} onChange={(e) => upload(e.target.files)}
+        <input ref={fileInput} type="file" multiple className="hidden" id={`up-${doc.id}`} tabIndex={-1} aria-label={`Bestand kiezen voor ${doc.title}`} onChange={(e) => upload(e.target.files)}
           accept=".pdf,.doc,.docx,.xls,.xlsx,.odt,.ods,.txt,.png,.jpg,.jpeg,.eml,.msg" />
-        <label htmlFor={`up-${doc.id}`} className={`${ghostBtn} cursor-pointer inline-block border border-dashed border-gray-300`}>
+        <button
+          type="button"
+          onClick={() => fileInput.current?.click()}
+          disabled={uploading}
+          className={`${ghostBtn} border border-dashed border-gray-300`}
+        >
           {uploading ? 'Uploaden...' : '+ Bestand toevoegen (max 25 MB)'}
-        </label>
+        </button>
       </div>
     </li>
   )
@@ -330,10 +338,21 @@ export default function DocumentsSection({ clientId, projects }: { clientId: str
   const [docs, setDocs] = useState<ClientDocument[] | null>(null)
   const [form, setForm] = useState<FormState | null>(null)
 
+  const latest = useRef(0)
   const load = useCallback(() => {
+    const ticket = ++latest.current
     getDocuments(clientId)
-      .then(setDocs)
-      .catch((err) => { showToast(errorMessage(err, 'Dossier laden mislukt'), 'error'); setDocs([]) })
+      .then((d) => {
+        if (ticket !== latest.current) return
+        setDocs(d)
+        // A form for a document that no longer exists must not stay open.
+        setForm((f) => (f?.id && !d.some((x) => x.id === f.id) ? null : f))
+      })
+      .catch((err) => {
+        if (ticket !== latest.current) return
+        showToast(errorMessage(err, 'Dossier laden mislukt'), 'error')
+        setDocs([])
+      })
   }, [clientId, showToast])
 
   useEffect(load, [load])

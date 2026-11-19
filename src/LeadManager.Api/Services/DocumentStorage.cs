@@ -35,9 +35,9 @@ public class DocumentStorage
     public DocumentStorage(IConfiguration config)
     {
         var configured = config["Documents:Path"];
-        _root = Path.GetFullPath(string.IsNullOrWhiteSpace(configured)
+        _root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(string.IsNullOrWhiteSpace(configured)
             ? Path.Combine(AppContext.BaseDirectory, "documents")
-            : configured);
+            : configured));
     }
 
     public static string AllowedExtensions => string.Join(", ", Allowed.Keys);
@@ -53,7 +53,8 @@ public class DocumentStorage
     public static string CleanName(string? fileName)
     {
         var name = Path.GetFileName((fileName ?? "").Replace('\\', '/'));
-        name = new string(name.Where(c => !char.IsControl(c)).ToArray()).Trim();
+        name = new string(name.Where(c => !char.IsControl(c)
+            && System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.Format).ToArray()).Trim();
         if (name.Length > 200) name = name[^200..];
         return name.Length == 0 ? "document" : name;
     }

@@ -92,6 +92,7 @@ export async function uploadDocumentFile(id: string, file: File, label?: string)
   const form = new FormData()
   form.append('file', file)
   if (label) form.append('label', label)
+  // axios drops this header for FormData so the browser can add the multipart boundary itself.
   const res = await apiClient.post<DocumentFile>(`/api/documents/${id}/files`, form, {
     headers: { 'Content-Type': 'multipart/form-data' },
   })
@@ -104,8 +105,24 @@ export async function deleteDocumentFile(fileId: string): Promise<void> {
 
 /** Downloads through the API client so the login token is sent; a plain link would not carry it. */
 export async function downloadDocumentFile(file: DocumentFile): Promise<void> {
-  const res = await apiClient.get<Blob>(`/api/documents/files/${file.id}`, { responseType: 'blob' })
-  const url = URL.createObjectURL(res.data)
+  let blob: Blob
+  try {
+    const res = await apiClient.get<Blob>(`/api/documents/files/${file.id}`, { responseType: 'blob' })
+    blob = res.data
+  } catch (err) {
+    // With responseType blob an error body is a Blob too: read the message out of it.
+    const data = (err as { response?: { data?: unknown } })?.response?.data
+    if (data instanceof Blob) {
+      try {
+        const text = JSON.parse(await data.text()) as { error?: string }
+        if (text.error) throw Object.assign(new Error(text.error), { response: { data: text.error } })
+      } catch (inner) {
+        if (inner instanceof Error && 'response' in inner) throw inner
+      }
+    }
+    throw err
+  }
+  const url = URL.createObjectURL(blob)
   try {
     const a = document.createElement('a')
     a.href = url
