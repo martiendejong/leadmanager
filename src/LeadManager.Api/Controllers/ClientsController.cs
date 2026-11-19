@@ -11,6 +11,7 @@ namespace LeadManager.Api.Controllers;
 [Route("api/clients")]
 [ApiController]
 [Authorize]
+[AllowApiKey]
 public class ClientsController : ControllerBase
 {
     private readonly LeadManagerDbContext _db;
@@ -71,6 +72,27 @@ public class ClientsController : ControllerBase
         return Ok(MapClientDto(client));
     }
 
+    /// <summary>Shared by create and update: the same rules whoever calls (the app, an API key, an agent).</summary>
+    private static string? CheckFields(string? rawName, string? rawWebsite, string? rawCategory, string? rawEmail, string? rawNotes,
+        string?[] shortFields, out string name, out string? website, out string? category, out string? email, out string? notes)
+    {
+        name = CrmRules.Clean(rawName) ?? "";
+        website = CrmRules.Clean(rawWebsite);
+        category = CrmRules.Clean(rawCategory);
+        email = CrmRules.Clean(rawEmail);
+        notes = CrmRules.Clean(rawNotes);
+
+        if (name == "") return "Naam is verplicht.";
+        if (CrmRules.TooLong(name, CrmRules.MaxName)) return "Naam is te lang.";
+        if (website != null && !website.Contains("://")) website = "https://" + website;
+        if (website != null && !CrmRules.IsSafeHttpUrl(website)) return "Website moet een geldig http(s)-adres zijn.";
+        if (category != null && !new[] { "Actief", "Beheercontract", "Reactief" }.Contains(category)) return "Onbekende omgangscategorie.";
+        if (email != null && (email.Length > 320 || !System.Net.Mail.MailAddress.TryCreate(email, out _))) return "E-mailadres is niet geldig.";
+        if (shortFields.Select(CrmRules.Clean).Any(f => CrmRules.TooLong(f, CrmRules.MaxName)) || CrmRules.TooLong(notes, CrmRules.MaxNotes))
+            return "Een veld is te lang.";
+        return null;
+    }
+
     // POST /api/clients  (a client that did not come from a lead conversion)
     [HttpPost]
     public async Task<IActionResult> CreateClient([FromBody] CreateClientDto dto)
@@ -78,27 +100,10 @@ public class ClientsController : ControllerBase
         var userId = GetCurrentUserId();
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-        var name = CrmRules.Clean(dto.Name);
-        if (name == null) return BadRequest(new { error = "Naam is verplicht." });
-        if (CrmRules.TooLong(name, CrmRules.MaxName)) return BadRequest(new { error = "Naam is te lang." });
-
-        var website = CrmRules.Clean(dto.Website);
-        if (website != null && !website.Contains("://")) website = "https://" + website;
-        if (website != null && !CrmRules.IsSafeHttpUrl(website))
-            return BadRequest(new { error = "Website moet een geldig http(s)-adres zijn." });
-
-        var category = CrmRules.Clean(dto.EngagementCategory);
-        if (category != null && !new[] { "Actief", "Beheercontract", "Reactief" }.Contains(category))
-            return BadRequest(new { error = "Onbekende omgangscategorie." });
-
-        var email = CrmRules.Clean(dto.PrimaryContactEmail);
-        if (email != null && (email.Length > 320 || !System.Net.Mail.MailAddress.TryCreate(email, out _)))
-            return BadRequest(new { error = "E-mailadres is niet geldig." });
-
-        var notes = CrmRules.Clean(dto.Notes);
-        var fields = new[] { dto.Plan, dto.PrimaryContactName, dto.PrimaryContactPhone, dto.City, dto.Sector }.Select(CrmRules.Clean);
-        if (fields.Any(f => CrmRules.TooLong(f, CrmRules.MaxName)) || CrmRules.TooLong(notes, CrmRules.MaxNotes))
-            return BadRequest(new { error = "Een veld is te lang." });
+        var error = CheckFields(dto.Name, dto.Website, dto.EngagementCategory, dto.PrimaryContactEmail, dto.Notes,
+            new[] { dto.Plan, dto.PrimaryContactName, dto.PrimaryContactPhone, dto.City, dto.Sector },
+            out var name, out var website, out var category, out var email, out var notes);
+        if (error != null) return BadRequest(new { error });
 
         // Same name for the same owner is almost always a double click, not a second client.
         var exists = await _db.Clients.AnyAsync(c => c.CreatedByUserId == userId && c.Name.ToLower() == name.ToLower());
@@ -147,16 +152,21 @@ public class ClientsController : ControllerBase
 
         if (client == null) return NotFound();
 
-        client.Name = dto.Name;
-        client.Plan = dto.Plan;
-        client.PrimaryContactName = dto.PrimaryContactName;
-        client.PrimaryContactEmail = dto.PrimaryContactEmail;
-        client.PrimaryContactPhone = dto.PrimaryContactPhone;
-        client.City = dto.City;
-        client.Sector = dto.Sector;
-        client.Website = dto.Website;
-        client.Notes = dto.Notes;
-        client.EngagementCategory = dto.EngagementCategory;
+        var error = CheckFields(dto.Name, dto.Website, dto.EngagementCategory, dto.PrimaryContactEmail, dto.Notes,
+            new[] { dto.Plan, dto.PrimaryContactName, dto.PrimaryContactPhone, dto.City, dto.Sector },
+            out var name, out var website, out var category, out var email, out var notes);
+        if (error != null) return BadRequest(new { error });
+
+        client.Name = name;
+        client.Plan = CrmRules.Clean(dto.Plan);
+        client.PrimaryContactName = CrmRules.Clean(dto.PrimaryContactName);
+        client.PrimaryContactEmail = email;
+        client.PrimaryContactPhone = CrmRules.Clean(dto.PrimaryContactPhone);
+        client.City = CrmRules.Clean(dto.City);
+        client.Sector = CrmRules.Clean(dto.Sector);
+        client.Website = website;
+        client.Notes = notes;
+        client.EngagementCategory = category;
 
         await _db.SaveChangesAsync();
         return Ok(MapClientDto(client));
@@ -182,6 +192,7 @@ public class ClientsController : ControllerBase
 
     // DELETE /api/clients/{id}
     [HttpDelete("{id:guid}")]
+    [DenyApiKey]
     public async Task<IActionResult> DeleteClient(Guid id)
     {
         var userId = GetCurrentUserId();

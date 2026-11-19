@@ -90,6 +90,7 @@ public class LeadManagerMcpController : McpControllerBase
                 occurred_at = Str("ISO 8601 time; default now. Without a zone it is read as UTC."),
                 source_ref = Str("Id in the source system (e.g. mail:3:Sent:409). Logging the same source_ref twice returns the first."),
                 contact_id = Str("Optional contact of this lead or client"),
+                project_id = Str("Optional: a project of this client; the item then also shows in that project's history"),
             },
             "parent_id", "kind", "summary"),
         Tool("add_next_action",
@@ -114,6 +115,39 @@ public class LeadManagerMcpController : McpControllerBase
                 name = Str("Full name"), role = Str("Role"), email = Str("E-mail"), phone = Str("Phone"), mobile = Str("Mobile"),
             },
             "parent_id", "name"),
+        Tool("list_clients",
+            "All clients, highest priority first, with priority score, next action and last contact. Optional text filter on name.",
+            new { query = Str("Optional: part of the client name") }),
+        Tool("create_client",
+            "Create a client by hand (not from a lead). Refuses a second client with the same name.",
+            new
+            {
+                name = Str("Client name"), contact_name = Str("Main contact"), email = Str("Contact e-mail"), phone = Str("Contact phone"),
+                city = Str("City"), sector = Str("Sector"), website = Str("Website"), notes = Str("Notes"),
+                engagement_category = new { type = "string", @enum = new[] { "Actief", "Beheercontract", "Reactief" } },
+            },
+            "name"),
+        Tool("set_client_priority",
+            "Set the priority sub-scores of a client: score = value x urgency / effort squared. Values 1-144 are snapped to the Fibonacci scale; omit one to clear it.",
+            new
+            {
+                client_id = Str("Id of the client"),
+                value = new { type = "integer", description = "Value: revenue, strategic importance" },
+                urgency = new { type = "integer", description = "Urgency: how soon" },
+                effort = new { type = "integer", description = "Effort: how much work" },
+            },
+            "client_id"),
+        Tool("create_project",
+            "Add a project to a client. Its history is the client's log items that carry the project id.",
+            new
+            {
+                client_id = Str("Id of the client"), name = Str("Project name"), description = Str("Short description"),
+                status = new { type = "string", @enum = new[] { "Active", "On Hold", "Completed" } },
+            },
+            "client_id", "name"),
+        Tool("list_actions",
+            "All open next actions over leads and clients in a period, with parent name. Default: everything open up to a year ahead.",
+            new { from = Str("ISO 8601 start (optional)"), to = Str("ISO 8601 end (optional)"), include_done = new { type = "boolean" } }),
         Tool("link_item",
             "Link a lead or client to something in another Jengo tool: a JengoWork board or task, a JengoKnowledge project, a mail thread, a Meet session.",
             new
@@ -174,10 +208,12 @@ public class LeadManagerMcpController : McpControllerBase
                     var parent = ParentArgs(args, out var error);
                     if (parent == null) return (error!, true);
                     if (!TryDate(args, "occurred_at", out var at, out error)) return (error!, true);
+                    if (!TryOptionalGuid(args, "project_id", out var projectId, out error) || !TryOptionalGuid(args, "contact_id", out var contactId, out error))
+                        return (error!, true);
                     return Present(await As(new InteractionsController(_db, _access), userId).Create(
                         parent.Value.type, parent.Value.id,
                         new CreateInteractionDto(ArgStr(args, "kind") ?? "", ArgStr(args, "direction"), at,
-                            ArgStr(args, "summary") ?? "", ArgStr(args, "outcome"), ArgGuid(args, "contact_id"), ArgStr(args, "source_ref"))));
+                            ArgStr(args, "summary") ?? "", ArgStr(args, "outcome"), contactId, ArgStr(args, "source_ref"), projectId)));
                 }
 
                 case "add_next_action":
@@ -209,6 +245,60 @@ public class LeadManagerMcpController : McpControllerBase
                         parent.Value.type, parent.Value.id,
                         new UpsertContactDto(ArgStr(args, "name") ?? "", ArgStr(args, "role"), ArgStr(args, "email"),
                             ArgStr(args, "phone"), ArgStr(args, "mobile"), null, null, null)));
+                }
+
+                case "list_clients":
+                {
+                    var result = await As(new ClientsController(_db), userId).GetClients();
+                    var query = ArgStr(args, "query");
+                    if (result is OkObjectResult { Value: IEnumerable<ClientDto> clients })
+                    {
+                        var rows = clients
+                            .Where(c => string.IsNullOrWhiteSpace(query) || c.Name.Contains(query.Trim(), StringComparison.OrdinalIgnoreCase))
+                            .OrderByDescending(c => c.Score).ThenBy(c => c.Name)
+                            .Take(500)
+                            .Select(c => new
+                            {
+                                c.Id, c.Name, c.Score, c.PriorityValue, c.PriorityUrgency, c.PriorityEffort, c.EngagementCategory,
+                                c.PrimaryContactName, c.PrimaryContactEmail, c.Website, c.NextActionAt, c.LastContactAt,
+                                projects = c.Projects.Select(p => new { p.Id, p.Name, p.Status }),
+                            });
+                        return (Serialize(rows), false);
+                    }
+                    return Present(result);
+                }
+
+                case "create_client":
+                    return Present(await As(new ClientsController(_db), userId).CreateClient(new CreateClientDto(
+                        ArgStr(args, "name") ?? "", null, ArgStr(args, "contact_name"), ArgStr(args, "email"), ArgStr(args, "phone"),
+                        ArgStr(args, "city"), ArgStr(args, "sector"), ArgStr(args, "website"), ArgStr(args, "notes"),
+                        ArgStr(args, "engagement_category"))));
+
+                case "set_client_priority":
+                {
+                    var id = ArgGuid(args, "client_id");
+                    if (id == null) return ("client_id is required and must be a GUID", true);
+                    if (!TryInt(args, "value", out var value, out var intError) || !TryInt(args, "urgency", out var urgency, out intError)
+                        || !TryInt(args, "effort", out var effort, out intError))
+                        return (intError!, true);
+                    return Present(await As(new ClientsController(_db), userId).UpdatePriority(id.Value,
+                        new UpdatePriorityDto(value, urgency, effort)));
+                }
+
+                case "create_project":
+                {
+                    var id = ArgGuid(args, "client_id");
+                    if (id == null) return ("client_id is required and must be a GUID", true);
+                    return Present(await As(new ProjectsController(_db), userId).Create(id.Value,
+                        new UpsertProjectDto(ArgStr(args, "name") ?? "", ArgStr(args, "description"), ArgStr(args, "status"))));
+                }
+
+                case "list_actions":
+                {
+                    if (!TryDate(args, "from", out var from, out var error) || !TryDate(args, "to", out var to, out error))
+                        return (error!, true);
+                    var includeDone = args.ValueKind == JsonValueKind.Object && args.TryGetProperty("include_done", out var d) && d.ValueKind == JsonValueKind.True;
+                    return Present(await As(new NextActionsController(_db, _access), userId).Range(from, to, includeDone));
                 }
 
                 case "link_item":
@@ -253,7 +343,9 @@ public class LeadManagerMcpController : McpControllerBase
             details = await _db.Clients.Where(c => c.Id == parent.Value.id).Select(c => new
             {
                 type = "client", c.Id, c.Name, c.Website, c.Sector, c.City, c.PrimaryContactName, c.PrimaryContactEmail,
-                c.PrimaryContactPhone, c.Plan, c.IsActive,
+                c.PrimaryContactPhone, c.Plan, c.IsActive, c.Notes, c.EngagementCategory,
+                c.PriorityValue, c.PriorityUrgency, c.PriorityEffort,
+                projects = c.Projects.OrderBy(p => p.CreatedAt).Select(p => new { p.Id, p.Name, p.Description, p.Status }).ToList(),
             }).FirstAsync();
         }
 
@@ -304,6 +396,32 @@ public class LeadManagerMcpController : McpControllerBase
         var id = ArgGuid(args, "parent_id");
         if (id == null) { error = "parent_id is required and must be a GUID"; return null; }
         return (type, id.Value);
+    }
+
+    /// <summary>
+    /// Optional integer argument. Absent or null is fine (null); present but not a whole number is an error, so
+    /// "value": "8" can never be mistaken for "clear the score".
+    /// </summary>
+    private static bool TryInt(JsonElement args, string name, out int? value, out string? error)
+    {
+        value = null;
+        error = null;
+        if (args.ValueKind != JsonValueKind.Object || !args.TryGetProperty(name, out var v) || v.ValueKind == JsonValueKind.Null) return true;
+        if (v.ValueKind == JsonValueKind.Number && v.TryGetInt32(out var i)) { value = i; return true; }
+        error = $"{name} must be a whole number";
+        return false;
+    }
+
+    /// <summary>Optional GUID argument: absent or empty is fine, a value that is not a GUID is an error.</summary>
+    private static bool TryOptionalGuid(JsonElement args, string name, out Guid? value, out string? error)
+    {
+        value = null;
+        error = null;
+        var text = ArgStr(args, name);
+        if (string.IsNullOrWhiteSpace(text)) return true;
+        if (Guid.TryParse(text, out var g)) { value = g; return true; }
+        error = $"{name} must be a GUID";
+        return false;
     }
 
     private static Guid? ArgGuid(JsonElement args, string name) =>

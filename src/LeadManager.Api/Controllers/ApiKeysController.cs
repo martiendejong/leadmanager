@@ -44,6 +44,7 @@ public class ApiKeysController : ControllerBase
         var userId = GetCurrentUserId();
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
         if (string.IsNullOrWhiteSpace(dto.Name)) return BadRequest("Name is required");
+        if (dto.Name.Trim().Length > 100) return BadRequest("Name is too long (max 100)");
 
         var key = ApiKeyDefaults.Generate();
         var record = new ApiKey
