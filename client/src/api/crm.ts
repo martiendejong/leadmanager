@@ -219,7 +219,9 @@ export function safeHref(url: string | null | undefined): string | undefined {
 
 export function errorMessage(err: unknown, fallback: string): string {
   const data = (err as { response?: { data?: unknown } })?.response?.data
-  return typeof data === 'string' && data ? data : fallback
+  if (typeof data === 'string' && data) return data
+  const msg = (data as { error?: unknown } | undefined)?.error
+  return typeof msg === 'string' && msg ? msg : fallback
 }
 
 export interface ActionRow {

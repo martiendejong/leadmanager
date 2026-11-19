@@ -211,4 +211,14 @@ public class PriorityAndFeedTests : IDisposable
     [InlineData("0123456789012345678901234567890123456789ABCDEFGH")]
     public async Task Ics_UnknownToken_IsNotFound(string token) =>
         Assert.IsType<NotFoundResult>(await Feed().Ics(token));
+
+    [Fact]
+    public async Task Range_KeepsOldOverdueOpenActionsVisible()
+    {
+        var c = SeedClient();
+        _db.NextActions.Add(new NextAction { ClientId = c.Id, Title = "heel oud", DueAt = DateTime.UtcNow.AddDays(-200), AssignedToUserId = "me" });
+        await _db.SaveChangesAsync();
+        var rows = Assert.IsAssignableFrom<IEnumerable<ActionRowDto>>(Assert.IsType<OkObjectResult>(await Actions().Range(null, null)).Value);
+        Assert.Contains(rows, r => r.Title == "heel oud" && r.Overdue);
+    }
 }

@@ -122,9 +122,11 @@ public class NextActionsController : CrmControllerBase
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
         var now = DateTime.UtcNow;
-        var start = UtcDateTimeConverter.Normalize(from ?? now.AddDays(-30));
+        // Open actions are never cut off at the back: an overdue action must stay visible however old it is.
+        var open = !includeDone;
+        var start = UtcDateTimeConverter.Normalize(from ?? (open ? new DateTime(2000, 1, 1) : now.AddDays(-30)));
         var end = UtcDateTimeConverter.Normalize(to ?? now.AddDays(365));
-        if (end < start || (end - start).TotalDays > 800) return BadRequest("Invalid period");
+        if (end < start || (from.HasValue && (end - start).TotalDays > 800)) return BadRequest("Invalid period");
 
         var query = _db.NextActions.Where(a => a.AssignedToUserId == userId && a.DueAt >= start && a.DueAt <= end);
         if (!includeDone) query = query.Where(a => a.DoneAt == null);

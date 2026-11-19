@@ -21,6 +21,7 @@ export function ScoreBadge({ score }: { score: number | undefined | null }) {
   return (
     <span
       title="Prioriteit = waarde × urgentie ÷ inspanning²"
+      aria-label={score ? `Prioriteit ${formatScore(score)}` : 'Prioriteit nog niet bepaald'}
       className={`inline-flex items-center text-xs font-semibold border rounded-full px-2 py-0.5 ${cls}`}
     >
       {formatScore(score)}
@@ -65,7 +66,7 @@ export default function PriorityCard({ client, onSaved }: { client: Client; onSa
   const options = (
     <>
       <option value="">Nog niet bepaald</option>
-      {FIB.slice(0, 8).map((n) => <option key={n} value={n}>{n}</option>)}
+      {FIB.map((n) => <option key={n} value={n}>{n}</option>)}
     </>
   )
 

@@ -40,7 +40,16 @@ public class CalendarFeedController : ControllerBase
         {
             feed = new CalendarFeed { UserId = userId, Token = NewToken() };
             _db.CalendarFeeds.Add(feed);
-            await _db.SaveChangesAsync();
+            try
+            {
+                await _db.SaveChangesAsync();
+            }
+            catch (DbUpdateException)
+            {
+                // Two first requests raced; the unique index let one through. Use that one.
+                _db.ChangeTracker.Clear();
+                feed = await _db.CalendarFeeds.FirstAsync(f => f.UserId == userId);
+            }
         }
         return Ok(new CalendarFeedDto(feed.Token, FeedUrl(feed.Token)));
     }
@@ -128,13 +137,14 @@ public class CalendarFeedController : ControllerBase
             string? name = null;
             string path;
             if (a.LeadId.HasValue) { leads.TryGetValue(a.LeadId.Value, out name); path = $"/leads/{a.LeadId}"; }
-            else { clients.TryGetValue(a.ClientId!.Value, out name); path = $"/clients/{a.ClientId}"; }
+            else if (a.ClientId.HasValue) { clients.TryGetValue(a.ClientId.Value, out name); path = $"/clients/{a.ClientId}"; }
+            else continue;
             if (name == null) continue;
 
             var start = a.DueAt.Kind == DateTimeKind.Utc ? a.DueAt : DateTime.SpecifyKind(a.DueAt, DateTimeKind.Utc);
             Line("BEGIN:VEVENT");
             Line($"UID:{a.Id}@jengo-clients");
-            Line($"DTSTAMP:{now:yyyyMMdd'T'HHmmss'Z'}");
+            Line($"DTSTAMP:{a.CreatedAt:yyyyMMdd'T'HHmmss'Z'}");
             Line($"DTSTART:{start:yyyyMMdd'T'HHmmss'Z'}");
             Line($"DTEND:{start.AddMinutes(30):yyyyMMdd'T'HHmmss'Z'}");
             Line($"SUMMARY:{Escape(a.Title)} · {Escape(name)}");
@@ -145,6 +155,7 @@ public class CalendarFeedController : ControllerBase
         Line("END:VCALENDAR");
 
         Response.Headers.CacheControl = "private, max-age=300";
+        Response.Headers["Referrer-Policy"] = "no-referrer";
         return Content(sb.ToString(), "text/calendar; charset=utf-8");
     }
 

@@ -155,7 +155,6 @@ function CalendarView({ rows, onDone }: { rows: ActionRow[]; onDone: (id: string
             const k = dayKey(d)
             const items = byDay.get(k) ?? []
             const inMonth = d.getMonth() === month.getMonth()
-            const overdue = items.some((i) => i.overdue)
             return (
               <button
                 key={k}
@@ -167,7 +166,7 @@ function CalendarView({ rows, onDone }: { rows: ActionRow[]; onDone: (id: string
                   {d.getDate()}
                 </span>
                 {items.slice(0, 2).map((i) => (
-                  <span key={i.id} className={`block truncate text-[10px] leading-tight mt-0.5 rounded px-1 ${overdue && i.overdue ? 'bg-red-50 text-red-700' : 'bg-indigo-50 text-indigo-700'}`}>
+                  <span key={i.id} className={`block truncate text-[10px] leading-tight mt-0.5 rounded px-1 ${i.overdue ? 'bg-red-50 text-red-700' : 'bg-indigo-50 text-indigo-700'}`}>
                     {fmtTime(i.dueAt)} {i.title}
                   </span>
                 ))}
@@ -209,6 +208,7 @@ function NewActionForm({ onAdded, onCancel }: { onAdded: () => void; onCancel: (
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim() || !clientId || busy) return
+    if (!due || Number.isNaN(new Date(due).getTime())) { showToast('Kies een datum en tijd', 'error'); return }
     setBusy(true)
     try {
       await addNextAction('clients', clientId, { title: title.trim(), dueAt: new Date(due).toISOString() })
