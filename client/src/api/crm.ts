@@ -27,6 +27,8 @@ export interface TimelineItem {
   summary: string
   outcome: string | null
   sourceRef: string | null
+  projectId?: string | null
+  projectName?: string | null
 }
 
 export interface NextAction {
@@ -107,15 +109,17 @@ export const LINK_LABELS: Record<EntityLinkKind, string> = {
 /** Quick outcomes for a call, so logging one takes two clicks. */
 export const CALL_OUTCOMES = ['Geen gehoor', 'Terugbellen', 'Interesse', 'Geen interesse', 'Afspraak gemaakt']
 
-export async function getTimeline(parentType: ParentType, parentId: string): Promise<TimelineItem[]> {
-  const res = await apiClient.get<TimelineItem[]>(`/api/${parentType}/${parentId}/timeline`)
+export async function getTimeline(parentType: ParentType, parentId: string, projectId?: string): Promise<TimelineItem[]> {
+  const res = await apiClient.get<TimelineItem[]>(`/api/${parentType}/${parentId}/timeline`, {
+    params: projectId ? { projectId } : undefined,
+  })
   return res.data
 }
 
 export async function logInteraction(
   parentType: ParentType,
   parentId: string,
-  data: { kind: InteractionKind; direction?: InteractionDirection; summary: string; outcome?: string | null; contactId?: string | null },
+  data: { kind: InteractionKind; direction?: InteractionDirection; summary: string; outcome?: string | null; contactId?: string | null; occurredAt?: string | null; projectId?: string | null },
 ): Promise<void> {
   await apiClient.post(`/api/${parentType}/${parentId}/interactions`, data)
 }

@@ -4,6 +4,7 @@ import { Link, useParams, useNavigate } from 'react-router-dom'
 import { getClient, updateClient, type Client } from '../api/clients'
 import { useToast } from '../components/Toast'
 import CrmPanel from '../components/crm/CrmPanel'
+import ProjectsSection from '../components/crm/ProjectsSection'
 import {
   ENGAGEMENT_CATEGORIES,
   CATEGORY_DESCRIPTIONS,
@@ -11,20 +12,6 @@ import {
   ReactiefBanner,
 } from '../components/EngagementCategory'
 import { intakeApi, type ClientIntake, type ClientBundle, STATUS_LABELS, STATUS_COLORS, PRODUCT_LABELS, BUNDLE_LABELS } from '../api/intake'
-
-function StatusBadge({ status }: { status: string }) {
-  const colorMap: Record<string, string> = {
-    Active: 'bg-green-50 text-green-700 border-green-200',
-    Completed: 'bg-blue-50 text-blue-700 border-blue-200',
-    'On Hold': 'bg-amber-50 text-amber-700 border-amber-200',
-  }
-  const cls = colorMap[status] ?? 'bg-gray-50 text-gray-700 border-gray-200'
-  return (
-    <span className={`inline-flex items-center text-xs font-medium border rounded-full px-2 py-0.5 ${cls}`}>
-      {status}
-    </span>
-  )
-}
 
 export default function ClientDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -293,35 +280,12 @@ export default function ClientDetailPage() {
         )}
       </div>
 
-      {/* Projects */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <h2 className="text-base font-semibold text-gray-900 mb-4">
-          Projecten
-          <span className="ml-2 text-sm font-normal text-gray-400">({client.projects.length})</span>
-        </h2>
-        {client.projects.length === 0 ? (
-          <p className="text-sm text-gray-400">Geen projecten gevonden.</p>
-        ) : (
-          <div className="space-y-3">
-            {client.projects.map((project) => (
-              <div key={project.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <div>
-                  <p className="text-sm font-medium text-gray-900">{project.name}</p>
-                  {project.description && (
-                    <p className="text-xs text-gray-500 mt-0.5">{project.description}</p>
-                  )}
-                </div>
-                <div className="flex items-center gap-3 ml-4 flex-shrink-0">
-                  <StatusBadge status={project.status} />
-                  <span className="text-xs text-gray-400">
-                    {new Date(project.createdAt).toLocaleDateString('nl-NL')}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      {/* Projects, each with its own history */}
+      <ProjectsSection
+        clientId={client.id}
+        projects={client.projects}
+        onChanged={() => { getClient(client.id).then(setClient).catch(() => showToast('Vernieuwen mislukt', 'error')) }}
+      />
 
       {/* Relationship screen: next actions, conversations, contacts, links (Jengo Clients) */}
       <div className="mt-6 max-w-5xl">

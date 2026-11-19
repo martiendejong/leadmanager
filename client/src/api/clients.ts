@@ -78,3 +78,23 @@ export async function updateClient(id: string, data: Partial<Client>): Promise<C
 export async function deleteClient(id: string): Promise<void> {
   await apiClient.delete(`/api/clients/${id}`)
 }
+
+export async function createProject(
+  clientId: string,
+  data: { name: string; description?: string | null; status?: string | null },
+): Promise<Project> {
+  const res = await apiClient.post<Project>(`/api/clients/${clientId}/projects`, data)
+  return res.data
+}
+
+export async function updateProject(
+  id: string,
+  data: { name: string; description?: string | null; status?: string | null },
+): Promise<Project> {
+  const res = await apiClient.put<Project>(`/api/projects/${id}`, data)
+  return res.data
+}
+
+export async function deleteProject(id: string): Promise<void> {
+  await apiClient.delete(`/api/projects/${id}`)
+}

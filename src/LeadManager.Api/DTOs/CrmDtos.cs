@@ -20,12 +20,13 @@ public record InteractionDto(
     Guid Id, Guid? LeadId, Guid? ClientId, Guid? ContactId, string Kind, string Direction,
     [property: JsonConverter(typeof(UtcDateTimeConverter))] DateTime OccurredAt,
     string Summary, string? Outcome, string? SourceRef,
-    string? CreatedByUserId, [property: JsonConverter(typeof(UtcDateTimeConverter))] DateTime CreatedAt);
+    string? CreatedByUserId, [property: JsonConverter(typeof(UtcDateTimeConverter))] DateTime CreatedAt,
+    Guid? ProjectId = null);
 
 public record CreateInteractionDto(
     string Kind, string? Direction,
     [property: JsonConverter(typeof(UtcNullableDateTimeConverter))] DateTime? OccurredAt,
-    string Summary, string? Outcome, Guid? ContactId, string? SourceRef);
+    string Summary, string? Outcome, Guid? ContactId, string? SourceRef, Guid? ProjectId = null);
 
 public record NextActionDto(
     Guid Id, Guid? LeadId, Guid? ClientId, Guid? ContactId, string Title,
@@ -58,7 +59,8 @@ public record CreateEntityLinkDto(string Kind, string Label, string? Url, string
 public record TimelineItemDto(
     string Source, Guid Id, string Kind, string? Direction,
     [property: JsonConverter(typeof(UtcDateTimeConverter))] DateTime At,
-    string Summary, string? Outcome, string? SourceRef);
+    string Summary, string? Outcome, string? SourceRef,
+    Guid? ProjectId = null, string? ProjectName = null);
 
 public record CreateApiKeyDto(string Name);
 

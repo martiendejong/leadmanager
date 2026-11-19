@@ -133,6 +133,8 @@ public class LeadManagerDbContext : IdentityDbContext<ApplicationUser>
             e.HasOne<Lead>().WithMany().HasForeignKey(x => x.LeadId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<Client>().WithMany().HasForeignKey(x => x.ClientId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<Contact>().WithMany().HasForeignKey(x => x.ContactId).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne<Project>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.SetNull);
+            e.HasIndex(x => new { x.ProjectId, x.OccurredAt });
             e.Property(x => x.Kind).HasConversion<string>();
             e.Property(x => x.Direction).HasConversion<string>();
             e.HasIndex(x => new { x.LeadId, x.OccurredAt });

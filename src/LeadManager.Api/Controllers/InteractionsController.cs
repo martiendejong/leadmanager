@@ -17,17 +17,18 @@ public class InteractionsController : CrmControllerBase
 
     private static InteractionDto ToDto(Interaction i) => new(
         i.Id, i.LeadId, i.ClientId, i.ContactId, i.Kind.ToString(), i.Direction.ToString(),
-        i.OccurredAt, i.Summary, i.Outcome, i.SourceRef, i.CreatedByUserId, i.CreatedAt);
+        i.OccurredAt, i.Summary, i.Outcome, i.SourceRef, i.CreatedByUserId, i.CreatedAt, i.ProjectId);
 
     // GET /api/leads/{id}/interactions  |  /api/clients/{id}/interactions
     [HttpGet($"api/{{parentType:{CrmParentAccess.RouteConstraint}}}/{{parentId:guid}}/interactions")]
-    public async Task<IActionResult> List(string parentType, Guid parentId)
+    public async Task<IActionResult> List(string parentType, Guid parentId, [FromQuery] Guid? projectId = null)
     {
         var parent = await ResolveParentAsync(parentType, parentId);
         if (parent == null) return NotFound();
 
         var items = await _db.Interactions
             .Where(i => i.LeadId == parent.Value.LeadId && i.ClientId == parent.Value.ClientId)
+            .Where(i => projectId == null || i.ProjectId == projectId)
             .OrderByDescending(i => i.OccurredAt)
             .ToListAsync();
 
@@ -63,6 +64,14 @@ public class InteractionsController : CrmControllerBase
             if (!contactOk) return BadRequest("Contact does not belong to this lead or client");
         }
 
+        if (dto.ProjectId.HasValue)
+        {
+            // Projects belong to clients only, and to the client in the route.
+            var projectOk = parent.Value.Kind == CrmParentKind.Client
+                && await _db.Projects.AnyAsync(p => p.Id == dto.ProjectId && p.ClientId == parent.Value.Id);
+            if (!projectOk) return BadRequest("Project does not belong to this client");
+        }
+
         // Idempotent import: the same source item is returned, not logged twice. The reference is
         // trimmed first, so " abc" and "abc" are the same item.
         if (sourceRef != null)
@@ -76,6 +85,7 @@ public class InteractionsController : CrmControllerBase
             LeadId = parent.Value.LeadId,
             ClientId = parent.Value.ClientId,
             ContactId = dto.ContactId,
+            ProjectId = dto.ProjectId,
             Kind = kind,
             Direction = direction,
             OccurredAt = UtcDateTimeConverter.Normalize(dto.OccurredAt ?? DateTime.UtcNow),
@@ -132,7 +142,7 @@ public class InteractionsController : CrmControllerBase
     // GET /api/leads/{id}/timeline  |  /api/clients/{id}/timeline
     // One list for the lead screen: interactions plus the older system activities.
     [HttpGet($"api/{{parentType:{CrmParentAccess.RouteConstraint}}}/{{parentId:guid}}/timeline")]
-    public async Task<IActionResult> Timeline(string parentType, Guid parentId, [FromQuery] int take = 200)
+    public async Task<IActionResult> Timeline(string parentType, Guid parentId, [FromQuery] int take = 200, [FromQuery] Guid? projectId = null)
     {
         var parent = await ResolveParentAsync(parentType, parentId);
         if (parent == null) return NotFound();
@@ -140,12 +150,18 @@ public class InteractionsController : CrmControllerBase
 
         var interactions = await _db.Interactions
             .Where(i => i.LeadId == parent.Value.LeadId && i.ClientId == parent.Value.ClientId)
+            .Where(i => projectId == null || i.ProjectId == projectId)
             .OrderByDescending(i => i.OccurredAt).Take(take)
             .ToListAsync();
 
+        var projectNames = parent.Value.Kind == CrmParentKind.Client
+            ? await _db.Projects.Where(p => p.ClientId == parent.Value.Id).ToDictionaryAsync(p => p.Id, p => p.Name)
+            : new Dictionary<Guid, string>();
+
         var items = interactions
             .Select(i => new TimelineItemDto("interaction", i.Id, i.Kind.ToString(), i.Direction.ToString(),
-                i.OccurredAt, i.Summary, i.Outcome, i.SourceRef))
+                i.OccurredAt, i.Summary, i.Outcome, i.SourceRef, i.ProjectId,
+                i.ProjectId.HasValue && projectNames.TryGetValue(i.ProjectId.Value, out var pn) ? pn : null))
             .ToList();
 
         if (parent.Value.Kind == CrmParentKind.Lead)

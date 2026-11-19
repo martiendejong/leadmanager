@@ -100,7 +100,7 @@ public class CrmCoreTests : IDisposable
         db.Database.Migrate();
 
         Assert.Empty(db.Database.GetPendingMigrations());
-        Assert.Contains("AddCrmCore", db.Database.GetAppliedMigrations().Last());
+        Assert.Contains(db.Database.GetAppliedMigrations(), m => m.EndsWith("AddCrmCore"));
 
         var lead = new Lead { Name = "M", Website = "https://m.nl", ImportedByUserId = Me };
         db.Leads.Add(lead);
