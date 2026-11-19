@@ -17,22 +17,6 @@ export interface CompanyProfile {
   updatedAt: string
 }
 
-export interface QualifiedLead {
-  name: string
-  website: string
-  city: string
-  sector: string
-  phone: string
-  email: string
-  source: string
-  confidenceScore: number
-  qualificationReason: string
-  ownerName?: string | null
-  description?: string | null
-  services?: string | null
-  targetAudience?: string | null
-}
-
 export async function getProfile(): Promise<CompanyProfile | null> {
   try {
     const res = await apiClient.get<CompanyProfile>('/api/profile')
@@ -63,7 +47,3 @@ export async function updateProfile(profile: Omit<CompanyProfile, 'id' | 'crawle
   return res.data
 }
 
-export async function searchLeadsWithProfile(): Promise<QualifiedLead[]> {
-  const res = await apiClient.post<QualifiedLead[]>('/api/profile/search')
-  return res.data
-}

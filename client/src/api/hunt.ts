@@ -1,0 +1,108 @@
+import apiClient from './client'
+
+export interface HuntCapabilities {
+  aiConfigured: boolean
+  googlePlacesConfigured: boolean
+  model: string | null
+  message: string | null
+  maxLlmCallsPerJob: number
+}
+
+export interface HuntCriteria {
+  segment: string
+  region: string
+  minScore: number
+  targetCount: number
+  maxCandidates: number
+  ratchet: boolean
+}
+
+export type HuntStatus = 'Pending' | 'Running' | 'Completed' | 'Failed' | 'Cancelled'
+
+export interface HuntJob {
+  id: string
+  kind: 'Hunt' | 'Verify'
+  status: HuntStatus
+  segment: string
+  region: string
+  minScore: number
+  targetCount: number
+  maxCandidates: number
+  ratchet: boolean
+  total: number
+  screened: number
+  qualified: number
+  best: number
+  llmCalls: number
+  maxLlmCalls: number
+  current: string | null
+  error: string | null
+  createdAt: string
+  startedAt: string | null
+  completedAt: string | null
+}
+
+export interface HuntCandidate {
+  id: string
+  leadId: string | null
+  name: string
+  website: string
+  score: number | null
+  maxReachable: number | null
+  outcome: string
+  reason: string
+}
+
+export interface LeadEvidence {
+  available: boolean
+  outcome?: string
+  score?: number | null
+  reason?: string
+  at?: string
+  evidence?: {
+    website: string
+    pages: string[]
+    verified: { field: string; value: string; source: string; quote: string; critic?: string | null }[]
+    dropped: { field: string; value: string; reason: string }[]
+    google?: string | null
+  }
+}
+
+export const isActive = (s: HuntStatus) => s === 'Pending' || s === 'Running'
+
+/** The server message of a failed call (the 503 "AI key not configured on this server" included). */
+export function errorMessage(err: unknown, fallback = 'Something went wrong'): string {
+  const e = err as { response?: { data?: { error?: string; message?: string } | string } }
+  const data = e?.response?.data
+  if (typeof data === 'string' && data.trim()) return data
+  if (data && typeof data === 'object') return data.error || data.message || fallback
+  return fallback
+}
+
+export async function getHuntCapabilities(): Promise<HuntCapabilities> {
+  return (await apiClient.get<HuntCapabilities>('/api/leads/hunt/capabilities')).data
+}
+
+export async function startHunt(criteria: HuntCriteria): Promise<{ jobId: string }> {
+  return (await apiClient.post<{ jobId: string }>('/api/leads/hunt', criteria)).data
+}
+
+export async function startVerify(ids: string[]): Promise<{ jobId: string; leads: number; skipped: number }> {
+  return (await apiClient.post('/api/leads/verify', { ids })).data
+}
+
+export async function getHunt(id: string): Promise<{ job: HuntJob; candidates: HuntCandidate[] }> {
+  return (await apiClient.get(`/api/leads/hunt/${id}`)).data
+}
+
+export async function getRecentHunts(): Promise<HuntJob[]> {
+  return (await apiClient.get<HuntJob[]>('/api/leads/hunt')).data
+}
+
+export async function cancelHunt(id: string): Promise<HuntJob> {
+  return (await apiClient.post<HuntJob>(`/api/leads/hunt/${id}/cancel`)).data
+}
+
+export async function getLeadEvidence(leadId: string): Promise<LeadEvidence> {
+  return (await apiClient.get<LeadEvidence>(`/api/leads/${leadId}/evidence`)).data
+}

@@ -4,6 +4,10 @@ import { fetchLeads, fetchLeadStats, importLeads, enrichLeads, exportLeads } fro
 import type { Lead, LeadFilter, LeadStats, CsvImportResult } from '../api/leads'
 import { useLeadSelection } from '../hooks/useLeadSelection'
 import { useToast } from '../components/Toast'
+import JobDialog from '../components/leads/JobDialog'
+import HuntPanel from '../components/leads/HuntPanel'
+import HuntJobView from '../components/leads/HuntJobView'
+import { errorMessage, startVerify } from '../api/hunt'
 import LeadsTable from '../components/leads/LeadsTable'
 import FilterBar from '../components/leads/FilterBar'
 import LeadsToolbar from '../components/leads/LeadsToolbar'
@@ -54,6 +58,8 @@ export default function LeadsPage() {
   const [detailLead, setDetailLead] = useState<Lead | null>(null)
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [showCsvImport, setShowCsvImport] = useState(false)
+  const [showHunt, setShowHunt] = useState(false)
+  const [verifyJobId, setVerifyJobId] = useState<string | null>(null)
   const [onboardingDismissed, setOnboardingDismissed] = useState(
     () => localStorage.getItem('lm_onboarding_dismissed') === '1'
   )
@@ -197,9 +203,23 @@ export default function LeadsPage() {
     try {
       const { jobId } = await enrichLeads(Array.from(selectedIds))
       setActiveJobId(jobId)
-    } catch {
-      showToast('Could not start enrichment', 'error')
+    } catch (err) {
+      showToast(errorMessage(err, 'Could not start enrichment'), 'error')
       setIsEnriching(false)
+    }
+  }, [selectedIds, showToast])
+
+  const handleVerify = useCallback(async () => {
+    if (selectedIds.size === 0) return
+    const confirmed = window.confirm(
+      `Verify ${selectedIds.size} lead${selectedIds.size !== 1 ? 's' : ''} against their own websites? Values that cannot be proven are removed and the score is recomputed.`
+    )
+    if (!confirmed) return
+    try {
+      const { jobId } = await startVerify(Array.from(selectedIds))
+      setVerifyJobId(jobId)
+    } catch (err) {
+      showToast(errorMessage(err, 'Could not start the verification'), 'error')
     }
   }, [selectedIds, showToast])
 
@@ -323,8 +343,8 @@ export default function LeadsPage() {
             <div className="flex items-start gap-3">
               <span className="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-500 flex items-center justify-center text-xs font-bold">2</span>
               <div>
-                <Link to="/leads/search" className="font-medium underline hover:no-underline">Find leads with AI</Link>
-                <p className="text-indigo-200 text-xs mt-0.5">Based on your profile</p>
+                <button onClick={() => setShowHunt(true)} className="font-medium underline hover:no-underline text-left">Find new leads</button>
+                <p className="text-indigo-200 text-xs mt-0.5">Real companies, scored from their own websites</p>
               </div>
             </div>
             <div className="flex items-start gap-3">
@@ -388,6 +408,8 @@ export default function LeadsPage() {
       <LeadsToolbar
         selectedCount={selectedIds.size}
         onEnrich={handleEnrich}
+        onVerify={handleVerify}
+        onFind={() => setShowHunt(true)}
         onExport={handleExport}
         onExportCsv={handleExportCsv}
         onExportExcel={handleExportExcel}
@@ -511,6 +533,20 @@ export default function LeadsPage() {
           onSuccess={handleCreateLeadSuccess}
           onCancel={() => setShowCreateForm(false)}
         />
+      )}
+
+      {/* Find new leads (evidence based hunt) */}
+      {showHunt && (
+        <JobDialog title="Find new leads" onClose={() => { setShowHunt(false); loadLeads(filter); loadStats() }}>
+          <HuntPanel onFinished={() => { loadLeads(filter); loadStats() }} />
+        </JobDialog>
+      )}
+
+      {/* Verify and rescore selected leads */}
+      {verifyJobId && (
+        <JobDialog title="Verify & rescore" onClose={() => { setVerifyJobId(null); loadLeads(filter); loadStats() }}>
+          <HuntJobView jobId={verifyJobId} onFinished={() => { loadLeads(filter); loadStats() }} />
+        </JobDialog>
       )}
 
       {/* CSV import modal */}

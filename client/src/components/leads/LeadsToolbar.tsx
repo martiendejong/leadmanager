@@ -3,6 +3,8 @@ import { useRef } from 'react'
 interface LeadsToolbarProps {
   selectedCount: number
   onEnrich: () => void
+  onVerify: () => void
+  onFind: () => void
   onExport: () => void
   onExportCsv: () => void
   onExportExcel: () => void
@@ -15,6 +17,8 @@ interface LeadsToolbarProps {
 export default function LeadsToolbar({
   selectedCount,
   onEnrich,
+  onVerify,
+  onFind,
   onExport,
   onExportCsv,
   onExportExcel,
@@ -118,6 +122,27 @@ export default function LeadsToolbar({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
           Report{selectedCount > 0 ? ` (${selectedCount})` : ''}
+        </button>
+
+        <button
+          onClick={onFind}
+          className="px-3 py-1.5 text-sm rounded-md font-medium border border-indigo-300 text-indigo-700 hover:bg-indigo-50 transition-colors"
+          title="Search the web for new leads and verify their score from their own websites"
+        >
+          Find new leads
+        </button>
+
+        <button
+          onClick={onVerify}
+          disabled={selectedCount === 0 || isEnriching}
+          className={`px-3 py-1.5 text-sm rounded-md font-medium border transition-colors ${
+            selectedCount === 0 || isEnriching
+              ? 'border-gray-200 text-gray-400 cursor-not-allowed'
+              : 'border-indigo-300 text-indigo-700 hover:bg-indigo-50'
+          }`}
+          title="Check the facts of the selected leads against their own websites and recompute the score"
+        >
+          Verify & rescore{selectedCount > 0 ? ` (${selectedCount})` : ''}
         </button>
 
         <button

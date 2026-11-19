@@ -9,6 +9,7 @@ import OutreachEmailPanel from './OutreachEmailPanel'
 import LeadActivityTimeline from './LeadActivityTimeline'
 import ConvertToClientWizard from './ConvertToClientWizard'
 import LeadNotesPanel from './LeadNotesPanel'
+import EvidencePanel from './EvidencePanel'
 
 interface Props {
   lead: Lead | null
@@ -568,6 +569,8 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
                 </div>
                 <LeadNotesPanel leadId={lead.id} />
               </div>
+
+              <EvidencePanel leadId={lead.id} />
 
               <Section title="Company info">
                 <Field label="Name" value={lead.name} />
