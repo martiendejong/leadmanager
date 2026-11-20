@@ -215,6 +215,7 @@ def cmd_init_env(args) -> None:
         f"SSO_ISSUER={IAMS[SSO_IAM[args.env]]['issuer']}",
         f"SSO_CLIENT_ID={SSO_CLIENT_ID}",
         "OPENAI_API_KEY=", "GOOGLE_PLACES_API_KEY=", "JENGOWORK_BASE_URL=", "JENGOWORK_API_KEY=", "MINOX_POC_BASE_URL=",
+        "HUNT_DISPATCH_BOARD_ID=", "HUNT_DISPATCH_STATUS=", "HUNT_ALLOWED_EMAILS=",
     ]
     # The vault comes first: the server .env is a copy, the vault is where people look. If the vault
     # refuses, nothing is written to the server, so no secret exists only on the server.

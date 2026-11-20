@@ -4,6 +4,7 @@ import { useToast } from '../components/Toast'
 import { completeNextAction, errorMessage, getTodayActions, type TodayAction } from '../api/crm'
 import { getDashboard, type Dashboard } from '../api/dashboard'
 import { DashboardPanels, DashboardStats } from '../components/dashboard/DashboardPanel'
+import NextToContact from '../components/messages/NextToContact'
 
 function fmt(iso: string) {
   return new Date(iso).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
@@ -60,6 +61,7 @@ export default function TodayPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
         <div className="lg:col-span-3">
+        <NextToContact />
         <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Due today and overdue</h2>
 
       {rows === null && <p className="text-sm text-gray-400">Loading…</p>}

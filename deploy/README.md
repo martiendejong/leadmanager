@@ -78,6 +78,14 @@ Everything is in `.env` (see `.env.example`); `docker-compose.yml` translates it
 | `SSO_ISSUER`, `SSO_CLIENT_ID` | Jengo IAM, see "Signing in with Jengo IAM". |
 | `SEED_RESET_PASSWORDS` | Recovery switch, only via `init-env --force`; applies to one start. |
 | `OPENAI_API_KEY` etc. | Optional; empty = that feature is off. Deliberately empty on test. |
+| `GOOGLE_PLACES_API_KEY` | Optional. Without it no Google rating is ever used, so no lead can reach a score of 9. |
+| `JENGOWORK_BASE_URL`, `JENGOWORK_API_KEY` | Needed for **Find new leads** and **Ask agent to review**: the app creates a JengoWork task on board 105 "Jengo Clients" (`POST {base}/api/v2/list/105/task`, Bearer key). Board 105 is not monitored by jengo-agi yet, so a person starts the task (move it to todo); `HUNT_DISPATCH_AGENT_PICKS_UP=true` switches the screen texts once a lane starts the agent by itself. The key is a JengoWork agent key (a `tm_` key). Empty = both answer 503 "Agent hunting is not configured on this server". No OpenAI key is involved. |
+| `HUNT_DISPATCH_BOARD_ID` | Optional. The JengoWork board (list id) that receives the tasks; empty = 105. New tasks land in the board's first lane ("prioritization backlog"); a human or jengo-agi monitoring starts them. See `docs/agent/LEAD_HUNT.md`. |
+| `HUNT_DISPATCH_STATUS` | Optional lane the task is created in, for example `todo`. Empty = the board default. |
+| (per hunt token) | Nothing to configure: every hunt mints a random token (stored hashed, valid 3 hours, revoked when the hunt completes, fails or is cancelled). It is in the task text of that hunt only. |
+| `HUNT_ALLOWED_EMAILS` | Who may start a hunt, comma separated. Empty = administrators only. |
+| `HUNT_MAX_PER_USER_PER_DAY` | Hunts per user per day (default 5). `HUNT_MAX_VERIFY_PER_USER_PER_DAY` is the same for verify runs (default 20). |
+| `HUNT_API_BASE_URL` | Optional. The URL the agent calls (default: `PUBLIC_URL`). |
 | `MEM_LIMIT` | Hard memory limit of the container (default 768 MB). |
 
 The container does not start if `Jwt:Key` is empty, shorter than 32 characters or the public key from `appsettings.json`.

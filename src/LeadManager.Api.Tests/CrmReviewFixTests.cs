@@ -169,7 +169,9 @@ public class CrmReviewFixTests : IDisposable
             var allowed = type.GetCustomAttribute<AllowApiKeyAttribute>(inherit: true) != null;
             // Clients and Projects are CRM data too (task 8090): the same user, the same ownership rules.
             var isCrm = typeof(CrmControllerBase).IsAssignableFrom(type)
-                || type.Name is nameof(ClientsController) or nameof(ProjectsController) or nameof(DocumentsController);
+                || type.Name is nameof(ClientsController) or nameof(ProjectsController) or nameof(DocumentsController) or nameof(MessagesController);
+            // The hunt controller is the exception: a key may only READ there, so it is marked per action (HuntApiKeyGuardTests).
+            if (type == typeof(HuntController)) { Assert.False(allowed, "HuntController must not allow keys on the whole class"); continue; }
             Assert.True(allowed == isCrm, $"{type.Name}: AllowApiKey={allowed} but isCrm={isCrm}");
         }
 

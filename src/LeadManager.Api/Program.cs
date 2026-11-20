@@ -214,8 +214,32 @@ builder.Services.AddHttpClient<SearchService>(c =>
 
 // Profile + Smart Search services
 builder.Services.AddHttpClient<CompanyProfileService>();
-builder.Services.AddHttpClient<GptLeadGeneratorService>();
-builder.Services.AddScoped<SmartSearchService>();
+// Evidence based lead hunt: real web search for candidates, then verified facts from the business's own website.
+builder.Services.AddSingleton<LeadManager.Api.Services.Hunt.LeadEvidenceService>();
+builder.Services.AddHttpClient<LeadManager.Api.Services.Hunt.IPageFetcher, LeadManager.Api.Services.Hunt.SafePageFetcher>(c =>
+{
+    c.Timeout = TimeSpan.FromSeconds(15);
+    c.DefaultRequestHeaders.UserAgent.ParseAdd("JengoClientsBot/1.0 (+public company websites only)");
+}).ConfigurePrimaryHttpMessageHandler(() => LeadManager.Api.Services.Hunt.SafePageFetcher.CreateHandler());
+builder.Services.AddHttpClient<LeadManager.Api.Services.Hunt.IHuntDispatcher, LeadManager.Api.Services.Hunt.JengoWorkHuntDispatcher>();
+builder.Services.AddScoped<LeadManager.Api.Services.Hunt.LeadVerifier>();
+builder.Services.AddScoped<LeadManager.Api.Services.Hunt.HuntService>();
+builder.Services.AddSingleton<LeadManager.Api.Services.Hunt.HuntQueue>();
+builder.Services.AddSingleton<LeadManager.Api.Services.Hunt.HuntRegistry>();
+builder.Services.AddHostedService<LeadManager.Api.Services.Hunt.HuntBackgroundService>();
+builder.Services.AddHostedService<LeadManager.Api.Services.Hunt.HuntSweepService>();
+// The agent endpoints answer to a token only, so they are rate limited per hunt (a guessed id or token gets nowhere fast).
+builder.Services.AddRateLimiter(o =>
+{
+    o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    o.AddPolicy(LeadManager.Api.Controllers.HuntRateLimit.Policy, ctx =>
+        System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+            LeadManager.Api.Controllers.HuntRateLimit.PolicyKey(ctx),
+            _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+            { PermitLimit = LeadManager.Api.Controllers.HuntRateLimit.PerMinute, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+    // Per address over every hunt as well: a guesser who rotates hunt ids still meets one counter.
+    o.GlobalLimiter = System.Threading.RateLimiting.PartitionedRateLimiter.Create<Microsoft.AspNetCore.Http.HttpContext, string>(LeadManager.Api.Controllers.HuntRateLimit.GlobalPartition);
+});
 // Named client for CompanyProfileService's WordPress REST probe
 builder.Services.AddHttpClient("wp-probe", c =>
 {
@@ -362,6 +386,7 @@ if (spaEnabled)
 // the browser would get index.html instead of the script.
 app.UseRouting();
 app.UseCors();
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 

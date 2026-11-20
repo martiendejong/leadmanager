@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import type { Lead } from '../../api/leads'
+import { ProductChips } from './ProductChips'
 
 interface LeadsTableProps {
   leads: Lead[]
@@ -27,6 +28,8 @@ const COLUMNS: { key: string; label: string; sortable: boolean; hideOnMobile: bo
   { key: 'companyEmail',        label: 'Email',        sortable: false, hideOnMobile: true  },
   { key: 'salesPriorityScore',  label: 'Score',        sortable: true,  hideOnMobile: false },
   { key: 'isEnriched',          label: 'Status',       sortable: true,  hideOnMobile: false },
+  { key: 'pipelineStatus',      label: 'Pipeline',     sortable: true,  hideOnMobile: false },
+  { key: 'lastContactedAt',     label: 'Last contact', sortable: true,  hideOnMobile: true  },
   { key: 'enrichedAt',          label: 'Enriched on',  sortable: true,  hideOnMobile: true  },
   { key: 'createdAt',           label: 'Created',      sortable: true,  hideOnMobile: true  },
   { key: 'updatedAt',           label: 'Updated',      sortable: true,  hideOnMobile: true  },
@@ -199,7 +202,11 @@ export default function LeadsTable({
                 key={lead.id}
                 data-lead-id={lead.id}
                 onMouseDown={(e) => onRowMouseDown(lead.id, e)}
-                onClick={(e) => onRowClick(lead.id, e)}
+                onClick={(e) => {
+                  // Nothing selected and no modifier key: a click opens the details; with a selection or Ctrl/Cmd/Shift it keeps selecting.
+                  if (selectedIds.size === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey) onRowOpen(lead)
+                  else onRowClick(lead.id, e)
+                }}
                 className={`cursor-pointer transition-colors ${
                   selected
                     ? 'bg-indigo-50 border-l-2 border-indigo-500'
@@ -220,8 +227,8 @@ export default function LeadsTable({
                     className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                   />
                 </td>
-                <td className="px-4 py-3 text-sm font-medium text-gray-900 max-w-48 truncate">
-                  <span className="flex items-center gap-1.5">
+                <td className="px-4 py-3 text-sm font-medium text-gray-900 max-w-64">
+                  <span className="flex items-center gap-1.5 truncate">
                     <Link
                       to={`/leads/${lead.id}`}
                       onClick={(e) => e.stopPropagation()}
@@ -241,6 +248,12 @@ export default function LeadsTable({
                       </span>
                     )}
                   </span>
+                  {lead.whyLead && (
+                    <div className="mt-0.5 text-xs font-normal text-gray-500 truncate" title={lead.whyLead}>{lead.whyLead}</div>
+                  )}
+                  {lead.productFit && lead.productFit.length > 0 && (
+                    <div className="mt-1"><ProductChips fit={lead.productFit} compact /></div>
+                  )}
                 </td>
                 <td className="hidden sm:table-cell px-4 py-3 text-sm text-gray-500 max-w-40 truncate">
                   {lead.website ? (
@@ -274,14 +287,25 @@ export default function LeadsTable({
                 </td>
                 <td className="px-4 py-3 text-sm">
                   {lead.isEnriched ? (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    <span className="inline-flex items-center whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                       Enriched
                     </span>
                   ) : (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                    <span className="inline-flex items-center whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
                       Not enriched
                     </span>
                   )}
+                </td>
+                <td className="px-4 py-3 text-sm">
+                  <span className={`inline-flex items-center whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    (lead.pipelineStatus ?? 'New') === 'New' ? 'bg-gray-100 text-gray-600'
+                      : (lead.pipelineStatus === 'Lost') ? 'bg-red-100 text-red-700'
+                      : (lead.pipelineStatus === 'Won') ? 'bg-green-100 text-green-800'
+                      : 'bg-blue-100 text-blue-800'
+                  }`}>{lead.pipelineStatus ?? 'New'}</span>
+                </td>
+                <td className="hidden sm:table-cell px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
+                  {formatDate(lead.lastContactedAt ?? null)}
                 </td>
                 <td className="hidden sm:table-cell px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
                   {formatDate(lead.enrichedAt)}

@@ -1,3 +1,4 @@
+using LeadManager.Api.Services.Hunt;
 using HtmlAgilityPack;
 using System.Web;
 
@@ -115,8 +116,8 @@ public class ScraperService
 
     private static string ExtractGoogleSnippets(string html)
     {
-        var doc = new HtmlDocument();
-        doc.LoadHtml(html);
+        var doc = SafeHtml.TryLoad(html);
+        if (doc == null) return ""; // empty, or nested too deep to be handled safely
 
         var parts = new List<string>();
 
@@ -163,8 +164,8 @@ public class ScraperService
 
     private static string ExtractMeaningfulText(string html)
     {
-        var doc = new HtmlDocument();
-        doc.LoadHtml(html);
+        var doc = SafeHtml.TryLoad(html);
+        if (doc == null) return ""; // empty, or nested too deep to be handled safely
 
         foreach (var node in doc.DocumentNode.SelectNodes("//script|//style|//nav|//noscript|//iframe|//footer|//header") ?? Enumerable.Empty<HtmlNode>())
             node.Remove();

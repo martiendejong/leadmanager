@@ -24,6 +24,10 @@ public class LeadManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<ClientBundle> ClientBundles { get; set; }
     public DbSet<SalesSettings> SalesSettings { get; set; }
     public DbSet<LeadNote> LeadNotes { get; set; }
+    public DbSet<HuntJob> HuntJobs { get; set; }
+    public DbSet<LeadMessage> LeadMessages { get; set; }
+    public DbSet<MessageTemplate> MessageTemplates { get; set; }
+    public DbSet<HuntCandidate> HuntCandidates { get; set; }
 
     // Jengo Clients CRM core (task 8023)
     public DbSet<Contact> Contacts { get; set; }
@@ -70,6 +74,39 @@ public class LeadManagerDbContext : IdentityDbContext<ApplicationUser>
                 v => System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions?)null),
                 v => System.Text.Json.JsonSerializer.Deserialize<List<Guid>>(v, (System.Text.Json.JsonSerializerOptions?)null) ?? new List<Guid>()
             );
+
+        builder.Entity<HuntJob>(e =>
+        {
+            e.Property(j => j.LeadIds).HasConversion(
+                v => System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions?)null),
+                v => System.Text.Json.JsonSerializer.Deserialize<List<Guid>>(v, (System.Text.Json.JsonSerializerOptions?)null) ?? new List<Guid>());
+            e.HasIndex(j => new { j.UserId, j.CreatedAt });
+            // At most one active job per user, enforced by the database, so two requests at the same moment cannot both start.
+            e.HasIndex(j => j.UserId).IsUnique().HasFilter("\"Status\" IN ('Pending', 'Running')").HasDatabaseName("IX_HuntJobs_OneActivePerUser");
+            e.HasMany(j => j.Candidates).WithOne(c => c.Job).HasForeignKey(c => c.JobId).OnDelete(DeleteBehavior.Cascade);
+        });
+        builder.Entity<LeadMessage>(e =>
+        {
+            e.HasIndex(m => new { m.UserId, m.Status, m.UpdatedAt });
+            e.HasIndex(m => m.LeadId);
+            e.Property(m => m.Channel).HasMaxLength(20);
+            e.Property(m => m.Status).HasMaxLength(10);
+            e.HasOne(m => m.Lead).WithMany().HasForeignKey(m => m.LeadId).OnDelete(DeleteBehavior.Cascade);
+        });
+        builder.Entity<MessageTemplate>(e =>
+        {
+            // one template per user, channel and product key (an empty key is the default of the channel)
+            e.HasIndex(t => new { t.UserId, t.Channel, t.ProductKey }).IsUnique();
+            e.Property(t => t.Channel).HasMaxLength(20);
+            e.Property(t => t.ProductKey).HasMaxLength(20);
+        });
+        builder.Entity<HuntCandidate>(e =>
+        {
+            e.HasIndex(c => c.LeadId);
+            e.HasIndex(c => c.JobId);
+            // A deleted lead leaves its candidate rows in the job history, without the link and without its evidence (see HuntEvidence.ForgetAsync).
+            e.HasOne<Lead>().WithMany().HasForeignKey(c => c.LeadId).OnDelete(DeleteBehavior.SetNull);
+        });
 
         // Seed roles with fixed GUIDs so they don't change on every migration
         builder.Entity<IdentityRole>().HasData(

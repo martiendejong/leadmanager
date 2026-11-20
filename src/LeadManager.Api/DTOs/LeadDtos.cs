@@ -88,7 +88,16 @@ public record LeadDto(
     DateTime? ReminderDate,
     // Lead-to-client conversion (869ck3j56)
     Guid? ConvertedToClientId,
-    DateTime? UpdatedAt = null);
+    DateTime? UpdatedAt = null,
+    // Why this lead, what the business needs, which of our products can help (each need and fit has a quote from the business's own pages)
+    string? WhyLead = null,
+    string? Needs = null,
+    IReadOnlyList<ProductFitDto>? ProductFit = null,
+    // When a message to this lead was last marked as sent by the user
+    DateTime? LastContactedAt = null);
+
+/// <summary>One of our products that can help a lead, with the observed trigger. Product is a key of the catalog (coachos, siteaudit, visit, werkteam, cloudws, custom, mail, meet).</summary>
+public record ProductFitDto(string Product, string Reason, string? EvidenceQuote, string? SourceUrl);
 
 public record CreateLeadDto(
     string Name,
@@ -126,7 +135,8 @@ public record LeadFilterParams(
     string? AssignedToUserId = null,
     bool? HasOwner = null,
     bool? HasLinkedIn = null,
-    string? PriorityLabel = null);
+    string? PriorityLabel = null,
+    string? PipelineStatus = null);
 
 public record CsvImportRowError(int Row, string Message);
 public record CsvImportResultDto(int Created, int Skipped, List<CsvImportRowError> Errors, Guid? EnrichmentJobId = null);
@@ -173,7 +183,7 @@ public record UpdateLeadStatusDto(string Status);
 /// <summary>
 /// Partial update of the researched profile of a lead. A null field is left as it is; an empty string clears a text
 /// field. Numeric fields cannot be cleared with a value, so ClearFields names the ones to reset to null (foundingYear,
-/// googleRating, googleReviewCount). The sales priority score is recalculated from the profile on every call.
+/// googleRating, googleReviewCount, and whyLead, needs, productFit). The sales priority score is recalculated from the profile on every call.
 /// </summary>
 public record PatchLeadProfileDto(
     string? Name, string? Website, string? Sector, string? City, string? Phone, string? CompanyEmail,
@@ -184,4 +194,5 @@ public record PatchLeadProfileDto(
     string? FacebookUrl, string? InstagramUrl, string? TwitterUrl,
     string? Description, string? Services, string? TargetAudience, string? AiSummary, string? SalesPitch,
     string? WorkingArea, string? Certifications, string? PricingInfo, string? OpeningHours, string? NotableClients,
-    IReadOnlyList<string>? ClearFields = null);
+    IReadOnlyList<string>? ClearFields = null,
+    string? WhyLead = null, string? Needs = null, IReadOnlyList<ProductFitDto>? ProductFit = null);

@@ -24,6 +24,8 @@ WORKDIR /src
 COPY _websearch/ /src/websearch/
 COPY LeadManager.sln /src/leadmanager/
 COPY src/ /src/leadmanager/src/
+# The agent prompt of the lead hunt lives in docs/hunt and is embedded in the API.
+COPY docs/hunt/ /src/leadmanager/docs/hunt/
 RUN dotnet publish /src/leadmanager/src/LeadManager.Api/LeadManager.Api.csproj \
       -c Release -o /out -p:UseAppHost=false \
       -p:WebSearchProject=/src/websearch/WebSearch/WebSearch.csproj

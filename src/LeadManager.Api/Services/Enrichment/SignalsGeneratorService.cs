@@ -55,7 +55,7 @@ public class SignalsGeneratorService
 
         // No mobile / no direct contact
         var hasMobile = !string.IsNullOrWhiteSpace(lead.OwnerMobile) ||
-                        (!string.IsNullOrWhiteSpace(lead.Phone) && lead.Phone.Contains("06"));
+                        LeadManager.Api.Services.Hunt.PhoneNumbers.IsDutchMobile(lead.Phone);
         if (!hasMobile && string.IsNullOrWhiteSpace(lead.PersonalEmail))
             signals.Add(new LeadSignal { Type = "no_direct_contact", Message = "No mobile or personal email — only general contact available", Severity = "warning" });
 

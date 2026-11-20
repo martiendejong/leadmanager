@@ -4,6 +4,10 @@ import { fetchLeads, fetchLeadStats, importLeads, enrichLeads, exportLeads } fro
 import type { Lead, LeadFilter, LeadStats, CsvImportResult } from '../api/leads'
 import { useLeadSelection } from '../hooks/useLeadSelection'
 import { useToast } from '../components/Toast'
+import JobDialog from '../components/leads/JobDialog'
+import HuntPanel from '../components/leads/HuntPanel'
+import HuntJobView from '../components/leads/HuntJobView'
+import { errorMessage, startAgentReview, startVerify } from '../api/hunt'
 import LeadsTable from '../components/leads/LeadsTable'
 import FilterBar from '../components/leads/FilterBar'
 import LeadsToolbar from '../components/leads/LeadsToolbar'
@@ -11,6 +15,7 @@ import EnrichmentProgress from '../components/leads/EnrichmentProgress'
 import LeadDetailPanel from '../components/leads/LeadDetailPanel'
 import CreateLeadForm from '../components/leads/CreateLeadForm'
 import CsvImportDropzone from '../components/leads/CsvImportDropzone'
+import BulkDraftDialog from '../components/messages/BulkDraftDialog'
 
 const DESC_FIRST = new Set(['createdAt', 'updatedAt', 'importedAt', 'enrichedAt', 'salesPriorityScore'])
 
@@ -36,6 +41,8 @@ function buildInitialFilter(searchParams: URLSearchParams): LeadFilter {
   if (hasLinkedIn !== null) filter.hasLinkedIn = hasLinkedIn === 'true'
   const priorityLabel = searchParams.get('priorityLabel')
   if (priorityLabel) filter.priorityLabel = priorityLabel
+  const pipelineStatus = searchParams.get('pipelineStatus')
+  if (pipelineStatus) filter.pipelineStatus = pipelineStatus
   return filter
 }
 
@@ -52,8 +59,12 @@ export default function LeadsPage() {
   const [activeJobId, setActiveJobId] = useState<string | null>(null)
   const [isEnriching, setIsEnriching] = useState(false)
   const [detailLead, setDetailLead] = useState<Lead | null>(null)
+  const [showBulkDraft, setShowBulkDraft] = useState(false)
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [showCsvImport, setShowCsvImport] = useState(false)
+  const [showHunt, setShowHunt] = useState(false)
+  const [verifyJobId, setVerifyJobId] = useState<string | null>(null)
+  const [reviewJobId, setReviewJobId] = useState<string | null>(null)
   const [onboardingDismissed, setOnboardingDismissed] = useState(
     () => localStorage.getItem('lm_onboarding_dismissed') === '1'
   )
@@ -197,9 +208,41 @@ export default function LeadsPage() {
     try {
       const { jobId } = await enrichLeads(Array.from(selectedIds))
       setActiveJobId(jobId)
-    } catch {
-      showToast('Could not start enrichment', 'error')
+    } catch (err) {
+      showToast(errorMessage(err, 'Could not start enrichment'), 'error')
       setIsEnriching(false)
+    }
+  }, [selectedIds, showToast])
+
+  const handleVerify = useCallback(async () => {
+    if (selectedIds.size === 0) return
+    const confirmed = window.confirm(
+      `Verify ${selectedIds.size} lead${selectedIds.size !== 1 ? 's' : ''} against their own websites? Values that cannot be proven are removed and the score is recomputed.`
+    )
+    if (!confirmed) return
+    try {
+      const { jobId } = await startVerify(Array.from(selectedIds))
+      setVerifyJobId(jobId)
+    } catch (err) {
+      showToast(errorMessage(err, 'Could not start the verification'), 'error')
+    }
+  }, [selectedIds, showToast])
+
+  const handleAskAgent = useCallback(async () => {
+    if (selectedIds.size === 0) return
+    if (selectedIds.size > 5) {
+      showToast('Ask for a review of at most 5 leads at a time.', 'error')
+      return
+    }
+    const confirmed = window.confirm(
+      `Ask a Jengo agent to research ${selectedIds.size} lead${selectedIds.size !== 1 ? 's' : ''} on the web? It uses public information only and runs in the background (a JengoWork task is created). The server verifies everything it finds; nothing you typed is overwritten. Check the GDPR rules and the Do-Not-Call register before you contact anyone.`
+    )
+    if (!confirmed) return
+    try {
+      const { jobId } = await startAgentReview(Array.from(selectedIds))
+      setReviewJobId(jobId)
+    } catch (err) {
+      showToast(errorMessage(err, 'Could not start the agent review'), 'error')
     }
   }, [selectedIds, showToast])
 
@@ -323,8 +366,8 @@ export default function LeadsPage() {
             <div className="flex items-start gap-3">
               <span className="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-500 flex items-center justify-center text-xs font-bold">2</span>
               <div>
-                <Link to="/leads/search" className="font-medium underline hover:no-underline">Find leads with AI</Link>
-                <p className="text-indigo-200 text-xs mt-0.5">Based on your profile</p>
+                <button onClick={() => setShowHunt(true)} className="font-medium underline hover:no-underline text-left">Find new leads</button>
+                <p className="text-indigo-200 text-xs mt-0.5">Real companies, scored from their own websites</p>
               </div>
             </div>
             <div className="flex items-start gap-3">
@@ -339,12 +382,12 @@ export default function LeadsPage() {
       )}
 
       {/* Page header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Leads</h2>
           {!isLoading && (
             <p className="text-sm text-gray-500 mt-0.5">
-              {total.toLocaleString('en-GB')} leads in total
+              {total.toLocaleString('en-GB')} {total === 1 ? 'lead' : 'leads'} in total
             </p>
           )}
         </div>
@@ -388,6 +431,10 @@ export default function LeadsPage() {
       <LeadsToolbar
         selectedCount={selectedIds.size}
         onEnrich={handleEnrich}
+        onVerify={handleVerify}
+        onAskAgent={handleAskAgent}
+        onDraftMessages={() => setShowBulkDraft(true)}
+        onFind={() => setShowHunt(true)}
         onExport={handleExport}
         onExportCsv={handleExportCsv}
         onExportExcel={handleExportExcel}
@@ -437,8 +484,8 @@ export default function LeadsPage() {
           <div className="flex items-center gap-3">
             <span>
               {totalPages > 1
-                ? `Page ${currentPage} of ${totalPages} (${total.toLocaleString('en-GB')} leads)`
-                : `${total.toLocaleString('en-GB')} leads`}
+                ? `Page ${currentPage} of ${totalPages} (${total.toLocaleString('en-GB')} ${total === 1 ? 'lead' : 'leads'})`
+                : `${total.toLocaleString('en-GB')} ${total === 1 ? 'lead' : 'leads'}`}
             </span>
             <label className="flex items-center gap-1.5 text-xs text-gray-500">
               Per page:
@@ -495,7 +542,7 @@ export default function LeadsPage() {
       {/* Drag range indicator (subtle) */}
       {dragRange && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-indigo-700 text-white text-xs px-3 py-1.5 rounded-full shadow-lg z-50 pointer-events-none">
-          {selectedIds.size} leads selected
+          {selectedIds.size} {selectedIds.size === 1 ? 'lead' : 'leads'} selected
         </div>
       )}
 
@@ -503,7 +550,9 @@ export default function LeadsPage() {
       <EnrichmentProgress jobId={activeJobId} onComplete={handleEnrichmentComplete} />
 
       {/* Lead detail panel */}
-      <LeadDetailPanel lead={detailLead} onClose={() => setDetailLead(null)} />
+      <LeadDetailPanel lead={detailLead} onClose={() => setDetailLead(null)} onLeadUpdated={(l) => { setDetailLead(l); loadLeads(filter) }} />
+
+      {showBulkDraft && <BulkDraftDialog leadIds={Array.from(selectedIds)} onClose={() => setShowBulkDraft(false)} />}
 
       {/* Create lead form modal */}
       {showCreateForm && (
@@ -511,6 +560,27 @@ export default function LeadsPage() {
           onSuccess={handleCreateLeadSuccess}
           onCancel={() => setShowCreateForm(false)}
         />
+      )}
+
+      {/* Find new leads (evidence based hunt) */}
+      {showHunt && (
+        <JobDialog title="Find new leads" onClose={() => { setShowHunt(false); loadLeads(filter); loadStats() }}>
+          <HuntPanel onFinished={() => { loadLeads(filter); loadStats() }} />
+        </JobDialog>
+      )}
+
+      {/* Verify and rescore selected leads */}
+      {verifyJobId && (
+        <JobDialog title="Verify & rescore" onClose={() => { setVerifyJobId(null); loadLeads(filter); loadStats() }}>
+          <HuntJobView jobId={verifyJobId} onFinished={() => { loadLeads(filter); loadStats() }} />
+        </JobDialog>
+      )}
+
+      {/* Agent review of selected leads */}
+      {reviewJobId && (
+        <JobDialog title="Agent review" onClose={() => { setReviewJobId(null); loadLeads(filter); loadStats() }}>
+          <HuntJobView jobId={reviewJobId} onFinished={() => { loadLeads(filter); loadStats() }} />
+        </JobDialog>
       )}
 
       {/* CSV import modal */}

@@ -16,13 +16,11 @@ public class ProfileController : ControllerBase
 {
     private readonly LeadManagerDbContext _db;
     private readonly CompanyProfileService _profileService;
-    private readonly SmartSearchService _smartSearch;
 
-    public ProfileController(LeadManagerDbContext db, CompanyProfileService profileService, SmartSearchService smartSearch)
+    public ProfileController(LeadManagerDbContext db, CompanyProfileService profileService)
     {
         _db = db;
         _profileService = profileService;
-        _smartSearch = smartSearch;
     }
 
     private string GetUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
@@ -108,44 +106,6 @@ public class ProfileController : ControllerBase
 
         await _db.SaveChangesAsync();
         return Ok(ToDto(profile));
-    }
-
-    // POST /api/profile/search
-    [HttpPost("search")]
-    public async Task<IActionResult> Search()
-    {
-        var userId = GetUserId();
-        var profile = await _db.CompanyProfiles.FirstOrDefaultAsync(p => p.UserId == userId);
-        if (profile == null)
-            return BadRequest(new { message = "Create a company profile first." });
-
-        // Build dedup set from existing user leads (name|domain)
-        var existingLeads = await _db.Leads
-            .Where(l => l.ImportedByUserId == userId)
-            .Select(l => new { l.Name, l.Website })
-            .ToListAsync();
-        var existingKeys = existingLeads
-            .Select(l => SmartSearchService.MakeKey(l.Name, l.Website))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        var results = await _smartSearch.SearchAndQualifyAsync(profile, existingKeys);
-
-        return Ok(results.Select(r => new
-        {
-            name = r.Name,
-            website = r.Website,
-            city = r.City,
-            sector = r.Sector,
-            phone = r.Phone,
-            email = r.Email,
-            source = r.Source,
-            confidenceScore = r.ConfidenceScore,
-            qualificationReason = r.QualificationReason,
-            ownerName = r.OwnerName,
-            description = r.Description,
-            services = r.Services,
-            targetAudience = r.TargetAudience
-        }));
     }
 
     private static object ToDto(CompanyProfile p) => new

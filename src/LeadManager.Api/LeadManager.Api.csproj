@@ -15,7 +15,7 @@
     <PackageReference Include="EPPlus" Version="7.*" />
     <PackageReference Include="Hangfire.AspNetCore" Version="1.8.*" />
     <PackageReference Include="Hangfire.MemoryStorage" Version="1.8.*" />
-    <PackageReference Include="HtmlAgilityPack" Version="1.*" />
+    <PackageReference Include="HtmlAgilityPack" Version="1.13.1" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.*" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.*" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Core" Version="1.*" />
@@ -30,6 +30,13 @@
     <!-- Force .NET 8.0 versions to prevent version conflicts with WebSearch multi-targeting -->
     <PackageReference Include="System.Diagnostics.DiagnosticSource" Version="8.*" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="8.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The versioned prompt of the lead hunt agent: rendered into the JengoWork task. -->
+    <EmbeddedResource Include="..\..\docs\hunt\AGENT_PROMPT.md" LogicalName="AGENT_PROMPT.md" />
+    <!-- The product catalog the hunt agent chooses from, and the keys a lead may name: one file. -->
+    <EmbeddedResource Include="Agent\PRODUCTS.md" />
   </ItemGroup>
 
   <PropertyGroup>

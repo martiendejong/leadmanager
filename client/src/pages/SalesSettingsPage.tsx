@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import type { SalesSettings } from '../api/salesSettings';
 import { salesSettingsApi } from '../api/salesSettings';
+import MessageTemplatesPanel from '../components/messages/MessageTemplatesPanel';
 
-type Tab = 'company' | 'pricing' | 'quote' | 'script' | 'email' | 'rules' | 'fedha';
+type Tab = 'company' | 'pricing' | 'quote' | 'script' | 'email' | 'messages' | 'rules' | 'fedha';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'company', label: 'Company details' },
@@ -10,6 +11,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'quote', label: 'Quote' },
   { id: 'script', label: 'Call script template' },
   { id: 'email', label: 'Email template' },
+  { id: 'messages', label: 'Message templates' },
   { id: 'rules', label: 'Client rules' },
   { id: 'fedha', label: 'Fedha integration' },
 ];
@@ -208,6 +210,8 @@ export default function SalesSettingsPage() {
           </>
         )}
 
+        {activeTab === 'messages' && <MessageTemplatesPanel />}
+
         {activeTab === 'fedha' && (
           <>
             <p className="text-sm text-gray-500">Connect the Fedha invoicing system to create invoices directly from the app.</p>
@@ -218,8 +222,8 @@ export default function SalesSettingsPage() {
         )}
       </div>
 
-      {/* Save bar */}
-      <div className="mt-4 flex items-center gap-3">
+      {/* Save bar (the message templates have their own save button) */}
+      <div className={`mt-4 flex items-center gap-3 ${activeTab === 'messages' ? 'hidden' : ''}`}>
         <button
           onClick={save}
           disabled={saving}

@@ -1,5 +1,13 @@
 import apiClient from './client'
 
+/** One of our products that can help a lead, with the trigger observed on the business's own pages. */
+export interface ProductFit {
+  product: string
+  reason: string
+  evidenceQuote?: string | null
+  sourceUrl?: string | null
+}
+
 export interface Lead {
   id: string
   name: string
@@ -86,6 +94,12 @@ export interface Lead {
   // Workflow automation (steps 1-10)
   workflowStep?: number
   workflowDataJson?: string | null
+  // Why this lead, what it needs, which of our products can help (null/undefined = not assessed; [] = no clear fit)
+  whyLead?: string | null
+  needs?: string | null
+  productFit?: ProductFit[] | null
+  // When a message to this lead was last marked as sent by the user
+  lastContactedAt?: string | null
 }
 
 export interface LeadsResponse {
@@ -107,6 +121,7 @@ export interface LeadFilter {
   hasOwner?: boolean
   hasLinkedIn?: boolean
   priorityLabel?: string
+  pipelineStatus?: string
 }
 
 export interface LeadStats {
@@ -142,6 +157,7 @@ export async function fetchLeads(filter: LeadFilter): Promise<LeadsResponse> {
   if (filter.hasOwner !== undefined) params.hasOwner = filter.hasOwner
   if (filter.hasLinkedIn !== undefined) params.hasLinkedIn = filter.hasLinkedIn
   if (filter.priorityLabel) params.priorityLabel = filter.priorityLabel
+  if (filter.pipelineStatus) params.pipelineStatus = filter.pipelineStatus
 
   const res = await apiClient.get<LeadsResponse>('/api/leads', { params })
   return res.data

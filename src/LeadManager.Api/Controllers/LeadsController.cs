@@ -5,6 +5,7 @@ using LeadManager.Api.DTOs;
 using LeadManager.Api.Models;
 using LeadManager.Api.Services;
 using LeadManager.Api.Services.Enrichment;
+using LeadManager.Api.Services.Hunt;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -113,6 +114,13 @@ public class LeadsController : ControllerBase
         if (!string.IsNullOrWhiteSpace(filters.PriorityLabel))
             query = query.Where(l => l.SalesPriorityLabel == filters.PriorityLabel);
 
+        if (!string.IsNullOrWhiteSpace(filters.PipelineStatus))
+        {
+            if (!Enum.TryParse<PipelineStatus>(filters.PipelineStatus, true, out var pipeline))
+                return BadRequest(new { error = $"Pipeline status is one of: {string.Join(", ", Enum.GetNames<PipelineStatus>())}." });
+            query = query.Where(l => l.PipelineStatus == pipeline);
+        }
+
         // Sorting
         query = filters.SortBy?.ToLower() switch
         {
@@ -126,6 +134,8 @@ public class LeadsController : ControllerBase
             "ownername"           => filters.SortDesc ? query.OrderByDescending(l => l.OwnerName)          : query.OrderBy(l => l.OwnerName),
             "isenriched"          => filters.SortDesc ? query.OrderByDescending(l => l.IsEnriched)         : query.OrderBy(l => l.IsEnriched),
             "importedat"          => filters.SortDesc ? query.OrderByDescending(l => l.ImportedAt)         : query.OrderBy(l => l.ImportedAt),
+            "lastcontactedat"     => filters.SortDesc ? query.OrderByDescending(l => l.LastContactedAt)    : query.OrderBy(l => l.LastContactedAt),
+            "pipelinestatus"      => filters.SortDesc ? query.OrderByDescending(l => l.PipelineStatus)     : query.OrderBy(l => l.PipelineStatus),
             "salespriorityscore"  => filters.SortDesc ? query.OrderByDescending(l => l.SalesPriorityScore) : query.OrderBy(l => l.SalesPriorityScore),
             _                     => filters.SortDesc ? query.OrderByDescending(l => l.Name)               : query.OrderBy(l => l.Name),
         };
@@ -189,7 +199,7 @@ public class LeadsController : ControllerBase
         return Ok(ToDto(lead));
     }
 
-    private static readonly HashSet<string> ClearableNumericFields = new(StringComparer.OrdinalIgnoreCase) { "foundingYear", "googleRating", "googleReviewCount" };
+    private static readonly HashSet<string> ClearableNumericFields = new(StringComparer.OrdinalIgnoreCase) { "foundingYear", "googleRating", "googleReviewCount", "whyLead", "needs", "productFit" };
 
     // PATCH /api/leads/{id}/profile
     // Updates the researched profile (owner, LinkedIn, mobile, size, rating, ...) and recalculates the sales priority score
@@ -267,6 +277,28 @@ public class LeadsController : ControllerBase
         var pricing = Text(dto.PricingInfo, "Pricing info", 1000);
         var hours = Text(dto.OpeningHours, "Opening hours", 500);
         var clients = Text(dto.NotableClients, "Notable clients", 2000);
+        var whyLead = Text(dto.WhyLead, "Why this lead", 1000);
+        var needsText = Text(dto.Needs, "Needs", 1000);
+        string? productFitJson = null;
+        if (dto.ProductFit != null)
+        {
+            // Only products of ours, each with a reason; at most four, each product once. An empty list means "assessed, no clear fit".
+            var entries = new List<ProductFitEntry>();
+            foreach (var f in dto.ProductFit)
+            {
+                var key = ProductCatalog.Canonical(f.Product);
+                var reason = (f.Reason ?? "").Trim();
+                var quote = (f.EvidenceQuote ?? "").Trim();
+                var source = Url(f.SourceUrl, "Product fit source");
+                if (key == null) { error ??= $"'{f.Product}' is not one of our products. Known: {string.Join(", ", ProductCatalog.Keys)}."; continue; }
+                if (reason.Length < 3 || reason.Length > 300) { error ??= "A product fit needs a reason of 3 to 300 characters."; continue; }
+                if (quote.Length > 400) { error ??= "A product fit quote is at most 400 characters."; continue; }
+                if (entries.Any(e => e.Product == key)) { error ??= $"Product {key} is listed twice."; continue; }
+                entries.Add(new ProductFitEntry(key, TextSafety.Clean(reason, 300), quote, source ?? ""));
+            }
+            if (entries.Count > LeadInsight.MaxFitEntries) error ??= $"At most {LeadInsight.MaxFitEntries} products per lead.";
+            productFitJson = LeadInsight.SerializeFit(entries);
+        }
 
         if (dto.FoundingYear is < 1800 || dto.FoundingYear > DateTime.UtcNow.Year) error ??= "Founding year is not valid.";
         if (dto.GoogleRating.HasValue && !(dto.GoogleRating.Value >= 0 && dto.GoogleRating.Value <= 5)) error ??= "Google rating is between 0 and 5.";
@@ -278,12 +310,15 @@ public class LeadsController : ControllerBase
         foreach (var f in dto.ClearFields ?? Array.Empty<string>())
         {
             var key = (f ?? "").Trim();
-            if (!ClearableNumericFields.Contains(key)) { error ??= $"Field '{f}' cannot be cleared. Allowed: foundingYear, googleRating, googleReviewCount."; continue; }
+            if (!ClearableNumericFields.Contains(key)) { error ??= $"Field '{f}' cannot be cleared. Allowed: foundingYear, googleRating, googleReviewCount, whyLead, needs, productFit."; continue; }
             clear.Add(key);
         }
         if (clear.Contains("foundingYear") && dto.FoundingYear.HasValue) error ??= "foundingYear is both set and cleared.";
         if (clear.Contains("googleRating") && dto.GoogleRating.HasValue) error ??= "googleRating is both set and cleared.";
         if (clear.Contains("googleReviewCount") && dto.GoogleReviewCount.HasValue) error ??= "googleReviewCount is both set and cleared.";
+        if (clear.Contains("whyLead") && whyLead != null) error ??= "whyLead is both set and cleared.";
+        if (clear.Contains("needs") && needsText != null) error ??= "needs is both set and cleared.";
+        if (clear.Contains("productFit") && productFitJson != null) error ??= "productFit is both set and cleared.";
         if (error != null) return BadRequest(new { error });
 
         if (name != null) lead.Name = name;
@@ -325,6 +360,12 @@ public class LeadsController : ControllerBase
         if (pricing != null) lead.PricingInfo = pricing;
         if (hours != null) lead.OpeningHours = hours;
         if (clients != null) lead.NotableClients = clients;
+        if (whyLead != null) lead.WhyLead = whyLead == "" ? null : whyLead;
+        if (needsText != null) lead.Needs = needsText == "" ? null : needsText;
+        if (productFitJson != null) lead.ProductFitJson = productFitJson;
+        if (clear.Contains("whyLead")) lead.WhyLead = null;
+        if (clear.Contains("needs")) lead.Needs = null;
+        if (clear.Contains("productFit")) lead.ProductFitJson = null;
 
         Rescore(lead);
 
@@ -382,6 +423,7 @@ public class LeadsController : ControllerBase
         var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == userId);
         if (lead == null) return NotFound();
 
+        await Services.Hunt.HuntEvidence.ForgetAsync(_db, new[] { lead.Id });   // the quotes of a deleted lead do not stay in the hunt history
         _db.Leads.Remove(lead);
         await _db.SaveChangesAsync();
         return NoContent();
@@ -592,6 +634,7 @@ public class LeadsController : ControllerBase
 
         // TODO: Add LeadActivity "Samengevoegd met [source.Name]" once LeadActivity entity is merged (PR #30)
 
+        await Services.Hunt.HuntEvidence.ForgetAsync(_db, new[] { source.Id }, moveTo: target.Id);   // the hunt history follows the lead that stays
         _db.Leads.Remove(source);
         await _db.SaveChangesAsync();
 
@@ -1342,5 +1385,9 @@ public class LeadsController : ControllerBase
         l.ReminderDate,
         // Lead-to-client conversion
         l.ConvertedToClientId,
-        l.UpdatedAt);
+        l.UpdatedAt,
+        l.WhyLead,
+        l.Needs,
+        LeadInsight.ParseFit(l.ProductFitJson)?.Select(e => new ProductFitDto(e.Product, e.Reason, e.EvidenceQuote, e.SourceUrl)).ToList(),
+        l.LastContactedAt);
 }

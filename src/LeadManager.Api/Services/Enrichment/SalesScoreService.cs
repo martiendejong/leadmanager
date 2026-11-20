@@ -1,4 +1,5 @@
 using LeadManager.Api.Models;
+using LeadManager.Api.Services.Hunt;
 
 namespace LeadManager.Api.Services.Enrichment;
 
@@ -19,8 +20,8 @@ public class SalesScoreService
         { score += 1; factors.Add("Company LinkedIn known"); }
 
         // Mobile phone present: +2 points
-        var hasMobile = !string.IsNullOrWhiteSpace(lead.OwnerMobile) ||
-                        (!string.IsNullOrWhiteSpace(lead.Phone) && lead.Phone.Contains("06"));
+        var hasMobile = PhoneNumbers.IsDutchMobile(lead.OwnerMobile) ||
+                        PhoneNumbers.IsDutchMobile(lead.Phone);
         if (hasMobile)
         { score += 2; factors.Add("Mobile phone available"); }
 

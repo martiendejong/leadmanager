@@ -73,7 +73,9 @@ public class SitemapService
         try
         {
             var xml = await _http.GetStringAsync(sitemapUrl);
-            var doc = XDocument.Parse(xml);
+            // SafeXml: no DOCTYPE (entity expansion), a size cap and a depth cap; null for anything that is not a plain sitemap.
+            var doc = LeadManager.Api.Services.Hunt.SafeXml.TryParse(xml);
+            if (doc == null) return urls;
             var ns = doc.Root?.Name.Namespace ?? XNamespace.None;
 
             // Sitemap index — recurse

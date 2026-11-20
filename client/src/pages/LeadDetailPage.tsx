@@ -4,6 +4,8 @@ import { getLead, updateLeadWorkflow } from '../api/leads'
 import type { Lead } from '../api/leads'
 import api from '../api/client'
 import CrmPanel from '../components/crm/CrmPanel'
+import MessageSection from '../components/leads/MessageSection'
+import LeadInsightBlock from '../components/leads/LeadInsightBlock'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -813,6 +815,12 @@ export default function LeadDetailPage() {
 
   useEffect(() => { fetchLead() }, [fetchLead])
 
+  // "Write message" links open the lead at the message section
+  const leadLoaded = !!lead
+  useEffect(() => {
+    if (leadLoaded && window.location.hash === '#message') document.getElementById('message')?.scrollIntoView({ block: 'start' })
+  }, [leadLoaded])
+
   const advanceStep = useCallback(async (nextStep: number, workflowDataJson?: string) => {
     if (!lead || !id) return
     setSaving(true)
@@ -870,18 +878,18 @@ export default function LeadDetailPage() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="flex items-start justify-between mb-6">
-        <div className="flex items-center gap-3">
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto">
+      {/* Header: wraps on a phone, so the badge and the city and sector text are never clipped */}
+      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2 mb-6">
+        <div className="flex items-center gap-3 min-w-0">
           <Link to="/leads" className="text-gray-400 hover:text-gray-600 transition-colors" title="Back to leads">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </Link>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">{lead.name}</h1>
-            <div className="flex items-center gap-2 mt-1">
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 break-words">{lead.name}</h1>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
               {lead.website && (
                 <a href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`}
                   target="_blank" rel="noopener noreferrer"
@@ -897,8 +905,11 @@ export default function LeadDetailPage() {
             </div>
           </div>
         </div>
-        <span className={`px-3 py-1 rounded-full text-xs font-medium ${pipeline.color}`}>{pipeline.label}</span>
+        <span className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap shrink-0 ${pipeline.color}`}>{pipeline.label}</span>
       </div>
+
+      {/* Why this lead, what it needs, how we can help (the same block as in the slide-over) */}
+      <div className="mb-6"><LeadInsightBlock lead={lead} /></div>
 
       {/* Progress bar */}
       <div className="mb-6">
@@ -912,9 +923,9 @@ export default function LeadDetailPage() {
       </div>
 
       {/* Body: two columns */}
-      <div className="grid grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left: Lead info */}
-        <div className="col-span-1 space-y-4">
+        <div className="lg:col-span-1 space-y-4">
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Contact</h3>
             <div className="space-y-2.5">
@@ -980,7 +991,10 @@ export default function LeadDetailPage() {
         </div>
 
         {/* Right: Workflow */}
-        <div className="col-span-2">
+        <div className="lg:col-span-2 min-w-0">
+          <div id="message" className="mb-4">
+            <MessageSection lead={lead} onLeadChanged={(patch) => setLead((prev) => (prev ? { ...prev, ...patch } : prev))} />
+          </div>
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             {STEPS.map((step, idx) => {
               const status = getStepStatus(step.num, lead)
