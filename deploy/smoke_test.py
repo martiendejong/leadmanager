@@ -279,6 +279,28 @@ def main() -> int:
             r = s.post(base + "/api/messages/bulk-drafts", headers=jwt, timeout=30, json={"leadIds": [msg_lead], "channel": "WhatsApp"})
             check(r.status_code == 200 and r.json().get("created") == 1, "bulk drafts create a draft")
             check(s.get(base + "/api/messages/queue", headers=jwt, timeout=30).status_code == 200, "the next to contact queue answers")
+            # AI compose (regenerate with an instruction, demo ideas). No key is needed here: without one the endpoints must answer a clean 503, and a real call is never made.
+            r = s.get(base + "/api/ai/status", headers=jwt, timeout=30)
+            ai_on = r.status_code == 200 and r.json().get("configured") is True
+            check(r.status_code == 200 and "configured" in r.json(), "the AI status answers")
+            ai_msg = f"{base}/api/leads/{msg_lead}/ai/message"
+            ai_demo = f"{base}/api/leads/{msg_lead}/ai/demos"
+            if not ai_on:
+                r = s.post(ai_msg, headers=jwt, timeout=30, json={"channel": "Email", "instruction": "shorter"})
+                check(r.status_code == 503 and r.json().get("code") == "ai_not_configured" and "AI is not configured" in r.json().get("error", ""), "AI message without a key: 503 ai_not_configured")
+                r = s.post(ai_demo, headers=jwt, timeout=30, json={"instruction": "x"})
+                check(r.status_code == 503 and r.json().get("code") == "ai_not_configured", "AI demo ideas without a key: 503 ai_not_configured")
+            else:
+                r = s.post(ai_msg, headers=jwt, timeout=30, json={"channel": "Email", "instruction": "x" * 501})
+                check(r.status_code == 400 and r.json().get("code") == "instruction_too_long", "AI message refuses an instruction over 500 characters (no model call)")
+                check(s.post(ai_msg, headers=jwt, timeout=30, json={"channel": "Fax"}).status_code == 400, "AI message refuses an unknown channel (no model call)")
+            r = s.get(ai_demo, headers=jwt, timeout=30)
+            check(r.status_code == 200 and r.json().get("items") == [], "saved demo ideas of a new lead are empty")
+            check(s.post(ai_msg, headers=k, json={"channel": "Email"}, timeout=30).status_code == 403, "an API key cannot generate an AI message")
+            check(s.post(ai_demo, headers=k, json={}, timeout=30).status_code == 403, "an API key cannot generate demo ideas")
+            check(s.get(ai_demo, headers=k, timeout=30).status_code == 403, "an API key does not reach the demo ideas")
+            check(requests.post(ai_msg, json={"channel": "Email"}, timeout=30).status_code == 401, "AI message needs a login")
+            check(s.get(base + "/api/leads/" + str(uuid.uuid4()) + "/ai/demos", headers=jwt, timeout=30).status_code == 404, "demo ideas of an unknown lead: 404")
         if msg_lead:
             s.delete(f"{base}/api/leads/{msg_lead}", headers=jwt, timeout=30)
         r = s.put(base + "/api/message-templates", headers=jwt, timeout=30, json={"channel": "LinkedIn", "productKey": "werkteam", "body": "Smoke {name} {unknown}"})

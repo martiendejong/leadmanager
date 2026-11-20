@@ -157,3 +157,54 @@ export async function saveTemplate(dto: { channel: Channel; productKey: string; 
 export async function deleteTemplate(id: string): Promise<void> {
   await apiClient.delete(`/api/message-templates/${id}`)
 }
+
+// ---- AI help in the message section (regenerate with an instruction, demo ideas). Optional: 503 ai_not_configured without a key. ----
+
+export const MAX_AI_INSTRUCTION = 500
+
+export interface AiStatus { configured: boolean; model: string | null; maxInstruction: number; message: string | null }
+
+export interface AiMessage {
+  channel: Channel
+  subject: string
+  body: string
+  language: string
+  model: string
+  notes: string[]
+  startedFrom: 'editor' | 'template'
+}
+
+export interface DemoIdea {
+  id: string
+  title: string
+  shows: string
+  whyFit: string
+  productKey: string
+  prompt: string
+  instruction: string
+  model: string
+  generatedAt: string
+}
+
+export interface DemoIdeaSet { items: DemoIdea[]; generatedAt: string | null; noFitReason?: string | null; configured?: boolean }
+
+export async function getAiStatus(): Promise<AiStatus> {
+  const res = await apiClient.get<AiStatus>('/api/ai/status')
+  return res.data
+}
+
+/** A new draft text from the stored facts of the lead. Saves nothing: the user still saves the draft. */
+export async function aiMessage(leadId: string, dto: { channel: Channel; product?: string; instruction?: string; subject?: string; body?: string }): Promise<AiMessage> {
+  const res = await apiClient.post<AiMessage>(`/api/leads/${leadId}/ai/message`, dto, { timeout: 90_000 })
+  return res.data
+}
+
+export async function getDemoIdeas(leadId: string): Promise<DemoIdeaSet> {
+  const res = await apiClient.get<DemoIdeaSet>(`/api/leads/${leadId}/ai/demos`)
+  return res.data
+}
+
+export async function generateDemoIdeas(leadId: string, instruction?: string): Promise<DemoIdeaSet> {
+  const res = await apiClient.post<DemoIdeaSet>(`/api/leads/${leadId}/ai/demos`, { instruction: instruction || null }, { timeout: 90_000 })
+  return res.data
+}

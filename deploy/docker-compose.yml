@@ -37,6 +37,8 @@ services:
       Sso__ClientId: ${SSO_CLIENT_ID:-leadmanager}
       # Optioneel. Leeg = die functie staat uit. Op test bewust leeg laten.
       OpenAI__ApiKey: ${OPENAI_API_KEY:-}
+      # Model for the AI help in the message section. Empty = the built-in default (see docs/MESSAGES.md).
+      AiCompose__Model: ${AI_COMPOSE_MODEL:-}
       GooglePlaces__ApiKey: ${GOOGLE_PLACES_API_KEY:-}
       # Lead hunt: the app starts a background Jengo agent by creating a JengoWork task (JengoWork__* below, board 105 "Jengo Clients" by default).
       # Each hunt gets a task token (stored hashed, one hour, one call) that goes into that task's text; the first /brief call exchanges it for a short

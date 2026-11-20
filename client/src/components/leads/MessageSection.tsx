@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { errorMessage } from '../../api/crm'
 import {
-  CHANNELS, CHANNEL_LABELS, MAX_BODY, MAX_SUBJECT,
-  createDraft, deleteDraft, getLeadMessages, getMailto, getPrefill, markSent, updateDraft,
+  CHANNELS, CHANNEL_LABELS, MAX_AI_INSTRUCTION, MAX_BODY, MAX_SUBJECT,
+  aiMessage, createDraft, deleteDraft, getAiStatus, getLeadMessages, getMailto, getPrefill, markSent, updateDraft,
   type Channel, type LeadMessage, type Prefill,
 } from '../../api/messages'
 import { useProducts } from './ProductChips'
+import DemoIdeas from './DemoIdeas'
 import type { Lead } from '../../api/leads'
 
 interface Props {
@@ -37,6 +38,11 @@ export default function MessageSection({ lead, onLeadChanged, initialChannel }: 
   const [busy, setBusy] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const dirty = useRef(false)
+  // AI help (regenerate with an instruction). null = not known yet; false = no key on the server: the controls explain it and templates keep working.
+  const [aiConfigured, setAiConfigured] = useState<boolean | null>(null)
+  const [instruction, setInstruction] = useState('')
+  const [aiBusy, setAiBusy] = useState(false)
+  const [aiNotes, setAiNotes] = useState<string[]>([])
   // Inline feedback next to the buttons: a toast is easy to miss and gone after a moment
   const [notice, setNotice] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
   const noticeTimer = useRef<number | undefined>(undefined)
@@ -46,6 +52,12 @@ export default function MessageSection({ lead, onLeadChanged, initialChannel }: 
     if (kind === 'ok') noticeTimer.current = window.setTimeout(() => setNotice(null), 6000)
   }, [])
   useEffect(() => () => window.clearTimeout(noticeTimer.current), [])
+
+  useEffect(() => {
+    let alive = true
+    getAiStatus().then((s) => { if (alive) setAiConfigured(s.configured) }).catch(() => { if (alive) setAiConfigured(null) })
+    return () => { alive = false }
+  }, [])
 
   const fits = (lead.productFit ?? []).filter((f) => products[f.product])
 
@@ -71,11 +83,39 @@ export default function MessageSection({ lead, onLeadChanged, initialChannel }: 
     setEditing(null)
     setConfirming(false)
     setNotice(null)
+    setInstruction('')
+    setAiNotes([])
     setProduct('')
     setChannel(initialChannel ?? 'Email')
     void applyPrefill(initialChannel ?? 'Email', '')
     void loadHistory()
   }, [lead.id, initialChannel, applyPrefill, loadHistory])
+
+  // Regenerate the text with the instruction. The editor text is the starting point. It replaces the editor text only: still a draft, saved by "Save draft".
+  const regenerate = async () => {
+    setAiBusy(true)
+    setNotice(null)
+    try {
+      const r = await aiMessage(lead.id, { channel, product: product || undefined, instruction: instruction.trim() || undefined, subject, body })
+      setSubject(r.subject)
+      setBody(r.body)
+      setAiNotes(r.notes)
+      dirty.current = true
+      say('ok', 'New draft text. Check it, then save it or send it yourself. Nothing was sent.')
+    } catch (err) {
+      const code = (err as { response?: { data?: { code?: string } } })?.response?.data?.code
+      if (code === 'ai_not_configured') setAiConfigured(false)
+      say('error', errorMessage(err, 'Could not regenerate the message.'))
+    } finally {
+      setAiBusy(false)
+    }
+  }
+
+  const backToTemplate = () => {
+    if (dirty.current && !window.confirm('Replace your text with the template?')) return
+    setAiNotes([])
+    void applyPrefill(channel, product)
+  }
 
   const changeChannel = (ch: Channel) => {
     if (dirty.current && !window.confirm('Replace your text with the template for this channel?')) return
@@ -166,6 +206,7 @@ export default function MessageSection({ lead, onLeadChanged, initialChannel }: 
   const input = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500'
 
   return (
+    <>
     <section aria-label="Message" className="rounded-lg border border-gray-200 p-4 bg-white">
       <h3 className="text-sm font-semibold text-gray-700 mb-1">Message</h3>
       <p className="text-xs text-gray-500 mb-3">
@@ -203,6 +244,36 @@ export default function MessageSection({ lead, onLeadChanged, initialChannel }: 
           onChange={(e) => { setBody(e.target.value); dirty.current = true }} />
       </label>
       <p className="text-xs text-gray-400 mb-3">{body.length} / {MAX_BODY}</p>
+
+      <div className="rounded-lg border border-indigo-100 bg-indigo-50/40 p-3 mb-3 min-w-0">
+        <label className="block text-xs text-gray-600 mb-1">Regenerate with a prompt
+          <input aria-label="AI instruction" className={input} value={instruction} maxLength={MAX_AI_INSTRUCTION} disabled={aiConfigured === false || aiBusy}
+            placeholder="for example: shorter, more informal, mention their opening hours"
+            onChange={(e) => setInstruction(e.target.value)} />
+        </label>
+        <div className="flex flex-wrap items-center gap-2">
+          <button disabled={busy || aiBusy || aiConfigured === false} onClick={regenerate}
+            title="Writes a new draft from the stored facts of this lead. It replaces the text above; nothing is saved or sent."
+            className="whitespace-nowrap text-sm px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">
+            {aiBusy ? 'Writing...' : 'Regenerate'}
+          </button>
+          <button disabled={busy || aiBusy} onClick={backToTemplate}
+            className="whitespace-nowrap text-sm px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-white disabled:opacity-50">
+            Back to template
+          </button>
+          <span className="text-xs text-gray-400">{instruction.length} / {MAX_AI_INSTRUCTION}</span>
+        </div>
+        {aiConfigured === false && (
+          <p role="status" className="mt-2 text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded px-2 py-1">
+            AI is not configured on this server. The templates still work.
+          </p>
+        )}
+        {aiNotes.length > 0 && (
+          <ul aria-label="Notes from the AI" className="mt-2 text-xs text-gray-600 list-disc pl-4 break-words">
+            {aiNotes.map((n) => <li key={n}>{n}</li>)}
+          </ul>
+        )}
+      </div>
 
       <div className="flex flex-wrap gap-2">
         <button disabled={busy} onClick={saveDraft} className="whitespace-nowrap text-sm px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50">Save draft</button>
@@ -258,5 +329,7 @@ export default function MessageSection({ lead, onLeadChanged, initialChannel }: 
         </div>
       )}
     </section>
+    <DemoIdeas lead={lead} aiConfigured={aiConfigured} />
+    </>
   )
 }

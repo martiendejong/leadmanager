@@ -237,6 +237,12 @@ builder.Services.AddRateLimiter(o =>
             LeadManager.Api.Controllers.HuntRateLimit.PolicyKey(ctx),
             _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
             { PermitLimit = LeadManager.Api.Controllers.HuntRateLimit.PerMinute, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+    // AI compose: one model call costs money, so a person gets a small allowance per minute.
+    o.AddPolicy(LeadManager.Api.Controllers.AiComposeRateLimit.Policy, ctx =>
+        System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+            LeadManager.Api.Controllers.AiComposeRateLimit.PolicyKey(ctx),
+            _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+            { PermitLimit = LeadManager.Api.Controllers.AiComposeRateLimit.PerMinute, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
     // Per address over every hunt as well: a guesser who rotates hunt ids still meets one counter.
     o.GlobalLimiter = System.Threading.RateLimiting.PartitionedRateLimiter.Create<Microsoft.AspNetCore.Http.HttpContext, string>(LeadManager.Api.Controllers.HuntRateLimit.GlobalPartition);
 });
@@ -273,6 +279,9 @@ builder.Services.AddHttpClient<KvkEnrichmentService>(c => c.Timeout = TimeSpan.F
 builder.Services.AddHttpClient<GooglePlacesEnrichmentService>(c => c.Timeout = TimeSpan.FromSeconds(10));
 builder.Services.AddHttpClient<TextInputEnrichmentService>();
 builder.Services.AddHttpClient<AiSalesApproachService>();
+// AI help in the message section (regenerate with an instruction, demo ideas). OpenAI:ApiKey empty = those endpoints answer 503 "AI is not configured".
+builder.Services.AddHttpClient<LeadManager.Api.Services.Compose.ILeadAiClient, LeadManager.Api.Services.Compose.OpenAiLeadAiClient>();
+builder.Services.AddScoped<LeadManager.Api.Services.Compose.LeadAiComposer>();
 builder.Services.AddScoped<SalesScoreService>();
 builder.Services.AddScoped<DocumentParserService>();
 // Singleton so its internal MemoryCache and 30/min rate limiter are shared

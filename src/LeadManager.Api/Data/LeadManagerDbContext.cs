@@ -27,6 +27,7 @@ public class LeadManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<HuntJob> HuntJobs { get; set; }
     public DbSet<LeadMessage> LeadMessages { get; set; }
     public DbSet<MessageTemplate> MessageTemplates { get; set; }
+    public DbSet<LeadDemoIdea> LeadDemoIdeas { get; set; }
     public DbSet<HuntCandidate> HuntCandidates { get; set; }
 
     // Jengo Clients CRM core (task 8023)
@@ -92,6 +93,14 @@ public class LeadManagerDbContext : IdentityDbContext<ApplicationUser>
             e.Property(m => m.Channel).HasMaxLength(20);
             e.Property(m => m.Status).HasMaxLength(10);
             e.HasOne(m => m.Lead).WithMany().HasForeignKey(m => m.LeadId).OnDelete(DeleteBehavior.Cascade);
+        });
+        builder.Entity<LeadDemoIdea>(e =>
+        {
+            e.HasIndex(d => new { d.UserId, d.LeadId, d.Position });
+            e.Property(d => d.Title).HasMaxLength(200);
+            e.Property(d => d.ProductKey).HasMaxLength(20);
+            e.Property(d => d.Model).HasMaxLength(80);
+            e.HasOne(d => d.Lead).WithMany().HasForeignKey(d => d.LeadId).OnDelete(DeleteBehavior.Cascade);
         });
         builder.Entity<MessageTemplate>(e =>
         {
