@@ -26,7 +26,8 @@ function isFilterActive(filter: LeadFilter): boolean {
     !!filter.assignedToUserId ||
     filter.hasOwner !== undefined ||
     filter.hasLinkedIn !== undefined ||
-    !!filter.priorityLabel
+    !!filter.priorityLabel ||
+    !!filter.pipelineStatus
   )
 }
 
@@ -50,6 +51,7 @@ export default function FilterBar({ filter, onChange, stats }: FilterBarProps) {
     if (filter.hasOwner !== undefined) params.set('hasOwner', String(filter.hasOwner))
     if (filter.hasLinkedIn !== undefined) params.set('hasLinkedIn', String(filter.hasLinkedIn))
     if (filter.priorityLabel) params.set('priorityLabel', filter.priorityLabel)
+    if (filter.pipelineStatus) params.set('pipelineStatus', filter.pipelineStatus)
     setSearchParams(params, { replace: true })
   }, [filter, setSearchParams])
 
@@ -69,6 +71,8 @@ export default function FilterBar({ filter, onChange, stats }: FilterBarProps) {
     if (page) initial.page = parseInt(page)
     if (sortBy) initial.sortBy = sortBy
     if (sortDesc) initial.sortDesc = sortDesc === 'true'
+    const pipelineParam = searchParams.get('pipelineStatus')
+    if (pipelineParam) initial.pipelineStatus = pipelineParam
 
     if (Object.keys(initial).length > 0) {
       onChange({ ...filter, ...initial })
@@ -181,6 +185,18 @@ export default function FilterBar({ filter, onChange, stats }: FilterBarProps) {
             </button>
           )
         })}
+        <span className="ml-3 text-xs text-gray-500 font-medium">Pipeline:</span>
+        {(['New', 'Contacted'] as const).map((s) => (
+          <button
+            key={s}
+            onClick={() => onChange({ ...filter, pipelineStatus: filter.pipelineStatus === s ? undefined : s, page: 1 })}
+            className={`px-2.5 py-1 text-xs border rounded font-medium transition-colors ${
+              filter.pipelineStatus === s ? 'bg-indigo-100 text-indigo-700 border-indigo-300' : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            {s}
+          </button>
+        ))}
         <span className="ml-3 text-xs text-gray-500 font-medium">Contact:</span>
         <button
           onClick={() => onChange({ ...filter, hasOwner: filter.hasOwner === true ? undefined : true, page: 1 })}

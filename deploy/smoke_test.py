@@ -248,6 +248,40 @@ def main() -> int:
             check(r.status_code == 200 and r.json().get("needs") == "Smoke need" and len(r.json().get("productFit") or []) == 1, "the lead dto returns needs and product fit")
             r = s.patch(patch, headers=jwt, timeout=30, json={"clearFields": ["whyLead", "needs", "productFit"]})
             check(r.status_code == 200 and r.json().get("whyLead") is None and r.json().get("productFit") is None, "clearFields resets why, needs and product fit")
+        # Messages: the app never sends; a draft changes nothing; "Mark as sent" needs a confirmation and moves New to Contacted only
+        if lead_id:
+            r = s.get(f"{base}/api/leads/{lead_id}/messages/prefill?channel=Email", headers=jwt, timeout=30)
+            check(r.status_code == 200 and "body" in r.json() and "{" not in r.json().get("body", "{"), "message prefill answers with a filled in text")
+            check(s.get(f"{base}/api/leads/{lead_id}/messages/prefill?channel=Fax", headers=jwt, timeout=30).status_code == 400, "prefill with an unknown channel is refused")
+            r = s.post(f"{base}/api/leads/{lead_id}/messages", headers=jwt, timeout=30, json={"channel": "Email", "subject": "Smoke\r\nBcc: x@y.nl", "body": "Smoke test message"})
+            msg = r.json() if r.status_code == 201 else {}
+            check(r.status_code == 201 and "\n" not in msg.get("subject", "x\n") and msg.get("status") == "Draft", "a draft is saved (subject is one line)")
+            lead_now = s.get(f"{base}/api/leads/{lead_id}", headers=jwt, timeout=30).json()
+            check(lead_now.get("pipelineStatus") == "New", "saving a draft does not change the lead status")
+            mid = msg.get("id")
+            if mid:
+                r = s.post(f"{base}/api/messages/{mid}/sent", headers=jwt, timeout=30, json={})
+                check(r.status_code == 400 and "confirmation_required" in r.text, "mark as sent without a confirmation is refused")
+                check(s.get(f"{base}/api/leads/{lead_id}", headers=jwt, timeout=30).json().get("pipelineStatus") == "New", "the status is still New after a refused mark as sent")
+                r = s.post(f"{base}/api/messages/{mid}/sent", headers=jwt, timeout=30, json={"confirmed": True})
+                check(r.status_code == 200 and r.json().get("pipelineStatus") == "Contacted", "mark as sent with a confirmation moves New to Contacted")
+                check(s.post(f"{base}/api/messages/{mid}/sent", headers=jwt, timeout=30, json={"confirmed": True}).status_code == 409, "a message cannot be marked as sent twice")
+                check(s.put(f"{base}/api/messages/{mid}", headers=jwt, timeout=30, json={"body": "changed"}).status_code == 409, "a sent message cannot be edited")
+            r = s.get(base + "/api/messages?status=Sent", headers=jwt, timeout=30)
+            check(r.status_code == 200 and r.json().get("total", 0) >= 1, "the messages overview lists the sent message")
+            r = s.get(base + "/api/leads?pipelineStatus=Contacted", headers=jwt, timeout=30)
+            check(r.status_code == 200 and any(i.get("id") == lead_id for i in r.json().get("items", [])), "the lead list filters on Contacted and shows the lead")
+            r = s.post(base + "/api/messages/bulk-drafts", headers=jwt, timeout=30, json={"leadIds": [lead_id], "channel": "WhatsApp"})
+            check(r.status_code == 200 and r.json().get("created") == 1, "bulk drafts create a draft")
+            check(s.get(base + "/api/messages/queue", headers=jwt, timeout=30).status_code == 200, "the next to contact queue answers")
+        r = s.put(base + "/api/message-templates", headers=jwt, timeout=30, json={"channel": "LinkedIn", "productKey": "werkteam", "body": "Smoke {name} {unknown}"})
+        check(r.status_code == 400, "a template with an unknown placeholder is refused")
+        r = s.put(base + "/api/message-templates", headers=jwt, timeout=30, json={"channel": "LinkedIn", "productKey": "werkteam", "body": "Smoke template voor {name}"})
+        check(r.status_code == 200, "a message template is saved")
+        if r.status_code == 200:
+            check(s.delete(f"{base}/api/message-templates/{r.json().get('id')}", headers=jwt, timeout=30).status_code == 204, "clean up: delete the test template")
+        check(s.get(base + "/api/messages", headers=k, timeout=30).status_code == 200, "an API key reaches the messages")
+        check(s.get(base + "/api/message-templates", headers=k, timeout=30).status_code in (401, 403), "an API key does not reach the template settings")
         # The agent endpoints are closed to everyone without the agent token (a login or an API key does not open them).
         some_id = "00000000-0000-0000-0000-000000000001"
         check(requests.get(f"{base}/api/agent/hunts/{some_id}", timeout=30).status_code in (401, 503), "agent endpoint refuses a call without the agent token")

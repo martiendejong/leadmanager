@@ -114,6 +114,13 @@ public class LeadsController : ControllerBase
         if (!string.IsNullOrWhiteSpace(filters.PriorityLabel))
             query = query.Where(l => l.SalesPriorityLabel == filters.PriorityLabel);
 
+        if (!string.IsNullOrWhiteSpace(filters.PipelineStatus))
+        {
+            if (!Enum.TryParse<PipelineStatus>(filters.PipelineStatus, true, out var pipeline))
+                return BadRequest(new { error = $"Pipeline status is one of: {string.Join(", ", Enum.GetNames<PipelineStatus>())}." });
+            query = query.Where(l => l.PipelineStatus == pipeline);
+        }
+
         // Sorting
         query = filters.SortBy?.ToLower() switch
         {
@@ -127,6 +134,8 @@ public class LeadsController : ControllerBase
             "ownername"           => filters.SortDesc ? query.OrderByDescending(l => l.OwnerName)          : query.OrderBy(l => l.OwnerName),
             "isenriched"          => filters.SortDesc ? query.OrderByDescending(l => l.IsEnriched)         : query.OrderBy(l => l.IsEnriched),
             "importedat"          => filters.SortDesc ? query.OrderByDescending(l => l.ImportedAt)         : query.OrderBy(l => l.ImportedAt),
+            "lastcontactedat"     => filters.SortDesc ? query.OrderByDescending(l => l.LastContactedAt)    : query.OrderBy(l => l.LastContactedAt),
+            "pipelinestatus"      => filters.SortDesc ? query.OrderByDescending(l => l.PipelineStatus)     : query.OrderBy(l => l.PipelineStatus),
             "salespriorityscore"  => filters.SortDesc ? query.OrderByDescending(l => l.SalesPriorityScore) : query.OrderBy(l => l.SalesPriorityScore),
             _                     => filters.SortDesc ? query.OrderByDescending(l => l.Name)               : query.OrderBy(l => l.Name),
         };
@@ -1377,5 +1386,6 @@ public class LeadsController : ControllerBase
         l.UpdatedAt,
         l.WhyLead,
         l.Needs,
-        LeadInsight.ParseFit(l.ProductFitJson)?.Select(e => new ProductFitDto(e.Product, e.Reason, e.EvidenceQuote, e.SourceUrl)).ToList());
+        LeadInsight.ParseFit(l.ProductFitJson)?.Select(e => new ProductFitDto(e.Product, e.Reason, e.EvidenceQuote, e.SourceUrl)).ToList(),
+        l.LastContactedAt);
 }

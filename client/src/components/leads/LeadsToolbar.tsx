@@ -4,6 +4,7 @@ interface LeadsToolbarProps {
   selectedCount: number
   onEnrich: () => void
   onVerify: () => void
+  onDraftMessages: () => void
   onFind: () => void
   onExport: () => void
   onExportCsv: () => void
@@ -18,6 +19,7 @@ export default function LeadsToolbar({
   selectedCount,
   onEnrich,
   onVerify,
+  onDraftMessages,
   onFind,
   onExport,
   onExportCsv,
@@ -143,6 +145,17 @@ export default function LeadsToolbar({
           title="Check the facts of the selected leads against their own websites and recompute the score"
         >
           Verify & rescore{selectedCount > 0 ? ` (${selectedCount})` : ''}
+        </button>
+
+        <button
+          onClick={onDraftMessages}
+          disabled={selectedCount === 0}
+          className={`px-3 py-1.5 text-sm rounded-md font-medium border transition-colors ${
+            selectedCount === 0 ? 'border-gray-200 text-gray-400 cursor-not-allowed' : 'border-indigo-300 text-indigo-700 hover:bg-indigo-50'
+          }`}
+          title="Create a draft message for each selected lead. Nothing is sent."
+        >
+          Draft messages{selectedCount > 0 ? ` (${selectedCount})` : ''}
         </button>
 
         <button

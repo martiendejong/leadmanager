@@ -4,6 +4,7 @@ import { getLead, updateLeadWorkflow } from '../api/leads'
 import type { Lead } from '../api/leads'
 import api from '../api/client'
 import CrmPanel from '../components/crm/CrmPanel'
+import MessageSection from '../components/leads/MessageSection'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -813,6 +814,12 @@ export default function LeadDetailPage() {
 
   useEffect(() => { fetchLead() }, [fetchLead])
 
+  // "Write message" links open the lead at the message section
+  const leadLoaded = !!lead
+  useEffect(() => {
+    if (leadLoaded && window.location.hash === '#message') document.getElementById('message')?.scrollIntoView({ block: 'start' })
+  }, [leadLoaded])
+
   const advanceStep = useCallback(async (nextStep: number, workflowDataJson?: string) => {
     if (!lead || !id) return
     setSaving(true)
@@ -981,6 +988,9 @@ export default function LeadDetailPage() {
 
         {/* Right: Workflow */}
         <div className="col-span-2">
+          <div id="message" className="mb-4">
+            <MessageSection lead={lead} onLeadChanged={(patch) => setLead((prev) => (prev ? { ...prev, ...patch } : prev))} />
+          </div>
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             {STEPS.map((step, idx) => {
               const status = getStepStatus(step.num, lead)

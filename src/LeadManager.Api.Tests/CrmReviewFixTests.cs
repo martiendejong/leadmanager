@@ -169,7 +169,7 @@ public class CrmReviewFixTests : IDisposable
             var allowed = type.GetCustomAttribute<AllowApiKeyAttribute>(inherit: true) != null;
             // Clients and Projects are CRM data too (task 8090): the same user, the same ownership rules.
             var isCrm = typeof(CrmControllerBase).IsAssignableFrom(type)
-                || type.Name is nameof(ClientsController) or nameof(ProjectsController) or nameof(DocumentsController) or nameof(HuntController);
+                || type.Name is nameof(ClientsController) or nameof(ProjectsController) or nameof(DocumentsController) or nameof(HuntController) or nameof(MessagesController);
             Assert.True(allowed == isCrm, $"{type.Name}: AllowApiKey={allowed} but isCrm={isCrm}");
         }
 

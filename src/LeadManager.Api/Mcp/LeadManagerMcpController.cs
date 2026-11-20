@@ -27,6 +27,7 @@ public class LeadManagerMcpController : McpControllerBase
         "search_leads", "find_by_email_or_domain", "get_lead", "create_lead", "log_interaction",
         "add_next_action", "complete_next_action", "next_actions_today", "add_contact", "link_item",
         "start_lead_hunt", "get_lead_hunt",
+        "get_message_prefill", "list_messages", "create_message_draft", "update_message_draft", "mark_message_sent",
     };
 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { WriteIndented = false };
@@ -193,6 +194,25 @@ public class LeadManagerMcpController : McpControllerBase
             "Progress and result of a lead hunt: status, counters and one row per company looked at with its verified score and why it stopped.",
             new { job_id = Str("Id returned by start_lead_hunt") },
             "job_id"),
+        Tool("get_message_prefill",
+            "A suggested message for a lead from the templates (deterministic, no AI): subject and body in the language of the lead, built only from what is stored on the lead (why, needs, product fit), plus warnings (a do-not-contact note, a missing address). Nothing is saved or sent.",
+            new { lead_id = Str("Lead id"), channel = Str("Email, LinkedIn, WhatsApp or Phone (default Email)"), product = Str("Optional product key of the catalog, for the product template") },
+            "lead_id"),
+        Tool("list_messages",
+            "Messages (drafts and sent) of your leads, newest first. Filter by lead_id, status (Draft or Sent) or channel.",
+            new { lead_id = Str("Optional lead id"), status = Str("Draft or Sent"), channel = Str("Email, LinkedIn, WhatsApp or Phone") }),
+        Tool("create_message_draft",
+            "Save a draft message for a lead. A draft changes nothing about the lead and NOTHING IS SENT: the user sends it themselves.",
+            new { lead_id = Str("Lead id"), channel = Str("Email, LinkedIn, WhatsApp or Phone"), subject = Str("Subject (e-mail only, one line, max 200 characters)"), body = Str("The message, max 5000 characters") },
+            "lead_id", "channel", "body"),
+        Tool("update_message_draft",
+            "Edit a draft (a message that is marked as sent cannot be edited).",
+            new { message_id = Str("Message id"), channel = Str("Email, LinkedIn, WhatsApp or Phone"), subject = Str("Subject"), body = Str("The message") },
+            "message_id"),
+        Tool("mark_message_sent",
+            "Record that the USER sent a message themselves. Only call this after the user told you they sent it, and pass confirmed true. It moves a lead from New to Contacted (never back from a later status) and writes an activity. The app and this tool never send anything.",
+            new { message_id = Str("Message id"), confirmed = new { type = "boolean", description = "Must be true: the user confirms they sent this message themselves" } },
+            "message_id", "confirmed"),
         Tool("link_item",
             "Link a lead or client to something in another Jengo tool: a JengoWork board or task, a JengoKnowledge project, a mail thread, a Meet session.",
             new
@@ -391,6 +411,43 @@ public class LeadManagerMcpController : McpControllerBase
                     if (hunt == null) return ("The lead hunt is not available on this server.", true);
                     if (jobId == null) return ("job_id is required and must be a GUID", true);
                     return Present(await hunt.Get(jobId.Value));
+                }
+
+                case "get_message_prefill":
+                {
+                    var leadId = ArgGuid(args, "lead_id");
+                    if (leadId == null) return ("lead_id is required and must be a GUID", true);
+                    return Present(await As(new MessagesController(_db), userId).Prefill(leadId.Value, ArgStr(args, "channel"), ArgStr(args, "product")));
+                }
+
+                case "list_messages":
+                {
+                    var messages = As(new MessagesController(_db), userId);
+                    var leadId = ArgGuid(args, "lead_id");
+                    return Present(await messages.List(ArgStr(args, "status"), ArgStr(args, "channel"), leadId, null, 1, 50));
+                }
+
+                case "create_message_draft":
+                {
+                    var leadId = ArgGuid(args, "lead_id");
+                    if (leadId == null) return ("lead_id is required and must be a GUID", true);
+                    return Present(await As(new MessagesController(_db), userId).CreateDraft(leadId.Value, new CreateMessageDto(ArgStr(args, "channel"), ArgStr(args, "subject"), ArgStr(args, "body"))));
+                }
+
+                case "update_message_draft":
+                {
+                    var id = ArgGuid(args, "message_id");
+                    if (id == null) return ("message_id is required and must be a GUID", true);
+                    return Present(await As(new MessagesController(_db), userId).UpdateDraft(id.Value, new UpdateMessageDto(ArgStr(args, "channel"), ArgStr(args, "subject"), ArgStr(args, "body"))));
+                }
+
+                case "mark_message_sent":
+                {
+                    var id = ArgGuid(args, "message_id");
+                    if (id == null) return ("message_id is required and must be a GUID", true);
+                    // "confirmed" must be the boolean true: a string or a number is not a confirmation
+                    var confirmed = args.ValueKind == JsonValueKind.Object && args.TryGetProperty("confirmed", out var c) && c.ValueKind == JsonValueKind.True;
+                    return Present(await As(new MessagesController(_db), userId).MarkSent(id.Value, new MarkSentDto(confirmed)));
                 }
 
                 case "link_item":

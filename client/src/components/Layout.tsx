@@ -27,6 +27,7 @@ export default function Layout() {
       <NavLink to="/today" className={linkClass} onClick={closeMenu}>Today</NavLink>
       <NavLink to="/actions" className={linkClass} onClick={closeMenu}>Actions</NavLink>
       <NavLink to="/leads" className={linkClass} end onClick={closeMenu}>Leads</NavLink>
+      <NavLink to="/messages" className={linkClass} onClick={closeMenu}>Messages</NavLink>
       <NavLink to="/clients" className={linkClass} onClick={closeMenu}>Clients</NavLink>
       <NavLink to="/profile" className={linkClass} onClick={closeMenu}>Profile</NavLink>
       <NavLink to="/leads/search" className={linkClass} onClick={closeMenu}>Find leads</NavLink>
@@ -44,6 +45,7 @@ export default function Layout() {
       <NavLink to="/today" className={mobileLinkClass} onClick={closeMenu}>Today</NavLink>
       <NavLink to="/actions" className={mobileLinkClass} onClick={closeMenu}>Actions</NavLink>
       <NavLink to="/leads" className={mobileLinkClass} end onClick={closeMenu}>Leads</NavLink>
+      <NavLink to="/messages" className={mobileLinkClass} onClick={closeMenu}>Messages</NavLink>
       <NavLink to="/clients" className={mobileLinkClass} onClick={closeMenu}>Clients</NavLink>
       <NavLink to="/profile" className={mobileLinkClass} onClick={closeMenu}>Profile</NavLink>
       <NavLink to="/leads/search" className={mobileLinkClass} onClick={closeMenu}>Find leads</NavLink>

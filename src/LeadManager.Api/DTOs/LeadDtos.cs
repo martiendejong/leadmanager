@@ -92,7 +92,9 @@ public record LeadDto(
     // Why this lead, what the business needs, which of our products can help (each need and fit has a quote from the business's own pages)
     string? WhyLead = null,
     string? Needs = null,
-    IReadOnlyList<ProductFitDto>? ProductFit = null);
+    IReadOnlyList<ProductFitDto>? ProductFit = null,
+    // When a message to this lead was last marked as sent by the user
+    DateTime? LastContactedAt = null);
 
 /// <summary>One of our products that can help a lead, with the observed trigger. Product is a key of the catalog (coachos, siteaudit, visit, werkteam, cloudws, custom, mail, meet).</summary>
 public record ProductFitDto(string Product, string Reason, string? EvidenceQuote, string? SourceUrl);
@@ -133,7 +135,8 @@ public record LeadFilterParams(
     string? AssignedToUserId = null,
     bool? HasOwner = null,
     bool? HasLinkedIn = null,
-    string? PriorityLabel = null);
+    string? PriorityLabel = null,
+    string? PipelineStatus = null);
 
 public record CsvImportRowError(int Row, string Message);
 public record CsvImportResultDto(int Created, int Skipped, List<CsvImportRowError> Errors, Guid? EnrichmentJobId = null);

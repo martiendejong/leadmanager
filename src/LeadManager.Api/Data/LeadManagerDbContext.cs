@@ -25,6 +25,8 @@ public class LeadManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<SalesSettings> SalesSettings { get; set; }
     public DbSet<LeadNote> LeadNotes { get; set; }
     public DbSet<HuntJob> HuntJobs { get; set; }
+    public DbSet<LeadMessage> LeadMessages { get; set; }
+    public DbSet<MessageTemplate> MessageTemplates { get; set; }
     public DbSet<HuntCandidate> HuntCandidates { get; set; }
 
     // Jengo Clients CRM core (task 8023)
@@ -82,6 +84,21 @@ public class LeadManagerDbContext : IdentityDbContext<ApplicationUser>
             // At most one active job per user, enforced by the database, so two requests at the same moment cannot both start.
             e.HasIndex(j => j.UserId).IsUnique().HasFilter("\"Status\" IN ('Pending', 'Running')").HasDatabaseName("IX_HuntJobs_OneActivePerUser");
             e.HasMany(j => j.Candidates).WithOne(c => c.Job).HasForeignKey(c => c.JobId).OnDelete(DeleteBehavior.Cascade);
+        });
+        builder.Entity<LeadMessage>(e =>
+        {
+            e.HasIndex(m => new { m.UserId, m.Status, m.UpdatedAt });
+            e.HasIndex(m => m.LeadId);
+            e.Property(m => m.Channel).HasMaxLength(20);
+            e.Property(m => m.Status).HasMaxLength(10);
+            e.HasOne(m => m.Lead).WithMany().HasForeignKey(m => m.LeadId).OnDelete(DeleteBehavior.Cascade);
+        });
+        builder.Entity<MessageTemplate>(e =>
+        {
+            // one template per user, channel and product key (an empty key is the default of the channel)
+            e.HasIndex(t => new { t.UserId, t.Channel, t.ProductKey }).IsUnique();
+            e.Property(t => t.Channel).HasMaxLength(20);
+            e.Property(t => t.ProductKey).HasMaxLength(20);
         });
         builder.Entity<HuntCandidate>(e =>
         {

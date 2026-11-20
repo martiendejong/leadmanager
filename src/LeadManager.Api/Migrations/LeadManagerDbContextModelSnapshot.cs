@@ -989,6 +989,9 @@ namespace LeadManager.Api.Migrations
                     b.Property<string>("KvkNumber")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("LastContactedAt")
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime?>("LastEnrichmentAttempt")
                         .HasColumnType("TEXT");
 
@@ -1199,6 +1202,55 @@ namespace LeadManager.Api.Migrations
                     b.ToTable("LeadDocumentChunks");
                 });
 
+            modelBuilder.Entity("LeadManager.Api.Models.LeadMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Channel")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("LeadId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("SentAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Subject")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LeadId");
+
+                    b.HasIndex("UserId", "Status", "UpdatedAt");
+
+                    b.ToTable("LeadMessages");
+                });
+
             modelBuilder.Entity("LeadManager.Api.Models.LeadNote", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1259,6 +1311,45 @@ namespace LeadManager.Api.Migrations
                     b.HasIndex("LeadId");
 
                     b.ToTable("LeadPageContents");
+                });
+
+            modelBuilder.Entity("LeadManager.Api.Models.MessageTemplate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Channel")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ProductKey")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Subject")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "Channel", "ProductKey")
+                        .IsUnique();
+
+                    b.ToTable("MessageTemplates");
                 });
 
             modelBuilder.Entity("LeadManager.Api.Models.NextAction", b =>
@@ -1774,6 +1865,17 @@ namespace LeadManager.Api.Migrations
                     b.Navigation("Lead");
 
                     b.Navigation("PageContent");
+                });
+
+            modelBuilder.Entity("LeadManager.Api.Models.LeadMessage", b =>
+                {
+                    b.HasOne("LeadManager.Api.Models.Lead", "Lead")
+                        .WithMany()
+                        .HasForeignKey("LeadId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Lead");
                 });
 
             modelBuilder.Entity("LeadManager.Api.Models.LeadNote", b =>

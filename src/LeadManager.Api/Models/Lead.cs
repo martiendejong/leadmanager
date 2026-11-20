@@ -34,6 +34,9 @@ public class Lead
 
     /// <summary>JSON list of {product, reason, evidenceQuote, sourceUrl}: which of our products can help. "[]" means "assessed, no clear fit"; null means not assessed.</summary>
     public string? ProductFitJson { get; set; }
+
+    /// <summary>When a message to this lead was last marked as sent (by the user, after sending it themselves). Null: never contacted through the app.</summary>
+    public DateTime? LastContactedAt { get; set; }
     public LeadStatus Status { get; set; } = LeadStatus.Lead;
     public bool IsEnriched { get; set; } = false;
     public DateTime? EnrichedAt { get; set; }

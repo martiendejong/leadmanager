@@ -15,6 +15,7 @@ import EnrichmentProgress from '../components/leads/EnrichmentProgress'
 import LeadDetailPanel from '../components/leads/LeadDetailPanel'
 import CreateLeadForm from '../components/leads/CreateLeadForm'
 import CsvImportDropzone from '../components/leads/CsvImportDropzone'
+import BulkDraftDialog from '../components/messages/BulkDraftDialog'
 
 const DESC_FIRST = new Set(['createdAt', 'updatedAt', 'importedAt', 'enrichedAt', 'salesPriorityScore'])
 
@@ -40,6 +41,8 @@ function buildInitialFilter(searchParams: URLSearchParams): LeadFilter {
   if (hasLinkedIn !== null) filter.hasLinkedIn = hasLinkedIn === 'true'
   const priorityLabel = searchParams.get('priorityLabel')
   if (priorityLabel) filter.priorityLabel = priorityLabel
+  const pipelineStatus = searchParams.get('pipelineStatus')
+  if (pipelineStatus) filter.pipelineStatus = pipelineStatus
   return filter
 }
 
@@ -56,6 +59,7 @@ export default function LeadsPage() {
   const [activeJobId, setActiveJobId] = useState<string | null>(null)
   const [isEnriching, setIsEnriching] = useState(false)
   const [detailLead, setDetailLead] = useState<Lead | null>(null)
+  const [showBulkDraft, setShowBulkDraft] = useState(false)
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [showCsvImport, setShowCsvImport] = useState(false)
   const [showHunt, setShowHunt] = useState(false)
@@ -409,6 +413,7 @@ export default function LeadsPage() {
         selectedCount={selectedIds.size}
         onEnrich={handleEnrich}
         onVerify={handleVerify}
+        onDraftMessages={() => setShowBulkDraft(true)}
         onFind={() => setShowHunt(true)}
         onExport={handleExport}
         onExportCsv={handleExportCsv}
@@ -525,7 +530,9 @@ export default function LeadsPage() {
       <EnrichmentProgress jobId={activeJobId} onComplete={handleEnrichmentComplete} />
 
       {/* Lead detail panel */}
-      <LeadDetailPanel lead={detailLead} onClose={() => setDetailLead(null)} />
+      <LeadDetailPanel lead={detailLead} onClose={() => setDetailLead(null)} onLeadUpdated={(l) => { setDetailLead(l); loadLeads(filter) }} />
+
+      {showBulkDraft && <BulkDraftDialog leadIds={Array.from(selectedIds)} onClose={() => setShowBulkDraft(false)} />}
 
       {/* Create lead form modal */}
       {showCreateForm && (

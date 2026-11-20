@@ -28,6 +28,8 @@ const COLUMNS: { key: string; label: string; sortable: boolean; hideOnMobile: bo
   { key: 'companyEmail',        label: 'Email',        sortable: false, hideOnMobile: true  },
   { key: 'salesPriorityScore',  label: 'Score',        sortable: true,  hideOnMobile: false },
   { key: 'isEnriched',          label: 'Status',       sortable: true,  hideOnMobile: false },
+  { key: 'pipelineStatus',      label: 'Pipeline',     sortable: true,  hideOnMobile: false },
+  { key: 'lastContactedAt',     label: 'Last contact', sortable: true,  hideOnMobile: true  },
   { key: 'enrichedAt',          label: 'Enriched on',  sortable: true,  hideOnMobile: true  },
   { key: 'createdAt',           label: 'Created',      sortable: true,  hideOnMobile: true  },
   { key: 'updatedAt',           label: 'Updated',      sortable: true,  hideOnMobile: true  },
@@ -289,6 +291,17 @@ export default function LeadsTable({
                       Not enriched
                     </span>
                   )}
+                </td>
+                <td className="px-4 py-3 text-sm">
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    (lead.pipelineStatus ?? 'New') === 'New' ? 'bg-gray-100 text-gray-600'
+                      : (lead.pipelineStatus === 'Lost') ? 'bg-red-100 text-red-700'
+                      : (lead.pipelineStatus === 'Won') ? 'bg-green-100 text-green-800'
+                      : 'bg-blue-100 text-blue-800'
+                  }`}>{lead.pipelineStatus ?? 'New'}</span>
+                </td>
+                <td className="hidden sm:table-cell px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
+                  {formatDate(lead.lastContactedAt ?? null)}
                 </td>
                 <td className="hidden sm:table-cell px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
                   {formatDate(lead.enrichedAt)}

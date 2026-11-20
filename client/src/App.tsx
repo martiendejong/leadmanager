@@ -17,6 +17,7 @@ import IntakePage from './pages/IntakePage'
 import SalesSettingsPage from './pages/SalesSettingsPage'
 import LeadDetailPage from './pages/LeadDetailPage'
 import TodayPage from './pages/TodayPage'
+import MessagesPage from './pages/MessagesPage'
 import ActionsPage from './pages/ActionsPage'
 import IntegrationsPage from './pages/IntegrationsPage'
 
@@ -166,6 +167,18 @@ function App() {
               }
             >
               <Route index element={<SalesSettingsPage />} />
+            </Route>
+
+            {/* Messages: drafts and sent messages over all leads */}
+            <Route
+              path="/messages"
+              element={
+                <ProtectedRoute>
+                  <Layout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<MessagesPage />} />
             </Route>
 
             {/* Front page: today's actions and the dashboard */}

@@ -11,6 +11,7 @@ import ConvertToClientWizard from './ConvertToClientWizard'
 import LeadNotesPanel from './LeadNotesPanel'
 import EvidencePanel from './EvidencePanel'
 import LeadInsightBlock from './LeadInsightBlock'
+import MessageSection from './MessageSection'
 
 interface Props {
   lead: Lead | null
@@ -367,6 +368,9 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
 
               {/* Why this lead, what they need, how we can help */}
               <LeadInsightBlock lead={lead} />
+
+              {/* Compose a message (nothing is sent by the app) */}
+              <MessageSection lead={lead} onLeadChanged={(patch) => onLeadUpdated?.({ ...lead, ...patch })} />
 
               {/* Sales Priority Score - most prominent */}
               {lead.salesPriorityScore !== null && lead.salesPriorityScore !== undefined && (

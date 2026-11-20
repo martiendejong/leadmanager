@@ -98,6 +98,8 @@ export interface Lead {
   whyLead?: string | null
   needs?: string | null
   productFit?: ProductFit[] | null
+  // When a message to this lead was last marked as sent by the user
+  lastContactedAt?: string | null
 }
 
 export interface LeadsResponse {
@@ -119,6 +121,7 @@ export interface LeadFilter {
   hasOwner?: boolean
   hasLinkedIn?: boolean
   priorityLabel?: string
+  pipelineStatus?: string
 }
 
 export interface LeadStats {
@@ -154,6 +157,7 @@ export async function fetchLeads(filter: LeadFilter): Promise<LeadsResponse> {
   if (filter.hasOwner !== undefined) params.hasOwner = filter.hasOwner
   if (filter.hasLinkedIn !== undefined) params.hasLinkedIn = filter.hasLinkedIn
   if (filter.priorityLabel) params.priorityLabel = filter.priorityLabel
+  if (filter.pipelineStatus) params.pipelineStatus = filter.pipelineStatus
 
   const res = await apiClient.get<LeadsResponse>('/api/leads', { params })
   return res.data
