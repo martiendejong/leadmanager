@@ -88,7 +88,10 @@ public class HuntBackgroundService : BackgroundService
 /// <summary>Ends hunts whose Jengo agent went silent (never started, crashed or was stopped) so they do not look alive forever.</summary>
 public class HuntSweepService : BackgroundService
 {
+    /// <summary>A running hunt whose agent has not called for this long has stopped.</summary>
     public static readonly TimeSpan Silence = TimeSpan.FromMinutes(45);
+    /// <summary>A hunt that nobody started (no call at all) is ended after this long: as long as the task token lives, and a person has to start the task.</summary>
+    public static readonly TimeSpan PendingGrace = TimeSpan.FromMinutes(60);
     private readonly IServiceScopeFactory _scopes;
     private readonly ILogger<HuntSweepService> _logger;
 
@@ -153,24 +156,51 @@ public static class HuntLocks
 /// </summary>
 public static class HuntTokens
 {
-    public static readonly TimeSpan Lifetime = TimeSpan.FromHours(3);
+    /// <summary>The task token (in the task text) is good for this long, and only for the first /brief call that exchanges it.</summary>
+    public static readonly TimeSpan Lifetime = TimeSpan.FromMinutes(60);
+    /// <summary>The session token stays valid this long after the last call of the agent (sliding).</summary>
+    public static readonly TimeSpan SessionIdle = TimeSpan.FromMinutes(30);
+    /// <summary>Whatever the agent does, no token of a hunt works longer than this after the hunt was created.</summary>
+    public static readonly TimeSpan HardLimit = TimeSpan.FromHours(3);
 
     private static string Hash(string token) =>
         Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(token)));
 
-    /// <summary>Creates a new token for the job, stores its hash and expiry on the job and returns the token (the only time it exists in clear).</summary>
+    private static string NewToken() =>
+        Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+
+    public static string HashOf(string token) => Hash(token);
+
+    /// <summary>Creates the TASK token for the job, stores its hash and expiry on the job and returns the token (the only time it exists in clear).</summary>
     public static string Issue(HuntJob job, DateTime? now = null)
     {
-        var token = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        var token = NewToken();
         job.TokenHash = Hash(token);
+        job.TokenExchanged = false;
         job.TokenExpiresAt = (now ?? DateTime.UtcNow) + Lifetime;
         return token;
+    }
+
+    /// <summary>When a session token issued now expires: <see cref="SessionIdle"/> from now, never later than <see cref="HardLimit"/> after the hunt was created.</summary>
+    public static DateTime SessionExpiry(HuntJob job, DateTime now)
+    {
+        var hard = job.CreatedAt + HardLimit;
+        var idle = now + SessionIdle;
+        return idle < hard ? idle : hard;
+    }
+
+    /// <summary>A fresh session token (hash and expiry for the caller to store) in place of the task token.</summary>
+    public static (string Token, string Hash, DateTime ExpiresAt) NewSession(HuntJob job, DateTime? now = null)
+    {
+        var token = NewToken();
+        return (token, Hash(token), SessionExpiry(job, now ?? DateTime.UtcNow));
     }
 
     public static void Revoke(HuntJob job)
     {
         job.TokenHash = null;
         job.TokenExpiresAt = null;
+        job.TokenExchanged = false;
     }
 
     /// <summary>True when the given token is the live token of this job: right hash, not expired, not revoked.</summary>
@@ -180,5 +210,57 @@ public static class HuntTokens
         if ((now ?? DateTime.UtcNow) >= job.TokenExpiresAt.Value) return false;
         return System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
             System.Text.Encoding.ASCII.GetBytes(Hash(given)), System.Text.Encoding.ASCII.GetBytes(job.TokenHash));
+    }
+}
+
+/// <summary>
+/// Failed agent logins are charged much harder than the rate limiter does (which counts every call alike): after a few wrong tokens from one
+/// address, or for one hunt, the agent endpoints answer 429 before they look at the token at all. Counters are in memory and per window.
+/// </summary>
+public static class HuntAuthThrottle
+{
+    public static readonly TimeSpan Window = TimeSpan.FromMinutes(10);
+    public const int MaxFailuresPerAddress = 20;
+    public const int MaxFailuresPerHunt = 10;
+
+    private static readonly ConcurrentDictionary<string, ConcurrentQueue<DateTime>> Failures = new();
+
+    private static int Count(string key, DateTime now)
+    {
+        if (!Failures.TryGetValue(key, out var q)) return 0;
+        while (q.TryPeek(out var t) && now - t > Window) q.TryDequeue(out _);
+        return q.Count;
+    }
+
+    /// <summary>True when this address or this hunt has had too many wrong tokens lately.</summary>
+    public static bool Blocked(string? address, Guid huntId, DateTime? now = null)
+    {
+        var n = now ?? DateTime.UtcNow;
+        return (address != null && Count("ip|" + address, n) >= MaxFailuresPerAddress) || Count("id|" + huntId, n) >= MaxFailuresPerHunt;
+    }
+
+    public static void Fail(string? address, Guid huntId, DateTime? now = null)
+    {
+        var n = now ?? DateTime.UtcNow;
+        if (address != null) Failures.GetOrAdd("ip|" + address, _ => new()).Enqueue(n);   // an unreadable address is not charged to everybody at once
+        Failures.GetOrAdd("id|" + huntId, _ => new()).Enqueue(n);
+        if (Failures.Count > 20_000) foreach (var k in Failures.Keys.ToList()) if (Count(k, n) == 0) Failures.TryRemove(k, out _);
+    }
+
+    /// <summary>For tests.</summary>
+    public static void Reset() => Failures.Clear();
+}
+
+/// <summary>What a deleted lead leaves behind in the hunt history: the row stays (name, website, score, reason), its evidence goes.</summary>
+public static class HuntEvidence
+{
+    /// <summary>The quotes and facts of the given leads' candidate rows are emptied; the database link is set to null by the foreign key.</summary>
+    public static async Task ForgetAsync(LeadManagerDbContext db, IReadOnlyCollection<Guid> leadIds, Guid? moveTo = null)
+    {
+        if (leadIds.Count == 0) return;
+        if (moveTo != null)   // a merge: the history follows the lead that stays
+            await db.HuntCandidates.Where(c => c.LeadId != null && leadIds.Contains(c.LeadId.Value)).ExecuteUpdateAsync(s => s.SetProperty(c => c.LeadId, moveTo));
+        else
+            await db.HuntCandidates.Where(c => c.LeadId != null && leadIds.Contains(c.LeadId.Value)).ExecuteUpdateAsync(s => s.SetProperty(c => c.EvidenceJson, "{}").SetProperty(c => c.LeadId, (Guid?)null));
     }
 }

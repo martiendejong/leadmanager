@@ -27,6 +27,8 @@ public class HuntController : ControllerBase
     public const int MaxVerifyIds = 50;
     public const int MaxReviewIds = 5;
     public const string NotConfigured = DispatchNotConfiguredException.Text;   // "Agent hunting is not configured on this server"
+    /// <summary>What a person is told when the task could not be created: no detail of the other system (the detail goes to the log).</summary>
+    public const string DispatchFailedText = "The Jengo agent could not be started right now. Try again in a few minutes.";
 
     private readonly LeadManagerDbContext _db;
     private readonly IHuntDispatcher _dispatcher;
@@ -35,10 +37,12 @@ public class HuntController : ControllerBase
     private readonly HuntRegistry _registry;
     private readonly IConfiguration _config;
     private readonly HuntService? _service;
+    private readonly ILogger<HuntController>? _logger;
 
-    public HuntController(LeadManagerDbContext db, IHuntDispatcher dispatcher, GooglePlacesEnrichmentService places, HuntQueue queue, HuntRegistry registry, IConfiguration config, HuntService? service = null)
+    public HuntController(LeadManagerDbContext db, IHuntDispatcher dispatcher, GooglePlacesEnrichmentService places, HuntQueue queue, HuntRegistry registry, IConfiguration config,
+        HuntService? service = null, ILogger<HuntController>? logger = null)
     {
-        _db = db; _dispatcher = dispatcher; _places = places; _queue = queue; _registry = registry; _config = config; _service = service;
+        _db = db; _dispatcher = dispatcher; _places = places; _queue = queue; _registry = registry; _config = config; _service = service; _logger = logger;
     }
 
     private string? UserId => User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
@@ -62,6 +66,10 @@ public class HuntController : ControllerBase
             huntAvailable = Ready,
             canStartHunt = Ready && await HuntAccess.IsAllowedAsync(_db, _config, UserId),
             dispatchConfigured = Ready,
+            // false while a person has to start the JengoWork task (board not monitored by jengo-agi): the screen says so
+            agentStartsAutomatically = Ready && _config.GetValue<bool>("Hunt:Dispatch:AgentPicksUp"),
+            startWithinMinutes = (int)HuntSweepService.PendingGrace.TotalMinutes,
+            silenceMinutes = (int)HuntSweepService.Silence.TotalMinutes,
             googlePlacesConfigured = _places.IsConfigured,
             maxPerDay = MaxPerDay,
             message = Ready ? null : NotConfigured,
@@ -71,6 +79,7 @@ public class HuntController : ControllerBase
     // POST /api/leads/hunt
     [DenyApiKey]
     [HttpPost("hunt")]
+    [RequestSizeLimit(8_192)]
     public async Task<IActionResult> Start([FromBody] StartHuntRequest request, CancellationToken ct)
     {
         if (!Ready) return StatusCode(503, new { error = NotConfigured, code = "dispatch_not_configured" });
@@ -110,15 +119,26 @@ public class HuntController : ControllerBase
 
         try
         {
-            var result = await _dispatcher.DispatchAsync(job, HuntPrompt.Render(job, HuntAccess.ApiBase(_config), token), ct);
+            DispatchResult result;
+            try { result = await _dispatcher.DispatchAsync(job, HuntPrompt.Render(job, HuntAccess.ApiBase(_config), token), ct); }
+            catch (DispatchUncertainException uncertain)
+            {
+                // A timeout or a dropped connection can come after JengoWork created the task: look for it before giving up, so the job
+                // does not fail while its task exists and nobody can reach it (and the person does not start a second one).
+                _logger?.LogWarning(uncertain, "Dispatch of {Kind} job {JobId} is uncertain; looking for the task on the board", kind, job.Id);
+                result = await FindTaskAsync(job) ?? throw uncertain;
+            }
             job.TaskId = result.TaskId;
             job.TaskUrl = result.TaskUrl;
             await _db.SaveChangesAsync(CancellationToken.None);
         }
         catch (Exception ex)
         {
+            // The person gets one plain sentence; what went wrong (and where) is for the log. The task token is revoked, so a task that may
+            // still exist on the board is inert: its token opens nothing.
+            _logger?.LogWarning(ex, "Dispatch of {Kind} job {JobId} failed", kind, job.Id);
             job.Status = HuntStatuses.Failed;
-            job.Error = ex is DispatchNotConfiguredException ? NotConfigured : "The Jengo agent could not be started: " + (ex is HttpRequestException ? ex.Message : "unexpected error.");
+            job.Error = ex is DispatchNotConfiguredException ? NotConfigured : DispatchFailedText;
             job.CompletedAt = DateTime.UtcNow;
             HuntTokens.Revoke(job);
             await _db.SaveChangesAsync(CancellationToken.None);
@@ -127,9 +147,17 @@ public class HuntController : ControllerBase
         return Accepted(new { jobId = job.Id, taskUrl = job.TaskUrl });
     }
 
+    private async Task<DispatchResult?> FindTaskAsync(HuntJob job)
+    {
+        using var limit = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        try { return await _dispatcher.FindAsync(job, limit.Token); }
+        catch (Exception ex) { _logger?.LogWarning(ex, "Looking for the task of job {JobId} failed", job.Id); return null; }
+    }
+
     // POST /api/leads/hunt/review : ask a Jengo agent to research existing leads (the server verifies what it submits)
     [DenyApiKey]
     [HttpPost("hunt/review")]
+    [RequestSizeLimit(8_192)]
     public async Task<IActionResult> ReviewByAgent([FromBody] ReviewLeadsRequest request, CancellationToken ct)
     {
         if (!Ready) return StatusCode(503, new { error = NotConfigured, code = "dispatch_not_configured" });
@@ -163,7 +191,8 @@ public class HuntController : ControllerBase
         if (await _db.HuntJobs.AnyAsync(j => j.UserId == job.UserId && (j.Status == HuntStatuses.Pending || j.Status == HuntStatuses.Running), ct))
             return Conflict(new { error = "A job is already running for you. Wait for it to finish or cancel it." });
         var since = DateTime.UtcNow.Date;
-        if (await _db.HuntJobs.CountAsync(j => j.UserId == job.UserId && j.Kind == kind && j.CreatedAt >= since, ct) >= perDay)
+        // A hunt or review for which no task could be created never ran: it does not use up the person's day. (A verify has no task by design.)
+        if (await _db.HuntJobs.CountAsync(j => j.UserId == job.UserId && j.Kind == kind && j.CreatedAt >= since && (j.Kind == HuntKinds.Verify || j.TaskId != null), ct) >= perDay)
             return StatusCode(429, new { error = kind == HuntKinds.Hunt ? $"You can start {perDay} lead hunts per day. Try again tomorrow." : $"You can start {perDay} verify runs per day. Try again tomorrow.", code = "daily_cap" });
 
         _db.HuntJobs.Add(job);
@@ -179,6 +208,7 @@ public class HuntController : ControllerBase
     // POST /api/leads/verify   and   POST /api/leads/{id}/verify[?dryRun=true]
     [DenyApiKey]
     [HttpPost("verify")]
+    [RequestSizeLimit(16_384)]
     public async Task<IActionResult> VerifyMany([FromBody] VerifyLeadsRequest request, CancellationToken ct = default)
     {
         var ids = (request.Ids ?? Array.Empty<Guid>()).Distinct().ToArray();

@@ -265,7 +265,7 @@ public class LeadVerifier
         return sb.ToString();
     }
 
-    /// <summary>The quote must be on a fetched page, in its VISIBLE text. Links (a LinkedIn profile, a mailto) may also be found in the markup.</summary>
+    /// <summary>The quote must be on a fetched page, in its VISIBLE text. A link (a LinkedIn profile, a mailto) may also be found in an href attribute, and nowhere else in the markup.</summary>
     private static bool QuoteOnPage(Claim claim, SitePages site, bool markupAllowed)
     {
         var q = Squash(claim.Quote);
@@ -273,8 +273,43 @@ public class LeadVerifier
         foreach (var p in site.Pages)
         {
             if (Squash(p.Text).Contains(q)) return true;
-            if (markupAllowed && Squash(System.Net.WebUtility.HtmlDecode(p.Html)).Contains(q)) return true;
+            if (markupAllowed && p.HrefText.Contains(q)) return true;
         }
+        return false;
+    }
+
+    /// <summary>
+    /// The quote of the claim and the quote of the fact the server found must be about the same place: one holds the other, or they share a run of 12 letters
+    /// and digits. A true quote from somewhere else on the page cannot vouch for a value that stands elsewhere.
+    /// </summary>
+    public static bool Overlaps(string claimQuote, string factQuote)
+    {
+        var q = Squash(claimQuote);
+        var f = Squash(factQuote);
+        if (q.Length == 0 || f.Length == 0) return false;
+        if (f.Contains(q) || q.Contains(f)) return true;
+        const int run = 12;
+        var (shorter, longer) = q.Length <= f.Length ? (q, f) : (f, q);
+        if (shorter.Length < run) return false;
+        for (var i = 0; i + run <= shorter.Length; i++)
+            if (longer.Contains(shorter.Substring(i, run), StringComparison.Ordinal)) return true;
+        return false;
+    }
+
+    /// <summary>A link claim is bound to its link: the quote names the handle, or it is the text of an anchor whose href is that profile.</summary>
+    private static bool QuoteBindsToLink(Claim claim, LinkedInFact fact, SitePages site)
+    {
+        var q = Squash(claim.Quote);
+        if (q.Length == 0) return false;
+        var handle = Squash(fact.Handle);
+        if (handle.Length > 0 && q.Contains(handle)) return true;
+        foreach (var p in site.Pages)
+            foreach (var a in p.Dom?.DocumentNode.SelectNodes("//a[@href]")?.Take(2000) ?? Enumerable.Empty<HtmlAgilityPack.HtmlNode>())
+            {
+                var href = System.Net.WebUtility.HtmlDecode(a.GetAttributeValue("href", ""));
+                if (href.IndexOf($"linkedin.com/{fact.Kind}/{fact.Handle}", StringComparison.OrdinalIgnoreCase) < 0) continue;
+                if (Squash(System.Net.WebUtility.HtmlDecode(a.InnerText)).Contains(q)) return true;
+            }
         return false;
     }
 
@@ -305,6 +340,7 @@ public class LeadVerifier
                     // The same rule as for an existing lead: with no owner known yet, a name that only stands next to a role word is not enough.
                     // It may only confirm a name the lead already has.
                     var confirmsKnown = !string.IsNullOrWhiteSpace(knownOwnerName) && LeadEvidenceService.NameKey(knownOwnerName) == key;
+                    if (!Overlaps(claim.Quote, fact.Quote)) return (null, "The quote is not the passage in which the site names this person as its owner.");
                     if (fact.Rank > MaxTrustedOwnerRank && !confirmsKnown)
                         return (null, "The name only stands next to a role word on the site (it can be a quoted person or somebody else's director). It needs a stronger cue: an about heading, 'my name is', 'I am' or structured data.");
                     return (new Claim("ownerName", fact.Name, fact.SourceUrl, fact.Quote), null);
@@ -316,6 +352,7 @@ public class LeadVerifier
                     var handle = m.Groups[1].Value.TrimEnd('/', '.');
                     var fact = facts.LinkedIns.FirstOrDefault(l => l.Kind == "in" && l.Handle.Equals(handle, StringComparison.OrdinalIgnoreCase));
                     if (fact == null) return (null, "The business does not publish this link on its own pages.");
+                    if (!QuoteBindsToLink(claim, fact, site)) return (null, "The quote is not the link itself or its text: it must name the profile or be the text of the link.");
                     if (!accepted.TryGetValue("ownerName", out var owner)) return (null, "No verified owner name to match the profile to.");
                     if (!LeadEvidenceService.HandleCarriesName(fact.Handle, owner.Value)) return (null, "The profile handle does not carry the owner's name.");
                     return (new Claim("ownerLinkedInUrl", fact.Url, fact.SourceUrl, "linkedin.com/in/" + fact.Handle), null);
@@ -326,6 +363,7 @@ public class LeadVerifier
                     if (!m.Success) return (null, "Not a company LinkedIn page address (linkedin.com/company/...).");
                     var fact = facts.LinkedIns.FirstOrDefault(l => l.Kind == "company" && l.Handle.Equals(m.Groups[1].Value.TrimEnd('/', '.'), StringComparison.OrdinalIgnoreCase));
                     if (fact == null) return (null, "The business does not publish this link on its own pages.");
+                    if (!QuoteBindsToLink(claim, fact, site)) return (null, "The quote is not the link itself or its text: it must name the page or be the text of the link.");
                     if (!fact.Trusted) return (null, "The link does not stand in the header, footer or a social block of the site and its name does not resemble the business: it may be a client's.");
                     return (new Claim("companyLinkedInUrl", fact.Url, fact.SourceUrl, "linkedin.com/company/" + fact.Handle), null);
                 }
@@ -335,7 +373,7 @@ public class LeadVerifier
                     if (norm == null) return (null, "Not a single Dutch mobile number (06). Landlines, 085, 088, 0800, 0900 and text around the number do not count.");
                     var facts06 = facts.Mobiles.Where(x => x.Normalized == norm).ToList();
                     if (facts06.Count == 0) return (null, "The number is not published on the business's own pages.");
-                    var fact = PublishedMobile(facts, norm, out var mobileRefusal);
+                    var fact = PublishedMobile(facts, norm, out var mobileRefusal, f => Overlaps(claim.Quote, f.Quote));
                     if (fact == null) return (null, mobileRefusal);
                     return (new Claim("ownerMobile", PhoneNumbers.Format(norm), fact.SourceUrl, fact.Quote), null);
                 }
@@ -349,6 +387,8 @@ public class LeadVerifier
                     if (matching.All(e => e.Warning != null && e.Warning.StartsWith("The link shows"))) return (null, "The link on the page opens a different address than the one it shows.");
                     var best = matching.FirstOrDefault(e => !e.Role && e.SameDomain && (e.Warning == null || !e.Warning.StartsWith("The link shows")));
                     if (best == null) return (null, matching.Any(e => e.FreeProvider) ? "An address on a free provider (gmail, hotmail, ...) is not counted as the business's own mailbox." : "The address is not on the business's own domain.");
+                    if (!Overlaps(claim.Quote, best.Quote) && !quoteSquashed.Contains(Squash(best.Address)))
+                        return (null, "The quote is not the passage where the page shows this address.");
 
                     var local = best.Address[..best.Address.IndexOf('@')];
                     var foldedLocal = LeadEvidenceService.Fold(local);
@@ -375,6 +415,7 @@ public class LeadVerifier
                     var good = hits.FirstOrDefault(y => !y.CareerLike);
                     if (good == null) return (null, "The sentence describes the owner's career, not the start of this business.");
                     if (!quoteSquashed.Contains(year.ToString())) return (null, "The quote does not contain the year.");
+                    if (!Overlaps(claim.Quote, good.Quote)) return (null, "The quote is not the sentence in which the business states this year.");
                     return (new Claim("foundingYear", year.ToString(), good.SourceUrl, good.Quote), null);
                 }
             case "smallCompany":
@@ -389,7 +430,9 @@ public class LeadVerifier
                     var m = HuntRegex.Match(claim.Value, @"^\s*(?:kvk[\s:\-]*)?(\d{8})\s*$", RegexOptions.IgnoreCase);
                     if (!m.Success) return (null, "Not an 8 digit KvK number.");
                     var fact = facts.Kvk.FirstOrDefault(k => k.Number == m.Groups[1].Value);
-                    return fact == null ? (null, "The KvK number is not published on the business's own pages.") : (new Claim("kvkNumber", fact.Number, fact.SourceUrl, fact.Quote), null);
+                    if (fact == null) return (null, "The KvK number is not published on the business's own pages.");
+                    if (!Overlaps(claim.Quote, fact.Quote)) return (null, "The quote is not the passage where the page shows this KvK number.");
+                    return (new Claim("kvkNumber", fact.Number, fact.SourceUrl, fact.Quote), null);
                 }
         }
         return (null, "Unknown field.");
@@ -399,13 +442,18 @@ public class LeadVerifier
     /// The mobile fact that may be stored for this number: not next to a review or a web designer's credit and, when the site shows several
     /// numbers, in a contact context. The same rule for the owner's mobile and for the phone field (a mobile number in Phone scores too).
     /// </summary>
-    private static MobileFact? PublishedMobile(EvidenceFacts facts, string norm, out string refusal)
+    private static MobileFact? PublishedMobile(EvidenceFacts facts, string norm, out string refusal, Func<MobileFact, bool>? also = null)
     {
         refusal = "";
         var same = facts.Mobiles.Where(x => x.Normalized == norm).ToList();
         if (same.Count == 0) { refusal = "The number is not published on the business's own pages."; return null; }
         var many = facts.Mobiles.Select(x => x.Normalized).Distinct().Count() > 1;
-        var fact = same.FirstOrDefault(x => !x.Credit && (!many || x.Contact));
+        var fact = same.FirstOrDefault(x => !x.Credit && (!many || x.Contact) && (also == null || also(x)));
+        if (fact == null && also != null && same.Any(x => !x.Credit && (!many || x.Contact)))
+        {
+            refusal = "The quote is not the text around this number on the page.";
+            return null;
+        }
         if (fact == null)
             refusal = many ? "Several mobile numbers are on the site and this one does not stand in a contact context (it is next to a review or a credit)." : "The number stands next to a review or a web designer's credit.";
         return fact;
@@ -650,10 +698,14 @@ public class LeadVerifier
 
     // ---- notes and evidence ----------------------------------------------------------------------------
 
-    public static string BuildNote(string title, int score, VerificationResult r, IReadOnlyList<string> removed)
+    public static string BuildNote(string title, int score, VerificationResult r, IReadOnlyList<string> removed, int? verifiedOnlyScore = null, IReadOnlyList<string>? unverified = null)
     {
         var sb = new StringBuilder();
-        sb.AppendLine($"{title}. Score {score}, computed from verified facts only.");
+        if (verifiedOnlyScore is int vs && vs != score)
+            // A review keeps what a person entered, so the stored score can rest on values nobody verified: say which ones, in the title.
+            sb.AppendLine($"{title}: stored score {score}, verified-only score {vs}. Not verified, kept: {Trim(string.Join("; ", unverified ?? Array.Empty<string>()), 300)}.");
+        else
+            sb.AppendLine($"{title}. Score {score}, computed from verified facts only.");
         sb.AppendLine("Verified (quote and source):");
         if (r.Verified.Count == 0) sb.AppendLine("- nothing score bearing could be verified");
         foreach (var c in r.Verified.Values)

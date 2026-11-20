@@ -43,8 +43,17 @@ public class HuntServiceTests : IDisposable
     private static IConfiguration Config(params (string Key, string? Value)[] values) =>
         new ConfigurationBuilder().AddInMemoryCollection(values.Select(v => new KeyValuePair<string, string?>(v.Key, v.Value))).Build();
 
-    /// <summary>Issues a fresh token for the job (the previous one stops working) and saves its hash, as the start of a hunt does.</summary>
+    /// <summary>Issues a fresh SESSION token for the job (the previous one stops working), as the exchange in /brief leaves it: this is what every call except /brief needs.</summary>
     private string TokenFor(HuntJob job)
+    {
+        var token = HuntTokens.Issue(job);
+        job.TokenExchanged = true;
+        _db.SaveChanges();
+        return token;
+    }
+
+    /// <summary>Issues a fresh TASK token (the one in the task text, not yet exchanged).</summary>
+    private string TaskTokenFor(HuntJob job)
     {
         var token = HuntTokens.Issue(job);
         _db.SaveChanges();
@@ -172,6 +181,7 @@ public class HuntServiceTests : IDisposable
 
         var cancelled = NewHunt(target: 5, max: 5, user: "u-cancelled");
         cancelled.CancelRequested = true;
+        _db.SaveChanges();   // a cancel is saved before the agent's next call sees it
         Assert.True(HuntService.ShouldStop(cancelled));
         Assert.Equal(HuntOutcomes.Rejected, (await service.SubmitCandidateAsync(cancelled, Sub("Weak", Weak, "{}"), CancellationToken.None)).Outcome);
     }
@@ -238,7 +248,7 @@ public class HuntServiceTests : IDisposable
         var silent = NewHunt(user: "u-silent");
         silent.LastAgentCallAt = DateTime.UtcNow.AddMinutes(-50);
         var never = NewHunt(status: HuntStatuses.Pending, user: "u-never");
-        never.CreatedAt = DateTime.UtcNow.AddMinutes(-60);
+        never.CreatedAt = DateTime.UtcNow.AddMinutes(-61);
         var fresh = NewHunt(user: "u-fresh");
         fresh.LastAgentCallAt = DateTime.UtcNow.AddMinutes(-5);
         var verify = new HuntJob { UserId = "u-verify", Kind = HuntKinds.Verify, Status = HuntStatuses.Running, CreatedAt = DateTime.UtcNow.AddHours(-3) };
@@ -247,8 +257,12 @@ public class HuntServiceTests : IDisposable
 
         var swept = await HuntService.SweepStaleAsync(_db, DateTime.UtcNow, HuntSweepService.Silence);
         Assert.Equal(2, swept);
+        _db.ChangeTracker.Clear();   // the sweep updates the rows directly
+        silent = await _db.HuntJobs.SingleAsync(j => j.Id == silent.Id); never = await _db.HuntJobs.SingleAsync(j => j.Id == never.Id);
+        fresh = await _db.HuntJobs.SingleAsync(j => j.Id == fresh.Id); verify = await _db.HuntJobs.SingleAsync(j => j.Id == verify.Id);
         Assert.Equal(HuntStatuses.Failed, silent.Status);
-        Assert.Contains("did not report in 45 minutes", silent.Error);
+        Assert.Contains("stopped reporting: no call in 45 minutes", silent.Error);
+        Assert.Contains("Nobody started the Jengo agent task within 60 minutes", never.Error);
         Assert.Equal(HuntStatuses.Failed, never.Status);
         Assert.Equal(HuntStatuses.Running, fresh.Status);
         Assert.Equal(HuntStatuses.Running, verify.Status); // verify jobs belong to the server, not to the agent
@@ -370,7 +384,8 @@ public class HuntServiceTests : IDisposable
         // the token is in the task text exactly once as a value, and only its hash is stored
         Assert.NotNull(job.TokenHash);
         Assert.NotNull(job.TokenExpiresAt);
-        Assert.InRange(job.TokenExpiresAt!.Value, DateTime.UtcNow.AddHours(2.9), DateTime.UtcNow.AddHours(3.1));
+        Assert.InRange(job.TokenExpiresAt!.Value, DateTime.UtcNow.AddMinutes(59), DateTime.UtcNow.AddMinutes(61));   // the task token: one hour
+        Assert.False(job.TokenExchanged);
         var tokenLine = prompt.Split('\n').First(l => l.Contains("X-Hunt-Token: "));
         var token = System.Text.RegularExpressions.Regex.Match(tokenLine, @"X-Hunt-Token: ([A-Za-z0-9_-]{40,})").Groups[1].Value;
         Assert.NotEmpty(token);
@@ -541,7 +556,7 @@ public class HuntServiceTests : IDisposable
         var job = NewHunt();
         var token = TokenFor(job);
         Assert.IsType<OkObjectResult>(await Agent(token).Brief(job.Id));
-        Assert.True(HuntTokens.Valid(job, token, DateTime.UtcNow.AddHours(2.9)));
+        Assert.True(HuntTokens.Valid(job, token, DateTime.UtcNow.AddMinutes(20)));    // a session token slides: it was extended by the call
         Assert.False(HuntTokens.Valid(job, token, DateTime.UtcNow.AddHours(3.1)));
         job.TokenExpiresAt = DateTime.UtcNow.AddMinutes(-1);
         _db.SaveChanges();
@@ -587,7 +602,8 @@ public class HuntServiceTests : IDisposable
         silent.LastAgentCallAt = DateTime.UtcNow.AddHours(-2);
         _db.SaveChanges();
         Assert.Equal(1, await HuntService.SweepStaleAsync(_db, DateTime.UtcNow, TimeSpan.FromMinutes(45)));
-        Assert.Null(silent.TokenHash);
+        _db.ChangeTracker.Clear();
+        Assert.Null((await _db.HuntJobs.SingleAsync(j => j.Id == silent.Id)).TokenHash);
     }
 
     [Fact]
@@ -641,8 +657,9 @@ public class HuntServiceTests : IDisposable
         var json = JsonSerializer.Serialize(ok.Value);
         Assert.Contains("\"minScore\":7", json);
         Assert.Contains("\"targetCount\":2", json);
-        Assert.Contains("known.example.nl", json);                // the owner's own domains, for the dedupe
-        Assert.DoesNotContain("other-users.example.nl", json);    // never another user's
+        Assert.DoesNotContain("known.example.nl", json);          // the domains are no longer in the brief: the agent asks /known per batch
+        Assert.DoesNotContain("other-users.example.nl", json);
+        Assert.Contains("/known", json);
         Assert.Contains("\"remaining\"", json);
         Assert.Contains("\"bestScoreSoFar\":0", json);
         Assert.Equal(HuntStatuses.Running, (await _db.HuntJobs.SingleAsync()).Status);
@@ -678,7 +695,7 @@ public class HuntServiceTests : IDisposable
     public void The_prompt_template_carries_the_rubric_the_lessons_and_the_critic_step()
     {
         var t = HuntPrompt.Template();
-        foreach (var must in new[] { "+2", "Owner LinkedIn", "Small company", "Established", "Personal mailbox", "Google", "critic pass", "do NOT rephrase", "X-Hunt-Token", "{{AGENT_TOKEN}}", "knownDomains", "/progress", "/complete", "SEPARATE SUBAGENT", "bestScoreSoFar", "VISIBLE text", "never print", "Review mode" })
+        foreach (var must in new[] { "+2", "Owner LinkedIn", "Small company", "Established", "Personal mailbox", "Google", "critic pass", "do NOT rephrase", "X-Hunt-Token", "{{AGENT_TOKEN}}", "/known", "session.token", "/progress", "/complete", "SEPARATE SUBAGENT", "bestScoreSoFar", "VISIBLE text", "never print", "Review mode" })
             Assert.Contains(must, t, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("\u2014", t);   // no em dashes
     }
@@ -1118,7 +1135,9 @@ public class HuntServiceTests : IDisposable
         Assert.DoesNotContain("tm_secret_key", handler.Body);   // the JengoWork key is never in the task
 
         handler.Status = System.Net.HttpStatusCode.InternalServerError;
-        await Assert.ThrowsAsync<HttpRequestException>(() => d.DispatchAsync(job, "x", CancellationToken.None));
+        await Assert.ThrowsAsync<DispatchUncertainException>(() => d.DispatchAsync(job, "x", CancellationToken.None));   // a 5xx does not say whether the task exists
+        handler.Status = System.Net.HttpStatusCode.Forbidden;
+        await Assert.ThrowsAsync<HttpRequestException>(() => d.DispatchAsync(job, "x", CancellationToken.None));         // a refusal: nothing was created
 
         Assert.False(new JengoWorkHuntDispatcher(new HttpClient(handler), Config()).IsConfigured);
         Assert.False(new JengoWorkHuntDispatcher(new HttpClient(handler), Config(("JengoWork:BaseUrl", "https://work.example.test"))).IsConfigured);

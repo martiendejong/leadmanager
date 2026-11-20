@@ -34,14 +34,29 @@ public class FakeDispatcher : IHuntDispatcher
     public FakeDispatcher(bool configured = true) { IsConfigured = configured; }
     public bool IsConfigured { get; }
     public bool Fail { get; set; }
+    /// <summary>The request may have reached JengoWork (a timeout): the dispatcher cannot tell whether the task exists.</summary>
+    public bool Uncertain { get; set; }
+    /// <summary>With <see cref="Uncertain"/>: the task was in fact created, and a search for it finds it.</summary>
+    public bool TaskExistsAfterTimeout { get; set; }
+    /// <summary>The search for the task fails by itself.</summary>
+    public bool FindFails { get; set; }
+    public int FindCalls { get; private set; }
     public List<(HuntJob Job, string Prompt)> Dispatched { get; } = new();
 
     public Task<DispatchResult> DispatchAsync(LeadManager.Api.Models.HuntJob job, string prompt, CancellationToken ct)
     {
         if (!IsConfigured) throw new DispatchNotConfiguredException();
-        if (Fail) throw new HttpRequestException("JengoWork answered 500 when the agent task was created.");
+        if (Uncertain) { Dispatched.Add((job, prompt)); throw new DispatchUncertainException("JengoWork did not answer in time when the agent task was created."); }
+        if (Fail) throw new HttpRequestException("JengoWork answered 500 when the agent task was created. secret-detail-of-the-other-system");
         Dispatched.Add((job, prompt));
         return Task.FromResult(new DispatchResult("9001", "https://tasks.example.test/board/x/task/9001"));
+    }
+
+    public Task<DispatchResult?> FindAsync(LeadManager.Api.Models.HuntJob job, CancellationToken ct)
+    {
+        FindCalls++;
+        if (FindFails) throw new HttpRequestException("search failed");
+        return Task.FromResult<DispatchResult?>(TaskExistsAfterTimeout ? new DispatchResult("9002", "https://tasks.example.test/board/x/task/9002") : null);
     }
 }
 

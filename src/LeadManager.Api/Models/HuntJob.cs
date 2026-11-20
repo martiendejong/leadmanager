@@ -75,6 +75,11 @@ public class HuntJob
     /// <summary>SHA-256 (hex) of the per-hunt agent token; null when no token is valid (never issued, revoked or the job ended). The token itself is never stored.</summary>
     public string? TokenHash { get; set; }
     public DateTime? TokenExpiresAt { get; set; }
+    /// <summary>
+    /// False while <see cref="TokenHash"/> is the TASK token (the one written into the JengoWork task text). The first /brief call exchanges it
+    /// for a session token and revokes the task token: after that the task text opens nothing. See <see cref="LeadManager.Api.Services.Hunt.HuntTokens"/>.
+    /// </summary>
+    public bool TokenExchanged { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? StartedAt { get; set; }
@@ -92,6 +97,8 @@ public class HuntCandidate
     public string Name { get; set; } = "";
     public string Website { get; set; } = "";
     public int? Score { get; set; }
+    /// <summary>The score from verified facts only. Equal to <see cref="Score"/> for a new lead; in a review the stored score can include values nobody verified.</summary>
+    public int? VerifiedScore { get; set; }
     /// <summary>The highest score the quick pass thought possible (an upper bound, not a claim).</summary>
     public int? MaxReachable { get; set; }
     public string Outcome { get; set; } = HuntOutcomes.Error;

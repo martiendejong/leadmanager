@@ -104,6 +104,8 @@ public class LeadManagerDbContext : IdentityDbContext<ApplicationUser>
         {
             e.HasIndex(c => c.LeadId);
             e.HasIndex(c => c.JobId);
+            // A deleted lead leaves its candidate rows in the job history, without the link and without its evidence (see HuntEvidence.ForgetAsync).
+            e.HasOne<Lead>().WithMany().HasForeignKey(c => c.LeadId).OnDelete(DeleteBehavior.SetNull);
         });
 
         // Seed roles with fixed GUIDs so they don't change on every migration

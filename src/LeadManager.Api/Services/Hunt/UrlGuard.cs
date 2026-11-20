@@ -51,6 +51,8 @@ public static class UrlGuard
         if (!raw.Contains("://")) raw = "https://" + raw;
         if (!Uri.TryCreate(raw, UriKind.Absolute, out var u)) return false;
         if (u.Scheme != Uri.UriSchemeHttp && u.Scheme != Uri.UriSchemeHttps) return false;
+        // Only the ports of the web: a public host also has services (SSH, databases, admin panels) on other ports that a hunt must never touch.
+        if (u.Port != 80 && u.Port != 443) return false;
         if (!string.IsNullOrEmpty(u.UserInfo)) return false;
         if (u.HostNameType is UriHostNameType.IPv4 or UriHostNameType.IPv6)
         {

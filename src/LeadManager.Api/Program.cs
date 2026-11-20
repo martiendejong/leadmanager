@@ -234,9 +234,11 @@ builder.Services.AddRateLimiter(o =>
     o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     o.AddPolicy(LeadManager.Api.Controllers.HuntRateLimit.Policy, ctx =>
         System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
-            (ctx.Request.RouteValues["id"]?.ToString() ?? ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown") + "|" + (ctx.Connection.RemoteIpAddress?.ToString() ?? ""),
+            LeadManager.Api.Controllers.HuntRateLimit.PolicyKey(ctx),
             _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
             { PermitLimit = LeadManager.Api.Controllers.HuntRateLimit.PerMinute, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+    // Per address over every hunt as well: a guesser who rotates hunt ids still meets one counter.
+    o.GlobalLimiter = System.Threading.RateLimiting.PartitionedRateLimiter.Create<Microsoft.AspNetCore.Http.HttpContext, string>(LeadManager.Api.Controllers.HuntRateLimit.GlobalPartition);
 });
 // Named client for CompanyProfileService's WordPress REST probe
 builder.Services.AddHttpClient("wp-probe", c =>

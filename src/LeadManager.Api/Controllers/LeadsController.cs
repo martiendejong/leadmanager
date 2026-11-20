@@ -423,6 +423,7 @@ public class LeadsController : ControllerBase
         var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == userId);
         if (lead == null) return NotFound();
 
+        await Services.Hunt.HuntEvidence.ForgetAsync(_db, new[] { lead.Id });   // the quotes of a deleted lead do not stay in the hunt history
         _db.Leads.Remove(lead);
         await _db.SaveChangesAsync();
         return NoContent();
@@ -633,6 +634,7 @@ public class LeadsController : ControllerBase
 
         // TODO: Add LeadActivity "Samengevoegd met [source.Name]" once LeadActivity entity is merged (PR #30)
 
+        await Services.Hunt.HuntEvidence.ForgetAsync(_db, new[] { source.Id }, moveTo: target.Id);   // the hunt history follows the lead that stays
         _db.Leads.Remove(source);
         await _db.SaveChangesAsync();
 

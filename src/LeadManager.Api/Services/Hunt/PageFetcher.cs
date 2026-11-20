@@ -32,6 +32,24 @@ public record FetchedPage(string Url, int Status, string Html, string Text)
         }
     }
 
+    private string? _hrefs;
+
+    /// <summary>
+    /// The link targets of the page (href attributes: addresses, mailto: and tel: links), decoded and squashed. This is the only markup a quote may
+    /// be found in: the text of a script, a comment or a hidden element is not a place where a business publishes a contact.
+    /// </summary>
+    public string HrefText
+    {
+        get
+        {
+            if (_hrefs != null) return _hrefs;
+            var sb = new StringBuilder();
+            foreach (var a in Dom?.DocumentNode.SelectNodes("//a[@href]")?.Take(2000) ?? Enumerable.Empty<HtmlNode>())
+                sb.Append(LeadVerifier.Squash(WebUtility.HtmlDecode(a.GetAttributeValue("href", "")))).Append(' ');
+            return _hrefs = sb.ToString();
+        }
+    }
+
     /// <summary>What the site says about itself in its meta description (or og:description) on this page, cleaned; empty when there is none.</summary>
     public string MetaDescription
     {

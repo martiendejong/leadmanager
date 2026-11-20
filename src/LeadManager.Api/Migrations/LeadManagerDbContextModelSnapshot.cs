@@ -701,6 +701,9 @@ namespace LeadManager.Api.Migrations
                     b.Property<int?>("Score")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int?>("VerifiedScore")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Website")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -793,6 +796,9 @@ namespace LeadManager.Api.Migrations
 
                     b.Property<string>("TaskUrl")
                         .HasColumnType("TEXT");
+
+                    b.Property<bool>("TokenExchanged")
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("TokenExpiresAt")
                         .HasColumnType("TEXT");
@@ -1816,6 +1822,11 @@ namespace LeadManager.Api.Migrations
                         .HasForeignKey("JobId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("LeadManager.Api.Models.Lead", null)
+                        .WithMany()
+                        .HasForeignKey("LeadId")
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Job");
                 });
