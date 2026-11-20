@@ -878,18 +878,18 @@ export default function LeadDetailPage() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="flex items-start justify-between mb-6">
-        <div className="flex items-center gap-3">
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto">
+      {/* Header: wraps on a phone, so the badge and the city and sector text are never clipped */}
+      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2 mb-6">
+        <div className="flex items-center gap-3 min-w-0">
           <Link to="/leads" className="text-gray-400 hover:text-gray-600 transition-colors" title="Back to leads">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </Link>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">{lead.name}</h1>
-            <div className="flex items-center gap-2 mt-1">
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 break-words">{lead.name}</h1>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
               {lead.website && (
                 <a href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`}
                   target="_blank" rel="noopener noreferrer"
@@ -905,7 +905,7 @@ export default function LeadDetailPage() {
             </div>
           </div>
         </div>
-        <span className={`px-3 py-1 rounded-full text-xs font-medium ${pipeline.color}`}>{pipeline.label}</span>
+        <span className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap shrink-0 ${pipeline.color}`}>{pipeline.label}</span>
       </div>
 
       {/* Why this lead, what it needs, how we can help (the same block as in the slide-over) */}

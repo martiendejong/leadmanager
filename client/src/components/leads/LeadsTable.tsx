@@ -202,7 +202,11 @@ export default function LeadsTable({
                 key={lead.id}
                 data-lead-id={lead.id}
                 onMouseDown={(e) => onRowMouseDown(lead.id, e)}
-                onClick={(e) => onRowClick(lead.id, e)}
+                onClick={(e) => {
+                  // Nothing selected and no modifier key: a click opens the details; with a selection or Ctrl/Cmd/Shift it keeps selecting.
+                  if (selectedIds.size === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey) onRowOpen(lead)
+                  else onRowClick(lead.id, e)
+                }}
                 className={`cursor-pointer transition-colors ${
                   selected
                     ? 'bg-indigo-50 border-l-2 border-indigo-500'
@@ -283,17 +287,17 @@ export default function LeadsTable({
                 </td>
                 <td className="px-4 py-3 text-sm">
                   {lead.isEnriched ? (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    <span className="inline-flex items-center whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                       Enriched
                     </span>
                   ) : (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                    <span className="inline-flex items-center whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
                       Not enriched
                     </span>
                   )}
                 </td>
                 <td className="px-4 py-3 text-sm">
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                  <span className={`inline-flex items-center whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs font-medium ${
                     (lead.pipelineStatus ?? 'New') === 'New' ? 'bg-gray-100 text-gray-600'
                       : (lead.pipelineStatus === 'Lost') ? 'bg-red-100 text-red-700'
                       : (lead.pipelineStatus === 'Won') ? 'bg-green-100 text-green-800'

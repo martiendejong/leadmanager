@@ -235,7 +235,7 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
 
       {/* Panel */}
       <div
-        className={`fixed top-0 right-0 h-full w-full max-w-full sm:w-[480px] bg-white shadow-2xl z-50 flex flex-col transform transition-transform duration-300 ease-in-out ${
+        className={`fixed top-0 right-0 h-full w-full max-w-full sm:w-[480px] bg-white shadow-2xl z-50 flex flex-col overflow-x-hidden transform transition-transform duration-300 ease-in-out ${
           lead ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
@@ -267,10 +267,10 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
             </div>
 
             {/* Status and enrichment badges */}
-            <div className="px-5 py-2 border-b border-gray-100 flex items-center justify-between">
-              <div className="flex items-center gap-2">
+            <div className="px-5 py-2 border-b border-gray-100 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+              <div className="flex flex-wrap items-center gap-2 min-w-0">
                 {/* Lead/Prospect Status Badge */}
-                <span className={`inline-flex items-center gap-1 text-xs font-medium rounded-full px-2.5 py-0.5 ${
+                <span className={`inline-flex items-center gap-1 whitespace-nowrap text-xs font-medium rounded-full px-2.5 py-0.5 ${
                   lead.status === 'Prospect'
                     ? 'text-blue-700 bg-blue-50 border border-blue-200'
                     : 'text-gray-700 bg-gray-50 border border-gray-200'
@@ -283,39 +283,39 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
 
                 {lead.isEnriched ? (
                   <>
-                    <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-full px-2.5 py-0.5">
+                    <span className="inline-flex items-center gap-1 whitespace-nowrap text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-full px-2.5 py-0.5">
                       <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                       </svg>
                       Enriched
                     </span>
                     {lead.enrichedAt && (
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-gray-500 whitespace-nowrap">
                         on {new Date(lead.enrichedAt).toLocaleDateString('en-GB')}
                       </span>
                     )}
                   </>
                 ) : (
-                  <span className="text-xs text-gray-400 italic">Not enriched yet</span>
+                  <span className="text-xs text-gray-400 italic whitespace-nowrap">Not enriched yet</span>
                 )}
                 {lead.enrichmentVersion === 2 && (
-                  <span className="text-xs text-indigo-600 font-medium bg-indigo-50 border border-indigo-200 rounded-full px-2 py-0.5">
+                  <span className="text-xs text-indigo-600 font-medium bg-indigo-50 border border-indigo-200 rounded-full px-2 py-0.5 whitespace-nowrap">
                     RAG v2
                   </span>
                 )}
                 {lead.websiteStatus === 'Unreachable' && (
-                  <span className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-full px-2 py-0.5">
+                  <span className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-full px-2 py-0.5 whitespace-nowrap">
                     Website unreachable
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {/* Promote to Prospect button (only show if status is Lead) */}
                 {lead.status === 'Lead' && (
                   <button
                     onClick={handleStatusTransition}
                     disabled={isUpdatingStatus}
-                    className="text-xs px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-1"
+                    className="text-xs px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-1 whitespace-nowrap"
                   >
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
@@ -326,7 +326,7 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
                 <button
                   onClick={handleEnrichNow}
                   disabled={isEnriching}
-                  className="text-xs px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  className="text-xs px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed whitespace-nowrap"
                 >
                   {isEnriching ? 'Working...' : 'Enrich now'}
                 </button>
@@ -364,7 +364,7 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
             </div>
 
             {/* Scrollable body */}
-            <div className="flex-1 overflow-y-auto p-5 space-y-6">
+            <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-5 space-y-6">
 
               {/* Why this lead, what they need, how we can help */}
               <LeadInsightBlock lead={lead} />
