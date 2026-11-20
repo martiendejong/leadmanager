@@ -249,20 +249,22 @@ def main() -> int:
             r = s.patch(patch, headers=jwt, timeout=30, json={"clearFields": ["whyLead", "needs", "productFit"]})
             check(r.status_code == 200 and r.json().get("whyLead") is None and r.json().get("productFit") is None, "clearFields resets why, needs and product fit")
         # Messages: the app never sends; a draft changes nothing; "Mark as sent" needs a confirmation and moves New to Contacted only
-        if lead_id:
-            r = s.get(f"{base}/api/leads/{lead_id}/messages/prefill?channel=Email", headers=jwt, timeout=30)
+        r = s.post(base + "/api/leads", headers=jwt, timeout=30, json={"name": f"Smoke msg {stamp}", "website": f"https://smoke-msg-{stamp}.example", "sector": "test", "city": "test", "phone": "0000", "companyEmail": f"smoke@smoke-msg-{stamp}.example", "source": "smoke-test"})
+        msg_lead = r.json().get("id") if r.status_code == 201 else None
+        if msg_lead:
+            r = s.get(f"{base}/api/leads/{msg_lead}/messages/prefill?channel=Email", headers=jwt, timeout=30)
             check(r.status_code == 200 and "body" in r.json() and "{" not in r.json().get("body", "{"), "message prefill answers with a filled in text")
-            check(s.get(f"{base}/api/leads/{lead_id}/messages/prefill?channel=Fax", headers=jwt, timeout=30).status_code == 400, "prefill with an unknown channel is refused")
-            r = s.post(f"{base}/api/leads/{lead_id}/messages", headers=jwt, timeout=30, json={"channel": "Email", "subject": "Smoke\r\nBcc: x@y.nl", "body": "Smoke test message"})
+            check(s.get(f"{base}/api/leads/{msg_lead}/messages/prefill?channel=Fax", headers=jwt, timeout=30).status_code == 400, "prefill with an unknown channel is refused")
+            r = s.post(f"{base}/api/leads/{msg_lead}/messages", headers=jwt, timeout=30, json={"channel": "Email", "subject": "Smoke\r\nBcc: x@y.nl", "body": "Smoke test message"})
             msg = r.json() if r.status_code == 201 else {}
             check(r.status_code == 201 and "\n" not in msg.get("subject", "x\n") and msg.get("status") == "Draft", "a draft is saved (subject is one line)")
-            lead_now = s.get(f"{base}/api/leads/{lead_id}", headers=jwt, timeout=30).json()
-            check(lead_now.get("pipelineStatus") == "New", "saving a draft does not change the lead status")
+            lead_now = s.get(f"{base}/api/leads/{msg_lead}", headers=jwt, timeout=30).json()
+            check(lead_now.get("pipelineStatus") == "New", f"saving a draft does not change the lead status")
             mid = msg.get("id")
             if mid:
                 r = s.post(f"{base}/api/messages/{mid}/sent", headers=jwt, timeout=30, json={})
                 check(r.status_code == 400 and "confirmation_required" in r.text, "mark as sent without a confirmation is refused")
-                check(s.get(f"{base}/api/leads/{lead_id}", headers=jwt, timeout=30).json().get("pipelineStatus") == "New", "the status is still New after a refused mark as sent")
+                check(s.get(f"{base}/api/leads/{msg_lead}", headers=jwt, timeout=30).json().get("pipelineStatus") == "New", "the status is still New after a refused mark as sent")
                 r = s.post(f"{base}/api/messages/{mid}/sent", headers=jwt, timeout=30, json={"confirmed": True})
                 check(r.status_code == 200 and r.json().get("pipelineStatus") == "Contacted", "mark as sent with a confirmation moves New to Contacted")
                 check(s.post(f"{base}/api/messages/{mid}/sent", headers=jwt, timeout=30, json={"confirmed": True}).status_code == 409, "a message cannot be marked as sent twice")
@@ -270,10 +272,12 @@ def main() -> int:
             r = s.get(base + "/api/messages?status=Sent", headers=jwt, timeout=30)
             check(r.status_code == 200 and r.json().get("total", 0) >= 1, "the messages overview lists the sent message")
             r = s.get(base + "/api/leads?pipelineStatus=Contacted", headers=jwt, timeout=30)
-            check(r.status_code == 200 and any(i.get("id") == lead_id for i in r.json().get("items", [])), "the lead list filters on Contacted and shows the lead")
-            r = s.post(base + "/api/messages/bulk-drafts", headers=jwt, timeout=30, json={"leadIds": [lead_id], "channel": "WhatsApp"})
+            check(r.status_code == 200 and any(i.get("id") == msg_lead for i in r.json().get("items", [])), "the lead list filters on Contacted and shows the lead")
+            r = s.post(base + "/api/messages/bulk-drafts", headers=jwt, timeout=30, json={"leadIds": [msg_lead], "channel": "WhatsApp"})
             check(r.status_code == 200 and r.json().get("created") == 1, "bulk drafts create a draft")
             check(s.get(base + "/api/messages/queue", headers=jwt, timeout=30).status_code == 200, "the next to contact queue answers")
+        if msg_lead:
+            s.delete(f"{base}/api/leads/{msg_lead}", headers=jwt, timeout=30)
         r = s.put(base + "/api/message-templates", headers=jwt, timeout=30, json={"channel": "LinkedIn", "productKey": "werkteam", "body": "Smoke {name} {unknown}"})
         check(r.status_code == 400, "a template with an unknown placeholder is refused")
         r = s.put(base + "/api/message-templates", headers=jwt, timeout=30, json={"channel": "LinkedIn", "productKey": "werkteam", "body": "Smoke template voor {name}"})
