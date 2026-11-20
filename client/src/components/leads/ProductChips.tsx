@@ -38,7 +38,8 @@ const isHttp = (u?: string | null): u is string => !!u && /^https?:\/\//i.test(u
  */
 export function ProductChips({ fit, compact = false }: { fit: ProductFit[]; compact?: boolean }) {
   const products = useProducts()
-  const name = (key: string) => products[key]?.name ?? key
+  // A key that is not in the catalog (stored under an older catalog) is shown as a retired product, never as an error.
+  const name = (key: string) => products[key]?.name ?? `${key} (retired product)`
   if (fit.length === 0) return null
 
   const chips = (

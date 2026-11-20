@@ -92,7 +92,7 @@ public class HuntInsightTests : IDisposable
     {
         observation = new { quote = "Boekhouding, facturen en planning doe ik zelf, daar gaat elke week veel tijd in zitten", source_url = Site },
         needs = new[] { new { need = "Spends hours a week on admin", quote = NeedHome, source_url = Site } },
-        productFit = new[] { new { product = "AIMEDEW", reason = "Takes bookkeeping prep and invoicing off her hands for a fixed price per month", quote = NeedHome, source_url = Site } },
+        productFit = new[] { new { product = "werkteam", reason = "Takes bookkeeping prep and invoicing off her hands for a fixed price per month", quote = NeedHome, source_url = Site } },
     };
 
     // ---- the catalog ------------------------------------------------------------------------------------------------
@@ -100,10 +100,10 @@ public class HuntInsightTests : IDisposable
     [Fact]
     public void The_catalog_file_and_the_list_of_keys_are_the_same_and_unknown_keys_are_refused()
     {
-        Assert.Equal(new[] { "TRIP", "STUDIO", "PROV", "WEB", "REALTOR", "AIMEDEW", "AIDEV", "AIVIND" }, ProductCatalog.Keys);
+        Assert.Equal(new[] { "coachos", "siteaudit", "visit", "werkteam", "cloudws", "custom", "mail", "meet" }, ProductCatalog.Keys);
         Assert.Equal(ProductCatalog.Keys.OrderBy(k => k), ProductCatalog.All.Select(p => p.Key).OrderBy(k => k));
-        Assert.All(ProductCatalog.All, p => { Assert.NotEmpty(p.Name); Assert.NotEmpty(p.ForWhom); Assert.NotEmpty(p.Trigger); });
-        Assert.Equal("WEB", ProductCatalog.Canonical(" web "));
+        Assert.All(ProductCatalog.All, p => { Assert.NotEmpty(p.Name); Assert.NotEmpty(p.WhatItIs); Assert.NotEmpty(p.FitsWhen); });
+        Assert.Equal("coachos", ProductCatalog.Canonical(" CoachOS "));
         Assert.Null(ProductCatalog.Canonical("SKYNET"));
         Assert.Null(ProductCatalog.Canonical(null));
         Assert.DoesNotContain("—", ProductCatalog.Text);
@@ -129,6 +129,59 @@ public class HuntInsightTests : IDisposable
         Assert.DoesNotContain("—", prompt);
     }
 
+    // ---- the catalog is the one of Jengo Products (v2) ------------------------------------------------------------------
+
+    [Theory]
+    [InlineData("TRIP")] [InlineData("STUDIO")] [InlineData("PROV")] [InlineData("WEB")] [InlineData("REALTOR")] [InlineData("AIMEDEW")] [InlineData("AIDEV")] [InlineData("AIVIND")]
+    [InlineData("seogod")] [InlineData("calendar")]
+    public async Task The_first_catalog_and_the_products_that_are_not_for_sale_are_no_longer_accepted(string key)
+    {
+        Assert.Null(ProductCatalog.Canonical(key));
+        // a new submission naming it
+        var insight = new { productFit = new[] { new { product = key, reason = "Fits the business well", quote = NeedHome, source_url = Site } } };
+        var (lead, _, _) = await Submit(insight);
+        Assert.Null(lead.ProductFitJson);
+        Assert.Contains("not a product of ours", (await _db.HuntCandidates.SingleAsync()).EvidenceJson);
+        // and the patch of a person
+        var seeded = new Lead { Name = "Other", Website = "https://other.example.nl", ImportedByUserId = Me };
+        _db.Leads.Add(seeded);
+        _db.SaveChanges();
+        Assert.True(await Leads().PatchProfile(seeded.Id, Patch(fit: new[] { new ProductFitDto(key, "A reason", null, null) })) is BadRequestObjectResult);
+    }
+
+    [Fact]
+    public void No_amount_of_money_appears_in_what_the_catalog_shows()
+    {
+        var shown = new List<string>();
+        var c = new HuntController(_db, new FakeDispatcher(), NoPlaces(), new HuntQueue(), new HuntRegistry(), new ConfigurationBuilder().Build());
+        shown.Add(JsonSerializer.Serialize(Assert.IsType<OkObjectResult>(c.Products()).Value));
+        shown.Add(ProductCatalog.PublicText);
+        shown.Add(HuntPrompt.Render(new HuntJob { Segment = "x" }, "https://clients.example.test", "token"));
+        foreach (var text in shown)
+        {
+            Assert.False(System.Text.RegularExpressions.Regex.IsMatch(text, @"(EUR|€)\s*\d|\d\s*(EUR|€)", System.Text.RegularExpressions.RegexOptions.IgnoreCase), "an amount is shown");
+            Assert.DoesNotContain("125", text);
+            Assert.DoesNotContain("500", text);
+        }
+        // the product itself is still described
+        Assert.Contains("AI Work Team", shown[0]);
+        Assert.DoesNotContain("per month", ProductCatalog.All.Single(p => p.Key == "werkteam").WhatItIs);
+    }
+
+    [Fact]
+    public async Task A_fit_stored_under_the_old_catalog_is_still_returned_for_display_but_cannot_be_written_again()
+    {
+        var lead = new Lead { Name = "Old", Website = "https://old.example.nl", ImportedByUserId = Me, ProductFitJson = "[{\"product\":\"TRIP\",\"reason\":\"Old fit\",\"evidenceQuote\":\"q\",\"sourceUrl\":\"https://old.example.nl\"}]" };
+        _db.Leads.Add(lead);
+        _db.SaveChanges();
+        var ok = Assert.IsType<OkObjectResult>(await Leads().GetLead(lead.Id));
+        var entry = Assert.Single(Assert.IsType<LeadDto>(ok.Value).ProductFit!);
+        Assert.Equal("TRIP", entry.Product);                         // the screen labels it as a retired product
+        Assert.Null(ProductCatalog.Canonical("TRIP"));
+        // saving the same list again through the patch is refused: new input must use the catalog
+        Assert.True(await Leads().PatchProfile(lead.Id, Patch(fit: new[] { new ProductFitDto("TRIP", "Old fit", null, null) })) is BadRequestObjectResult);
+    }
+
     // ---- verified insight is stored ----------------------------------------------------------------------------------
 
     [Fact]
@@ -140,7 +193,7 @@ public class HuntInsightTests : IDisposable
         Assert.Contains("Spends hours a week on admin", lead.Needs);
         Assert.Contains(NeedHome, lead.Needs);
         var fit = Assert.Single(LeadInsight.ParseFit(lead.ProductFitJson)!);
-        Assert.Equal("AIMEDEW", fit.Product);
+        Assert.Equal("werkteam", fit.Product);
         Assert.Equal(Site, fit.SourceUrl);
         Assert.Contains("bookkeeping", fit.Reason);
 
@@ -162,7 +215,7 @@ public class HuntInsightTests : IDisposable
         Assert.Contains("Product fit (each with the trigger", note);
         var evidence = (await _db.HuntCandidates.SingleAsync()).EvidenceJson;
         Assert.Contains("\"insight\"", evidence);
-        Assert.Contains("AIMEDEW", evidence);
+        Assert.Contains("werkteam", evidence);
     }
 
     [Fact]
@@ -184,7 +237,7 @@ public class HuntInsightTests : IDisposable
         {
             observation = new { quote = "Dit bureau ontwerpt de mooiste huisstijlen van het hele land", source_url = Site },
             needs = new[] { new { need = "Wants more customers", quote = "Wij zoeken dringend meer klanten voor ons ontwerpbureau", source_url = Site } },
-            productFit = new[] { new { product = "WEB", reason = "Needs a new site", quote = "De website is hopeloos verouderd en niet meer te gebruiken", source_url = Site } },
+            productFit = new[] { new { product = "siteaudit", reason = "Needs a new site", quote = "De website is hopeloos verouderd en niet meer te gebruiken", source_url = Site } },
         };
         var (lead, _, _) = await Submit(insight);
         Assert.Null(lead.Needs);
@@ -245,16 +298,16 @@ public class HuntInsightTests : IDisposable
             },
             productFit = new[]
             {
-                new { product = "AIMEDEW", reason = "Takes admin off her hands", quote = NeedHome, source_url = Site },
-                new { product = "aimedew", reason = "The same product again", quote = NeedHome, source_url = Site },
-                new { product = "WEB", reason = "Online booking on a new site", quote = TriggerContact, source_url = Site },
-                new { product = "STUDIO", reason = "Not a studio", quote = "Dit staat nergens op de pagina van het bedrijf zelf", source_url = Site },
+                new { product = "werkteam", reason = "Takes admin off her hands", quote = NeedHome, source_url = Site },
+                new { product = "WerkTeam", reason = "The same product again", quote = NeedHome, source_url = Site },
+                new { product = "siteaudit", reason = "Online booking on a new site", quote = TriggerContact, source_url = Site },
+                new { product = "coachos", reason = "Not a studio", quote = "Dit staat nergens op de pagina van het bedrijf zelf", source_url = Site },
             },
         };
         var (lead, _, _) = await Submit(insight);
         Assert.Equal(1, lead.Needs!.Split('\n').Length);
         var fits = LeadInsight.ParseFit(lead.ProductFitJson)!;
-        Assert.Equal(new[] { "AIMEDEW", "WEB" }, fits.Select(x => x.Product));
+        Assert.Equal(new[] { "werkteam", "siteaudit" }, fits.Select(x => x.Product));
         var evidence = (await _db.HuntCandidates.SingleAsync()).EvidenceJson;
         Assert.Contains("already listed", evidence);
 
@@ -290,7 +343,7 @@ public class HuntInsightTests : IDisposable
         var (both, _, _) = await Submit(new
         {
             noClearFit = true,
-            productFit = new[] { new { product = "AIMEDEW", reason = "Takes admin off her hands", quote = NeedHome, source_url = Site } },
+            productFit = new[] { new { product = "werkteam", reason = "Takes admin off her hands", quote = NeedHome, source_url = Site } },
         });
         Assert.Single(LeadInsight.ParseFit(both.ProductFitJson)!);   // a verified fit wins over the flag
     }
@@ -322,19 +375,19 @@ public class HuntInsightTests : IDisposable
     public async Task The_profile_patch_stores_why_needs_and_product_fit_and_the_lead_dto_returns_them()
     {
         var lead = SeedLead();
-        var fit = new[] { new ProductFitDto("web", "Dated site without an intake form", "Neem contact op via de telefoon", "https://www.tinevanwel.nl/contact") };
+        var fit = new[] { new ProductFitDto("SiteAudit", "Dated site without an intake form", "Neem contact op via de telefoon", "https://www.tinevanwel.nl/contact") };
         var ok = Assert.IsType<OkObjectResult>(await Leads().PatchProfile(lead.Id, Patch("Studio of one, reachable by mobile.", "No online intake: \"alleen per telefoon\"", fit)));
         var dto = Assert.IsType<LeadDto>(ok.Value);
         Assert.Equal("Studio of one, reachable by mobile.", dto.WhyLead);
         Assert.Equal("No online intake: \"alleen per telefoon\"", dto.Needs);
         var entry = Assert.Single(dto.ProductFit!);
-        Assert.Equal("WEB", entry.Product);                    // stored in its canonical spelling
+        Assert.Equal("siteaudit", entry.Product);                    // stored in its canonical spelling
         Assert.Equal("https://www.tinevanwel.nl/contact", entry.SourceUrl);
 
         _db.ChangeTracker.Clear();
         var stored = await _db.Leads.SingleAsync();
         Assert.Equal("Studio of one, reachable by mobile.", stored.WhyLead);
-        Assert.Contains("\"product\":\"WEB\"", stored.ProductFitJson);
+        Assert.Contains("\"product\":\"siteaudit\"", stored.ProductFitJson);
 
         // an empty list is "assessed, no clear fit"
         var cleared = Assert.IsType<OkObjectResult>(await Leads().PatchProfile(lead.Id, Patch(fit: Array.Empty<ProductFitDto>())));
@@ -353,16 +406,16 @@ public class HuntInsightTests : IDisposable
         var bad = new (string Why, PatchLeadProfileDto Dto)[]
         {
             ("unknown product", Patch(fit: new[] { new ProductFitDto("SKYNET", "Nope", null, null) })),
-            ("listed twice", Patch(fit: new[] { new ProductFitDto("WEB", "One reason", null, null), new ProductFitDto("web", "Another reason", null, null) })),
-            ("reason too short", Patch(fit: new[] { new ProductFitDto("WEB", "x", null, null) })),
-            ("reason too long", Patch(fit: new[] { new ProductFitDto("WEB", new string('r', 301), null, null) })),
-            ("quote too long", Patch(fit: new[] { new ProductFitDto("WEB", "A reason", new string('q', 401), null) })),
-            ("javascript source", Patch(fit: new[] { new ProductFitDto("WEB", "A reason", "quote", "javascript:alert(1)") })),
+            ("listed twice", Patch(fit: new[] { new ProductFitDto("siteaudit", "One reason", null, null), new ProductFitDto("SiteAudit", "Another reason", null, null) })),
+            ("reason too short", Patch(fit: new[] { new ProductFitDto("siteaudit", "x", null, null) })),
+            ("reason too long", Patch(fit: new[] { new ProductFitDto("siteaudit", new string('r', 301), null, null) })),
+            ("quote too long", Patch(fit: new[] { new ProductFitDto("siteaudit", "A reason", new string('q', 401), null) })),
+            ("javascript source", Patch(fit: new[] { new ProductFitDto("siteaudit", "A reason", "quote", "javascript:alert(1)") })),
             ("five products", Patch(fit: ProductCatalog.Keys.Take(5).Select(k => new ProductFitDto(k, "A reason", null, null)).ToArray())),
             ("why too long", Patch(why: new string('w', 1001))),
             ("needs too long", Patch(needs: new string('n', 1001))),
             ("set and cleared", Patch(why: "x", clear: new[] { "whyLead" })),
-            ("set and cleared fit", Patch(fit: new[] { new ProductFitDto("WEB", "A reason", null, null) }, clear: new[] { "productFit" })),
+            ("set and cleared fit", Patch(fit: new[] { new ProductFitDto("siteaudit", "A reason", null, null) }, clear: new[] { "productFit" })),
         };
         foreach (var (why, dto) in bad)
             Assert.True(await Leads().PatchProfile(lead.Id, dto) is BadRequestObjectResult, why);
@@ -371,14 +424,14 @@ public class HuntInsightTests : IDisposable
         Assert.Null(stored.WhyLead);
         Assert.Null(stored.ProductFitJson);
         var message = JsonSerializer.Serialize(((BadRequestObjectResult)await Leads().PatchProfile(lead.Id, bad[0].Dto)).Value);
-        Assert.Contains("Known: TRIP, STUDIO, PROV, WEB, REALTOR, AIMEDEW, AIDEV, AIVIND", message);
+        Assert.Contains("Known: coachos, siteaudit, visit, werkteam, cloudws, custom, mail, meet", message);
     }
 
     [Fact]
     public async Task ClearFields_resets_why_needs_and_product_fit()
     {
         var lead = SeedLead();
-        await Leads().PatchProfile(lead.Id, Patch("Why", "Needs", new[] { new ProductFitDto("WEB", "A reason", null, null) }));
+        await Leads().PatchProfile(lead.Id, Patch("Why", "Needs", new[] { new ProductFitDto("siteaudit", "A reason", null, null) }));
         var ok = Assert.IsType<OkObjectResult>(await Leads().PatchProfile(lead.Id, Patch(clear: new[] { "whyLead", "needs", "productFit" })));
         var dto = Assert.IsType<LeadDto>(ok.Value);
         Assert.Null(dto.WhyLead);

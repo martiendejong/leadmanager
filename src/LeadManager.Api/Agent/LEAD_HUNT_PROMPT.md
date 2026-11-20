@@ -49,7 +49,7 @@ API base: `{{API_BASE}}` . Every call needs the header `X-Hunt-Agent-Token: {{AG
       {"need": "short description of a need (max 140 characters)", "quote": "the words on its own page that show the need", "source_url": "https://..."}
     ],
     "productFit": [
-      {"product": "WEB", "reason": "why this product helps, as an outcome with a fixed price, never per hour (max 300 characters)", "quote": "the observed trigger, in the business's own words", "source_url": "https://..."}
+      {"product": "werkteam", "reason": "why this product helps, as an outcome with a fixed price, never per hour (max 300 characters)", "quote": "the observed trigger, in the business's own words", "source_url": "https://..."}
     ],
     "noClearFit": false
   }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getLeadEvidence, type LeadEvidence } from '../../api/hunt'
+import { useProducts } from './ProductChips'
 
 const FIELD_LABEL: Record<string, string> = {
   ownerName: 'Owner name',
@@ -22,6 +23,7 @@ function SourceLink({ url }: { url: string }) {
 export default function EvidencePanel({ leadId, refreshKey }: { leadId: string; refreshKey?: number }) {
   const [data, setData] = useState<LeadEvidence | null>(null)
   const [open, setOpen] = useState(false)
+  const products = useProducts()
 
   useEffect(() => {
     let alive = true
@@ -89,7 +91,7 @@ export default function EvidencePanel({ leadId, refreshKey }: { leadId: string; 
                 ))}
                 {ev.insight.productFit.map((f) => (
                   <li key={f.product} className="border-l-2 border-indigo-400 pl-3">
-                    <div className="font-medium text-gray-800">Fit: {f.product} <span className="font-normal">{f.reason}</span></div>
+                    <div className="font-medium text-gray-800">Fit: {products[f.product]?.name ?? `${f.product} (retired product)`} <span className="font-normal">{f.reason}</span></div>
                     <blockquote className="text-xs text-gray-600 italic">"{f.quote}"</blockquote>
                     <SourceLink url={f.source} />
                   </li>

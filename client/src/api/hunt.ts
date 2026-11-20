@@ -85,9 +85,8 @@ export interface LeadEvidence {
 export interface Product {
   key: string
   name: string
-  forWhom: string
-  whatTheyGet: string
-  trigger: string
+  whatItIs: string
+  fitsWhen: string
 }
 
 /** Our products (the catalog a lead's product fit may name). */

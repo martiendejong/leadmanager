@@ -234,16 +234,16 @@ def main() -> int:
         # Why this lead, what it needs, which of our products can help: the catalog, the patch, the lead dto and the clear
         r = s.get(base + "/api/leads/products", headers=jwt, timeout=30)
         keys = sorted(p.get("key") for p in r.json()) if r.status_code == 200 else []
-        check(keys == sorted(["TRIP", "STUDIO", "PROV", "WEB", "REALTOR", "AIMEDEW", "AIDEV", "AIVIND"]), "the product catalog lists our 8 products")
+        check(keys == sorted(["coachos", "siteaudit", "visit", "werkteam", "cloudws", "custom", "mail", "meet"]), "the product catalog lists our 8 products (Jengo Products)")
         if lead_id:
             patch = f"{base}/api/leads/{lead_id}/profile"
-            fit = [{"product": "web", "reason": "Booking only by phone, a new site with online booking helps", "evidenceQuote": "Afspraken alleen per telefoon", "sourceUrl": "https://example.nl/contact"}]
+            fit = [{"product": "SiteAudit", "reason": "Booking only by phone, a new site with online booking helps", "evidenceQuote": "Afspraken alleen per telefoon", "sourceUrl": "https://example.nl/contact"}]
             r = s.patch(patch, headers=jwt, timeout=30, json={"whyLead": "Smoke test why", "needs": "Smoke need", "productFit": fit})
             body = r.json() if r.status_code == 200 else {}
-            check(r.status_code == 200 and body.get("whyLead") == "Smoke test why" and body.get("productFit", [{}])[0].get("product") == "WEB",
+            check(r.status_code == 200 and body.get("whyLead") == "Smoke test why" and body.get("productFit", [{}])[0].get("product") == "siteaudit",
                   "a lead takes why, needs and product fit (the product key is canonical)")
-            check(s.patch(patch, headers=jwt, timeout=30, json={"productFit": [{"product": "SKYNET", "reason": "no such product"}]}).status_code == 400,
-                  "a product that is not ours is refused")
+            check(s.patch(patch, headers=jwt, timeout=30, json={"productFit": [{"product": "TRIP", "reason": "a product of the first catalog"}]}).status_code == 400,
+                  "a product that is not in the catalog is refused")
             r = s.get(f"{base}/api/leads/{lead_id}", headers=jwt, timeout=30)
             check(r.status_code == 200 and r.json().get("needs") == "Smoke need" and len(r.json().get("productFit") or []) == 1, "the lead dto returns needs and product fit")
             r = s.patch(patch, headers=jwt, timeout=30, json={"clearFields": ["whyLead", "needs", "productFit"]})

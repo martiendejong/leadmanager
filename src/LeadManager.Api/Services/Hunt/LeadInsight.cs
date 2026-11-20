@@ -1,23 +1,29 @@
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using LeadManager.Api.Models;
 
 namespace LeadManager.Api.Services.Hunt;
 
-public record Product(string Key, string Name, string ForWhom, string WhatTheyGet, string Trigger);
+public record Product(string Key, string Name, string WhatItIs, string FitsWhen);
 
 /// <summary>
-/// Our products, from one file (Agent/PRODUCTS.md, an embedded resource). The keys are also listed here so that a lead can only name a product
-/// that exists; a test keeps the list and the file the same. Edit the file to change the catalog.
+/// Our products (Jengo Products), from one file (Agent/PRODUCTS.md, an embedded resource). The keys are also listed here so that a lead can only
+/// name a product that exists; a test keeps the list and the file the same. Edit the file to change the catalog. Internal prices never leave
+/// this class: <see cref="PublicText"/> and <see cref="All"/> have every amount removed, so neither the app, the API nor the agent prompt shows one.
 /// </summary>
 public static class ProductCatalog
 {
-    public static readonly IReadOnlyList<string> Keys = new[] { "TRIP", "STUDIO", "PROV", "WEB", "REALTOR", "AIMEDEW", "AIDEV", "AIVIND" };
+    public static readonly IReadOnlyList<string> Keys = new[] { "coachos", "siteaudit", "visit", "werkteam", "cloudws", "custom", "mail", "meet" };
+
+    /// <summary>Products that are in build, not for sale: a lead may not name them.</summary>
+    public static readonly IReadOnlyList<string> NotForSale = new[] { "seogod", "calendar" };
 
     private static string? _text;
+    private static string? _public;
     private static IReadOnlyList<Product>? _all;
 
-    /// <summary>The whole catalog file: it goes into the prompt of the hunt agent.</summary>
+    /// <summary>The catalog file as it is in the repository (for editors; it may contain prices).</summary>
     public static string Text
     {
         get
@@ -31,28 +37,43 @@ public static class ProductCatalog
         }
     }
 
-    /// <summary>The products as the file lists them (the rows of its table).</summary>
+    // An amount of money with its unit ("starter EUR 125 / team EUR 500 per month", "EUR 2.50/hour").
+    private static readonly Regex Amount = HuntRegex.New(
+        @"(?:\b(?:starter|team)\s+)?(?:EUR|€)\s*\d[\d.,]*(?:\s*(?:/|per)\s*(?:month|maand|hour|hr|uur|year|jaar|team|person|seat)\b)?",
+        RegexOptions.IgnoreCase);
+
+    /// <summary>The catalog text without any amount: this is what the agent prompt and the API show.</summary>
+    public static string PublicText => _public ??= Tidy(Amount.Replace(Text, ""));
+
+    private static string Tidy(string s)
+    {
+        s = HuntRegex.Replace(s, @"[ \t]*[;,/]+[ \t]*(?=\|)", " ");      // punctuation left behind before the next column
+        s = HuntRegex.Replace(s, @"[ \t]{2,}", " ");
+        return s;
+    }
+
+    /// <summary>The products as the file lists them (the rows of its table), without prices.</summary>
     public static IReadOnlyList<Product> All
     {
         get
         {
             if (_all != null) return _all;
             var list = new List<Product>();
-            foreach (var line in Text.Split('\n'))
+            foreach (var line in PublicText.Split('\n'))
             {
                 var cells = line.Trim().Trim('|').Split('|').Select(c => c.Trim()).ToArray();
-                if (!line.TrimStart().StartsWith("|") || cells.Length < 5) continue;
-                if (!HuntRegex.IsMatch(cells[0], @"^[A-Z][A-Z0-9]{1,15}$")) continue;   // the header and the separator row are not products
-                list.Add(new Product(cells[0], cells[1], cells[2], cells[3], cells[4]));
+                if (!line.TrimStart().StartsWith("|") || cells.Length < 4) continue;
+                if (cells[0] == "key" || !HuntRegex.IsMatch(cells[0], @"^[a-z][a-z0-9]{1,15}$")) continue;   // the header and the separator row are not products
+                list.Add(new Product(cells[0], cells[1], cells[2], cells[3]));
             }
             return _all = list;
         }
     }
 
-    /// <summary>The key in its canonical spelling ("web " gives "WEB"), or null when it is not one of ours.</summary>
+    /// <summary>The key in its canonical (lower case) spelling ("CoachOS " gives "coachos"), or null when it is not a product we sell.</summary>
     public static string? Canonical(string? key)
     {
-        var k = (key ?? "").Trim().ToUpperInvariant();
+        var k = (key ?? "").Trim().ToLowerInvariant();
         return Keys.Contains(k) ? k : null;
     }
 }
@@ -172,7 +193,8 @@ public static class LeadInsight
         try
         {
             var list = JsonSerializer.Deserialize<List<ProductFitEntry>>(json, new JsonSerializerOptions(JsonSerializerDefaults.Web));
-            return list?.Where(e => ProductCatalog.Canonical(e.Product) != null).ToList();
+            // An entry stored under an older catalog keeps its key (the screen shows it as a retired product); only NEW input is checked against the catalog.
+            return list?.Where(e => !string.IsNullOrWhiteSpace(e.Product) && e.Product.Length <= 40).ToList();
         }
         catch (JsonException) { return null; }
     }

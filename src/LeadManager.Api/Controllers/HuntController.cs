@@ -47,7 +47,7 @@ public class HuntController : ControllerBase
 
     // GET /api/leads/products : the catalog of our products that a lead's product fit may name (one file: Agent/PRODUCTS.md)
     [HttpGet("products")]
-    public IActionResult Products() => Ok(ProductCatalog.All.Select(p => new { key = p.Key, name = p.Name, forWhom = p.ForWhom, whatTheyGet = p.WhatTheyGet, trigger = p.Trigger }));
+    public IActionResult Products() => Ok(ProductCatalog.All.Select(p => new { key = p.Key, name = p.Name, whatItIs = p.WhatItIs, fitsWhen = p.FitsWhen }));
 
     // GET /api/leads/hunt/capabilities
     [HttpGet("hunt/capabilities")]

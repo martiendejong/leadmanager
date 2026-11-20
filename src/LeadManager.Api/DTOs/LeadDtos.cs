@@ -94,7 +94,7 @@ public record LeadDto(
     string? Needs = null,
     IReadOnlyList<ProductFitDto>? ProductFit = null);
 
-/// <summary>One of our products that can help a lead, with the observed trigger. Product is a key of the catalog (TRIP, STUDIO, PROV, WEB, REALTOR, AIMEDEW, AIDEV, AIVIND).</summary>
+/// <summary>One of our products that can help a lead, with the observed trigger. Product is a key of the catalog (coachos, siteaudit, visit, werkteam, cloudws, custom, mail, meet).</summary>
 public record ProductFitDto(string Product, string Reason, string? EvidenceQuote, string? SourceUrl);
 
 public record CreateLeadDto(

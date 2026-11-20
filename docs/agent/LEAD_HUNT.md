@@ -103,12 +103,12 @@ needs** and **which of OUR products can help**. They live in `Lead.WhyLead` (max
 
 **Decision: STRICT, nothing is stored unverified.** A need or a product fit is stored only when its quote occurs in the visible text of a
 fetched page of the business itself (not in a testimonial, a script or a hidden element, at least 25 letters). An entry whose quote the server cannot find is
-dropped, listed in the evidence note and the evidence viewer as "not stored", and never stored with an "unverified" flag. Product keys outside the catalog are refused;
+dropped, listed in the evidence note and the evidence viewer as "not stored", and never stored with an "unverified" flag. Product keys outside the catalog (including the keys of the first catalog) are refused for new input; a fit that an earlier version stored under an old key is still shown, labelled as a retired product;
 each product once; at most 5 needs and 4 fits. The agent's `need` and `reason` texts are short interpretations that are only kept next to a verified quote, and are cleaned
 and clamped like all agent text.
 
-- **The product catalog** is one file: `src/LeadManager.Api/Agent/PRODUCTS.md` (an embedded resource that is also pasted into the agent prompt). The keys are TRIP, STUDIO, PROV,
-  WEB, REALTOR, AIMEDEW, AIDEV and AIVIND; `ProductCatalog.Keys` lists them for validation and a test keeps the list and the file identical. Edit the file to change the catalog
+- **The product catalog** is one file: `src/LeadManager.Api/Agent/PRODUCTS.md` (an embedded resource that is also pasted into the agent prompt). The catalog is the one of Jengo Products (v2); the keys are `coachos`, `siteaudit`, `visit`,
+  `werkteam`, `cloudws`, `custom`, `mail` and `meet` (`seogod` and `calendar` are in build and may not be proposed). Internal prices never appear: amounts are stripped from what the API and the agent prompt show; `ProductCatalog.Keys` lists them for validation and a test keeps the list and the file identical. Edit the file to change the catalog
   (and the list of keys with it). `GET /api/leads/products` returns the catalog to the app.
 - **"No clear fit" is a valid answer**: `productFit: []` with `noClearFit: true` is stored as `[]` and shown as "No clear fit with our products". Not saying anything stores nothing and
   shows "Not assessed yet". A verified fit wins over the flag.
