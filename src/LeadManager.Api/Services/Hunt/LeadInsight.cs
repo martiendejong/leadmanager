@@ -123,6 +123,13 @@ public static class LeadInsight
     private static string Str(JsonElement el, string name) =>
         el.ValueKind == JsonValueKind.Object && el.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : "";
 
+    /// <summary>The quote cleaned of markup, instructions and orders, or null when nothing of it is left.</summary>
+    private static string? SafeQuote(string quote)
+    {
+        var safe = TextSafety.Clean(quote, MaxQuoteChars);
+        return safe.Replace("[removed]", "").Trim().Length >= 6 ? safe : null;
+    }
+
     public static InsightResult Read(JsonElement submitted, SitePages site)
     {
         var result = new InsightResult();
@@ -137,8 +144,10 @@ public static class LeadInsight
             else
             {
                 var source = Locate(quote, site);
-                if (source != null) result.Observation = new NeedEntry("", quote, source);
-                else Drop("observation", quote, "The quote does not occur in the visible text of the business's own pages (or is too short).");
+                // What is stored is the cleaned quote: text from a web page can carry instructions meant for a model that reads it later.
+                var safe = SafeQuote(quote);
+                if (source != null && safe != null) result.Observation = new NeedEntry("", safe, source);
+                else Drop("observation", quote, source == null ? "The quote does not occur in the visible text of the business's own pages (or is too short)." : "The quote only consists of instructions and is not stored.");
             }
         }
 
@@ -153,7 +162,9 @@ public static class LeadInsight
                 if (quote.Length > MaxQuoteChars) { Drop("need", label, "The quote is too long."); continue; }
                 var source = Locate(quote, site);
                 if (source == null) { Drop("need", label, "The quote does not occur in the visible text of the business's own pages (or is too short): the need is not stored."); continue; }
-                result.Needs.Add(new NeedEntry(label, quote, source));
+                var safeQuote = SafeQuote(quote);
+                if (safeQuote == null) { Drop("need", label, "The quote only consists of instructions and is not stored."); continue; }
+                result.Needs.Add(new NeedEntry(label, safeQuote, source));
             }
         }
 
@@ -173,7 +184,9 @@ public static class LeadInsight
                 if (quote.Length > MaxQuoteChars) { Drop("productFit", key, "The quote is too long."); continue; }
                 var source = Locate(quote, site);
                 if (source == null) { Drop("productFit", key, "The observed trigger (the quote) does not occur in the visible text of the business's own pages (or is too short): the fit is not stored."); continue; }
-                result.ProductFit.Add(new ProductFitEntry(key, reason, quote, source));
+                var safeFit = SafeQuote(quote);
+                if (safeFit == null) { Drop("productFit", key, "The quote only consists of instructions and is not stored."); continue; }
+                result.ProductFit.Add(new ProductFitEntry(key, reason, safeFit, source));
             }
         }
 
@@ -211,7 +224,7 @@ public static class LeadInsight
             var reasons = (lead.SalesPriorityReasoning ?? "").Replace("—", ",").Replace("–", ",");
             parts.Add($"Reachable decision maker, score {score} of 9{(string.IsNullOrWhiteSpace(lead.SalesPriorityLabel) ? "" : $" ({lead.SalesPriorityLabel})")}: {reasons}.".Replace(":  .", "."));
         }
-        var where = string.Join(" in ", new[] { lead.Sector, lead.City }.Where(x => !string.IsNullOrWhiteSpace(x)));
+        var where = Clip(string.Join(" in ", new[] { lead.Sector, lead.City }.Where(x => !string.IsNullOrWhiteSpace(x))), 140);
         if (where.Length > 0) parts.Add($"Business: {where}.");
         if (r.Verified.TryGetValue("smallCompany", out var small))
             parts.Add($"One-person business, in its own words: \"{Clip(small.Quote, 160)}\".");
@@ -223,8 +236,10 @@ public static class LeadInsight
         return why.Length <= MaxWhy ? why : why[..(MaxWhy - 3)].TrimEnd() + "...";
     }
 
+    /// <summary>Every text that is put into WhyLead, Needs or a note passes through here again, whatever stored it: control and markup characters, instructions and orders removed.</summary>
     private static string Clip(string s, int max)
     {
+        s = TextSafety.Clean(s, TextSafety.HardMax);
         s = HuntRegex.Replace(s ?? "", @"\s+", " ").Trim();
         return s.Length <= max ? s : s[..(max - 3)].TrimEnd() + "...";
     }

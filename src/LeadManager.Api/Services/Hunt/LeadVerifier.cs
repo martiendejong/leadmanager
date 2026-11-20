@@ -155,7 +155,7 @@ public class LeadVerifier
     /// owner cue, a first-person statement, a published number, a link, an address, a year) and the rule for the field holds. What is
     /// stored is the value the extractor found, never the string the agent sent.
     /// </summary>
-    public VerificationResult VerifyClaims(SitePages site, JsonElement submitted)
+    public VerificationResult VerifyClaims(SitePages site, JsonElement submitted, string? knownOwnerName = null)
     {
         var result = NewResult(site);
         if (!site.Reachable) return result;
@@ -166,7 +166,7 @@ public class LeadVerifier
             var (claim, readError) = ReadClaim(submitted, field);
             if (readError != null) { result.Dropped.Add(new DroppedClaim(field, "", readError)); continue; }
             if (claim == null) continue;
-            var (canonical, reason) = CheckClaim(claim, site, result.Facts, result.Verified);
+            var (canonical, reason) = CheckClaim(claim, site, result.Facts, result.Verified, knownOwnerName);
             if (canonical != null) result.Verified[field] = canonical;
             else result.Dropped.Add(new DroppedClaim(field, TextSafety.Clean(claim.Value, 80), reason ?? "Not verified."));
         }
@@ -220,7 +220,7 @@ public class LeadVerifier
         {
             var (claim, readError) = ReadClaim(doc.RootElement, field);
             if (readError != null || claim == null) continue;
-            var (canonical, reason) = CheckClaim(claim, site, f, result.Verified);
+            var (canonical, reason) = CheckClaim(claim, site, f, result.Verified, knownOwnerName);
             if (canonical != null) result.Verified[field] = canonical;
             else result.Dropped.Add(new DroppedClaim(field, TextSafety.Clean(claim.Value, 80), reason ?? "Not verified."));
         }
@@ -285,7 +285,10 @@ public class LeadVerifier
     /// <summary>
     /// The canonical claim (the value taken from the matching fact the server found on the site) or the reason the claim is dropped.
     /// </summary>
-    private static (Claim? Canonical, string? Reason) CheckClaim(Claim claim, SitePages site, EvidenceFacts facts, Dictionary<string, Claim> accepted)
+    /// <summary>The strongest owner cues: structured data, an about heading, 'my name is', 'I am'. A name that only stands next to a role word (rank 4 and 5) may be a quoted person or somebody else's director.</summary>
+    public const int MaxTrustedOwnerRank = 3;
+
+    private static (Claim? Canonical, string? Reason) CheckClaim(Claim claim, SitePages site, EvidenceFacts facts, Dictionary<string, Claim> accepted, string? knownOwnerName = null)
     {
         var markup = claim.Field is "ownerLinkedInUrl" or "companyLinkedInUrl" or "personalEmail";
         if (!QuoteOnPage(claim, site, markup)) return (null, "The quote does not occur on any fetched page.");
@@ -299,6 +302,11 @@ public class LeadVerifier
                     if (key.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length < 2) return (null, "A full name (first and last name) is needed.");
                     var fact = facts.Owners.FirstOrDefault(o => LeadEvidenceService.NameKey(o.Name) == key);
                     if (fact == null) return (null, "The site does not name this full name as its owner, founder or director (no owner cue next to the name).");
+                    // The same rule as for an existing lead: with no owner known yet, a name that only stands next to a role word is not enough.
+                    // It may only confirm a name the lead already has.
+                    var confirmsKnown = !string.IsNullOrWhiteSpace(knownOwnerName) && LeadEvidenceService.NameKey(knownOwnerName) == key;
+                    if (fact.Rank > MaxTrustedOwnerRank && !confirmsKnown)
+                        return (null, "The name only stands next to a role word on the site (it can be a quoted person or somebody else's director). It needs a stronger cue: an about heading, 'my name is', 'I am' or structured data.");
                     return (new Claim("ownerName", fact.Name, fact.SourceUrl, fact.Quote), null);
                 }
             case "ownerLinkedInUrl":
@@ -345,7 +353,7 @@ public class LeadVerifier
                     var local = best.Address[..best.Address.IndexOf('@')];
                     var foldedLocal = LeadEvidenceService.Fold(local);
                     var parts = local.Split(new[] { '.', '-', '_', '+' }, StringSplitOptions.RemoveEmptyEntries).Select(LeadEvidenceService.Fold).Where(t => t.Length > 0).ToList();
-                    var names = facts.Owners.Select(o => o.Name).ToList();
+                    var names = facts.Owners.Where(o => o.Rank <= MaxTrustedOwnerRank).Select(o => o.Name).ToList();   // a weak role-word name is not a person the mailbox may be tied to
                     if (accepted.TryGetValue("ownerName", out var ownerClaim)) names.Add(ownerClaim.Value);
                     var tied = names.Any(n =>
                     {
@@ -429,24 +437,51 @@ public class LeadVerifier
         return facts.TelNumbers.Any(t => HuntRegex.Replace(t, @"\D", "").EndsWith(tail)) ? value.Trim() : null;
     }
 
+    private static readonly Regex Word = HuntRegex.New(@"\p{L}{4,}", RegexOptions.Compiled);
+
+    /// <summary>Most of the (longer) words of a text stand in the visible text of the fetched pages: the text describes what the pages say, it does not add to it.</summary>
+    public static bool SupportedByPages(string text, SitePages site)
+    {
+        var words = Word.Matches(text).Select(m => Squash(m.Value)).Where(w => w.Length >= 4).Distinct().ToList();
+        if (words.Count < 3) return false;
+        var pageWords = new HashSet<string>();
+        foreach (var p in site.Pages)
+            foreach (Match m in Word.Matches(p.OwnerText.Length > 200_000 ? p.OwnerText[..200_000] : p.OwnerText)) pageWords.Add(Squash(m.Value));
+        return words.Count(pageWords.Contains) >= Math.Ceiling(words.Count * 0.7);
+    }
+
     private static void ReadDescriptive(JsonElement root, SitePages site, VerificationResult result)
     {
         var html = string.Join(" ", site.Pages.Select(p => System.Net.WebUtility.HtmlDecode(p.Html)));
-        string? Get(string name, int max)
+        string? Get(string name, int max, bool orders = true)
         {
             if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty(name, out var el)) return null;
             var s = el.ValueKind == JsonValueKind.String ? el.GetString() : el.ValueKind == JsonValueKind.Object && el.TryGetProperty("value", out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
-            s = TextSafety.Clean(s, max);
+            s = TextSafety.Clean(s, max, orders);
             return string.IsNullOrEmpty(s) ? null : s;
         }
 
         // Free text about the business: cleaned of anything that looks like an instruction and clamped. It is shown to people and read by
         // a language model later, so it is treated as untrusted whatever the agent wrote.
-        foreach (var (name, max) in new[] { ("sector", 80), ("city", 60),
-            ("description", 400), ("services", 400), ("targetAudience", 300), ("workingArea", 200), ("certifications", 300), ("openingHours", 300) })
+        foreach (var (name, max) in new[] { ("sector", 80), ("city", 60) })
+        {
+            var v = Get(name, max, orders: false);   // a label, not a sentence
+            if (v != null) result.Descriptive[name] = v;
+        }
+        foreach (var (name, max) in new[] { ("workingArea", 200), ("certifications", 300), ("openingHours", 300) })
         {
             var v = Get(name, max);
             if (v != null) result.Descriptive[name] = v;
+        }
+        // Prose about the business is the agent's own wording and nobody can verify it, so it is only kept when the business's pages use the same
+        // words. When they do not, the description is the site's own meta description (its words, not the agent's) and the others are left out.
+        foreach (var (name, max) in new[] { ("description", 400), ("services", 400), ("targetAudience", 300) })
+        {
+            var v = Get(name, max);
+            if (v != null && SupportedByPages(v, site)) { result.Descriptive[name] = v; continue; }
+            if (v != null) result.Dropped.Add(new DroppedClaim(name, v, "The words are not on the business's own pages, so the agent's text was left out."));
+            var meta = name == "description" ? site.Home?.MetaDescription : null;
+            if (!string.IsNullOrWhiteSpace(meta)) result.Descriptive[name] = meta!;
         }
 
         var phone = Get("phone", 40);
@@ -679,7 +714,12 @@ public class LeadVerifier
         }, new JsonSerializerOptions(JsonSerializerDefaults.Web));
     }
 
-    private static string Trim(string s, int max) => s.Length <= max ? s : s[..max] + "...";
+    /// <summary>A quote or value for a note or the evidence: cleaned again of markup, instructions and orders (it came from a web page), then shortened.</summary>
+    private static string Trim(string s, int max)
+    {
+        s = TextSafety.Clean(s, TextSafety.HardMax);
+        return s.Length <= max ? s : s[..max] + "...";
+    }
 
     private static string BuildDigest(IReadOnlyList<FetchedPage> pages)
     {

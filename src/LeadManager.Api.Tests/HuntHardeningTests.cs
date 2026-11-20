@@ -80,8 +80,8 @@ public class HuntHardeningTests
         var (none, _) = await Run(f, Json(new { ownerName = Claim("Jan Jansen", "Contact: Jan Jansen", Site + "contact") }));
         Assert.Contains(none.Dropped, d => d.Field == "ownerName" && d.Reason.Contains("owner cue"));
 
-        var withRole = Home("<p>Welkom</p>", contactHtml: "<p>Jan Jansen, eigenaar</p>");
-        var (ok, lead) = await Run(withRole, Json(new { ownerName = Claim("Jan Jansen", "Jan Jansen, eigenaar", Site + "contact") }));
+        var withRole = Home("<p>Welkom</p>", contactHtml: "<p>Mijn naam is Jan Jansen, eigenaar</p>");
+        var (ok, lead) = await Run(withRole, Json(new { ownerName = Claim("Jan Jansen", "Mijn naam is Jan Jansen, eigenaar", Site + "contact") }));
         Assert.Contains("ownerName", ok.Verified.Keys);
         Assert.Equal("Jan Jansen", lead.OwnerName);
 
@@ -263,8 +263,10 @@ public class HuntHardeningTests
         Assert.Equal("6816 TZ", result.Descriptive["zipCode"]);
         Assert.DoesNotContain("companyEmail", result.Descriptive.Keys);
         Assert.DoesNotContain("facebookUrl", result.Descriptive.Keys);
-        Assert.DoesNotContain("ignore all previous", result.Descriptive["description"], StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("<", result.Descriptive["description"]);
+        // the agent's own prose is not backed by the pages: it is left out, and the injected text is nowhere
+        Assert.DoesNotContain("description", result.Descriptive.Keys);
+        Assert.Contains(result.Dropped, d => d.Field == "description");
+        Assert.DoesNotContain(result.Descriptive.Values, v => v.Contains("ignore all previous", StringComparison.OrdinalIgnoreCase) || v.Contains('<'));
     }
 
     [Fact]

@@ -371,7 +371,7 @@ public class HuntReviewTwoTests : IDisposable
     [Fact]
     public async Task The_first_name_last_name_and_title_are_derived_from_the_verified_owner_and_a_typed_kvk_is_kept()
     {
-        var f = Pages("<h1>Tine van Wel, eigenaar</h1><p>KvK 12345678</p>");
+        var f = Pages("<p>Ik ben Tine van Wel, eigenaar</p><p>KvK 12345678</p>");
         var claims = Json(new
         {
             ownerName = Claim("Tine van Wel", "Tine van Wel, eigenaar", Site),

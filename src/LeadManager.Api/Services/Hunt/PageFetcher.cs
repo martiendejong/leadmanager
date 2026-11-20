@@ -32,6 +32,22 @@ public record FetchedPage(string Url, int Status, string Html, string Text)
         }
     }
 
+    /// <summary>What the site says about itself in its meta description (or og:description) on this page, cleaned; empty when there is none.</summary>
+    public string MetaDescription
+    {
+        get
+        {
+            var root = Dom?.DocumentNode;
+            if (root == null) return "";
+            foreach (var xpath in new[] { "//meta[translate(@name,'DESCRIPTION','description')='description']", "//meta[translate(@property,'OGDESCRIPTION','ogdescription')='og:description']" })
+            {
+                var content = root.SelectSingleNode(xpath)?.GetAttributeValue("content", "");
+                if (!string.IsNullOrWhiteSpace(content)) return TextSafety.Clean(HtmlEntity.DeEntitize(content), 400);
+            }
+            return "";
+        }
+    }
+
     /// <summary>The visible text without the parts that quote other people (testimonials, blockquotes): where names and statements are read.</summary>
     public string OwnerText => _ownerText ??= HtmlText.ToOwnerText(this);
 }

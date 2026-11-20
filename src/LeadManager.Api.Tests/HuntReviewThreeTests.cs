@@ -267,7 +267,7 @@ public class HuntReviewThreeTests
     [InlineData("jansenbakker@tinevanwel.nl", "Jan Jansen", false)]
     public async Task A_mailbox_belongs_to_a_person_by_the_exact_first_name_or_initial_and_surname(string address, string owner, bool tied)
     {
-        var f = Pages($"<p>{owner}, eigenaar</p>", contact: $"<p>Mail: {address}</p>");
+        var f = Pages($"<p>Ik ben {owner}, eigenaar</p>", contact: $"<p>Mail: {address}</p>");   // 'I am' is a strong cue (rank 3)
         var (result, _) = await Claims(f, Json(new { personalEmail = Claim(address, $"Mail: {address}", Site + "contact") }));
         Assert.Equal(tied, result.Verified.ContainsKey("personalEmail"));
     }

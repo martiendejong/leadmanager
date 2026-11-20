@@ -96,7 +96,7 @@ public class HuntService
 
         if (ShouldStop(job)) return Done(HuntOutcomes.Rejected, job.CancelRequested ? "The hunt was cancelled." : "The hunt already reached its limit.");
 
-        var name = TextSafety.Clean(sub.Name, MaxNameLength);
+        var name = TextSafety.Clean(sub.Name, MaxNameLength, dropOrders: false);   // a company name is a label
         if (name.Length < 2) return Done(HuntOutcomes.Rejected, "The company name is missing or too long.");
         if (!UrlGuard.TryNormalize(sub.Website ?? "", out var uri)) return Done(HuntOutcomes.Rejected, "The website is not a public http(s) address.");
         var website = UrlGuard.CanonicalWebsite(uri);   // keeps the path of a site that is shared by path (linktr.ee/name)
@@ -135,7 +135,7 @@ public class HuntService
 
                     lead = new Lead
                     {
-                        Name = name, Website = website, City = TextSafety.Clean(sub.City, 60), Sector = TextSafety.Clean(sub.Sector, 80), Source = source,
+                        Name = name, Website = website, City = TextSafety.Clean(sub.City, 60, dropOrders: false), Sector = TextSafety.Clean(sub.Sector, 80, dropOrders: false), Source = source,
                         ImportedByUserId = job.UserId, ImportedAt = DateTime.UtcNow, CreatedAt = DateTime.UtcNow,
                     };
                     LeadVerifier.Apply(lead, result, clearUnverified: false, _scoring);
@@ -291,7 +291,7 @@ public class HuntService
     public async Task ProgressAsync(HuntJob job, string? current)
     {
         Touch(job);
-        var text = TextSafety.Clean(current, MaxNameLength);
+        var text = TextSafety.Clean(current, MaxNameLength, dropOrders: false);
         job.CurrentCandidate = text.Length == 0 ? null : text;
         await _db.SaveChangesAsync(CancellationToken.None);
         await Push(job, null);
