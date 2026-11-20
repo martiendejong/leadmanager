@@ -69,7 +69,7 @@ public class HuntAgentController : ControllerBase
         if (HuntAuthThrottle.Blocked(Address, id))
             return (null, StatusCode(429, new { error = "Too many wrong tokens. Wait ten minutes.", code = "auth_throttled" }));
         var given = Request.Headers[TokenHeader].ToString();
-        if (string.IsNullOrEmpty(given)) { HuntAuthThrottle.Fail(Address, id); return (null, Unauthorized(new { error = "Missing " + TokenHeader })); }
+        if (string.IsNullOrEmpty(given)) return (null, Unauthorized(new { error = "Missing " + TokenHeader }));   // not a guess: nothing to charge
         var job = await _db.HuntJobs.FirstOrDefaultAsync(j => j.Id == id && (j.Kind == HuntKinds.Hunt || j.Kind == HuntKinds.Review));
         if (job == null || !HuntTokens.Valid(job, given))
         {

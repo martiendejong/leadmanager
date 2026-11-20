@@ -39,10 +39,12 @@ services:
       OpenAI__ApiKey: ${OPENAI_API_KEY:-}
       GooglePlaces__ApiKey: ${GOOGLE_PLACES_API_KEY:-}
       # Lead hunt: the app starts a background Jengo agent by creating a JengoWork task (JengoWork__* below, board 105 "Jengo Clients" by default).
-      # Each hunt gets its own random token (stored hashed, valid 3 hours, revoked at the end); it goes into that task's text only.
+      # Each hunt gets a task token (stored hashed, one hour, one call) that goes into that task's text; the first /brief call exchanges it for a short
+      # session token. A person has to start the task on JengoWork until board 105 is monitored by jengo-agi (then set HUNT_DISPATCH_AGENT_PICKS_UP=true).
       # No OpenAI key is needed. Empty JengoWork settings = Find new leads answers 503 "Agent hunting is not configured on this server".
       Hunt__Dispatch__BoardId: ${HUNT_DISPATCH_BOARD_ID:-}
       Hunt__Dispatch__Status: ${HUNT_DISPATCH_STATUS:-}
+      Hunt__Dispatch__AgentPicksUp: ${HUNT_DISPATCH_AGENT_PICKS_UP:-false}
       Hunt__AllowedEmails: ${HUNT_ALLOWED_EMAILS:-}
       Hunt__MaxPerUserPerDay: ${HUNT_MAX_PER_USER_PER_DAY:-5}
       Hunt__MaxVerifyPerUserPerDay: ${HUNT_MAX_VERIFY_PER_USER_PER_DAY:-20}

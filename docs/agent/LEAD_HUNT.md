@@ -32,8 +32,10 @@ must rest on facts that were seen, with their source:
 
 ```
 Leads screen  ->  POST /api/leads/hunt            (checks, creates HuntJob, creates a JengoWork task)
-                  jengo-agi picks up the task      (spawns an agent with the task text = the versioned prompt, incl. the token of this hunt)
-Agent         ->  GET  /api/hunt-agent/{id}/brief          criteria, rules, knownDomains (the user's own), best score so far, remaining budget, stop
+A PERSON      ->  starts the task on JengoWork     (see "How the task is picked up": nothing starts it by itself yet)
+Agent         ->  GET  /api/hunt-agent/{id}/brief          with the TASK token: criteria, rules, best score so far, remaining budget, stop,
+                                                           and the SESSION token (the task token is revoked by this call)
+              ->  POST /api/hunt-agent/{id}/known          up to 20 domains; answers with the ones the user already has
               ->  POST /api/hunt-agent/{id}/progress       what it is working on (display text only)
               ->  POST /api/hunt-agent/{id}/candidates     one researched company, with claims and quotes (one at a time)
               <-  outcome, verified score, bestScoreSoFar, stop
@@ -46,16 +48,38 @@ rendered into a delimited data block. A segment or region with a line break, mar
 ("ignore previous instructions", "system:", ...) is **refused with 400**; the accepted text is reduced to letters, digits, spaces and
 `-,.&/()'`; segment at most 120 characters, region at most 80.
 
-## The token of a hunt
+## How the task is picked up (checked on JengoWork, 20-11-2026)
 
-Every hunt (and every agent review) mints its own token: 32 random bytes, sent to JengoWork once as part of the task text and stored on the job
-only as a SHA-256 hash with an expiry of **3 hours**. The agent sends it as `X-Hunt-Token` on `/api/hunt-agent/{id}/...`. It opens **only that
-hunt**; it is separate from the user login and from API keys (neither opens these endpoints, and the token opens nothing else); it is
-**revoked** (hash removed) when the hunt completes, fails, is cancelled, goes silent for 45 minutes or its task could not be created. A wrong,
-expired, revoked, missing or foreign token is always the same 401, whether or not the hunt exists. The agent endpoints are rate limited
-(60 calls per minute per hunt). The token is the only credential in the task text: it holds no JengoWork key and no server secret, so a copy
-of the task text is worthless once the hunt is over. The criteria text is quoted data in the task (`<hunt-data>`) and the prompt tells the
-agent never to follow instructions inside it.
+A task created through `POST /api/v2/list/105/task` lands in the lane **prioritization backlog**, an automatic lane of the standard pipeline whose
+handler scores tasks; a task created INTO an automatic lane fires no handler, and board 105 is **not monitored by jengo-agi** (`agiMonitored: false`),
+so its poll loop does not see the task either. **Nothing starts the agent by itself.** A person has to open the task on JengoWork and start it (move it
+to todo, or run it by hand in a Jengo session). The app says so: `GET /api/leads/hunt/capabilities` returns `agentStartsAutomatically` (config
+`Hunt:Dispatch:AgentPicksUp`, default false; set it to true only when board 105 is monitored and a lane really starts an agent), `startWithinMinutes`
+(60) and `silenceMinutes` (45), and the Pending text of the screen follows them. A hunt that nobody started within **60 minutes** ends as failed
+("Nobody started the Jengo agent task ..."), and a running hunt whose agent made no call for **45 minutes** ends as failed ("stopped reporting").
+
+## The tokens of a hunt
+
+A hunt (and every agent review) has two tokens, both 32 random bytes, stored on the job only as a SHA-256 hash.
+
+- The **task token** stands in the text of the JengoWork task, where more people than the agent can read it. It is good for **one hour** and for
+  **one call**: `GET /brief`. That call returns a **session token** (once, with `Cache-Control: no-store`) and revokes the task token. A second
+  `/brief` with the task token, and every other endpoint with the task token, is a 401.
+- The **session token** is sent as `X-Hunt-Token` on every other call. It stays valid **30 minutes after the last call** (every call extends it) and
+  never longer than **3 hours** after the hunt was created. A copy of the task text opens nothing once the agent has started.
+
+Both open **only that hunt**, are separate from the user login and from API keys (neither opens these endpoints), and are **revoked** when the hunt
+completes, fails, is cancelled, goes silent, is not started in time or its task could not be created. A wrong, expired, revoked, missing or foreign
+token is always the same 401, whether or not the hunt exists. Limits: 60 calls per minute per hunt and address, 300 per minute per address over all
+hunts (global limiter on `/api/hunt-agent`), and wrong tokens are charged harder: 10 wrong tokens for one hunt from one address or 20 from one address in 10 minutes
+(someone who only knows the hunt id cannot lock the agent out from another address) give 429 before the token is even looked at. Bodies are capped (`RequestSizeLimit`: 200 KB for a candidate, a few KB for the others). The tokens are
+the only credentials in the task text and the answers: no JengoWork key, no server secret. The criteria text is quoted data in the task
+(`<hunt-data>`) and the prompt tells the agent never to follow instructions inside it.
+
+If the task could not be created, the person sees one plain sentence ("The Jengo agent could not be started right now. Try again in a few
+minutes."); the detail goes to the server log. A failed start does not count against the daily cap. A timeout or a 5xx may come after JengoWork
+created the task: the app then looks for the task by its title on the board and adopts it; if it cannot find one the job fails, its token is revoked,
+and a task that may still exist is inert (its token opens nothing).
 
 ## Agent review of existing leads
 
@@ -74,11 +98,20 @@ note instead) and never clears anything. **Verify and rescore** stays determinis
 | `minScore` 4 to 9 (default 8), `targetCount` 1 to 10 (default 3), `maxCandidates` 5 to 40 (default 30) | `HuntController.Start` |
 | One candidate of a hunt is checked at a time (a second submission gets 429); the stop conditions are checked again after the slow part, before anything is saved | `HuntLocks`, `HuntService.SubmitCandidateAsync` |
 | A candidate may take 120 s and one site 60 s in total; one page fetch has a hard 20 s limit for the whole body, so a site that drips its answer cannot hold a worker | `SafePageFetcher`, `SitePages.Budget`, `HuntService.CandidateBudget` |
-| A company that is already a lead of the user is reported back and not added; the brief lists the hunt owner's own domains for the dedupe, never another user's | `HuntAgentController.Brief`, `HuntService` |
+| A company that is already a lead of the user is reported back, not added and **not counted** against `maxCandidates`; the agent asks `POST /known` (20 domains per call) and gets back only the user's own domains, never another user's; the brief no longer lists them | `HuntAgentController.Known`, `HuntService` |
+| A claim's quote must overlap the quote of the fact the server found (one holds the other, or 12 shared letters and digits); a link claim names its profile or is the text of the link; markup is only searched in `href` attributes (not scripts, comments or data attributes) | `LeadVerifier.CheckClaim` |
+| A name that only stands next to a role word is not an owner (and ties no mailbox or profile handle to a person) unless it confirms the owner the lead already has | `LeadVerifier.CheckClaim` |
+| Only ports 80 and 443 are fetched | `UrlGuard.TryNormalize` |
+| Agent text is cleaned again wherever it is stored (quotes, needs, why, notes, evidence); prose the pages do not back is replaced by the site's own meta description or left out; the MCP tools mark `why_lead` and `needs` as untrusted data | `TextSafety`, `LeadInsight`, `LeadManagerMcpController` |
+| Touch and complete are conditional updates (only while Pending or Running); a late call never brings a cancelled hunt back; a review re-checks the stop conditions after the pages are fetched and before it saves | `HuntService.TouchAsync`, `CompleteAsync`, `SubmitReviewAsync` |
+| A review shows the stored score and the **verified-only** score and names the unverified values in the note title | `HuntService.VerifiedOnlyScore`, `LeadVerifier.BuildNote` |
+| `EnrichmentHub.JoinJob` only joins a job of the signed-in user (a hunt, verify or enrichment run) | `EnrichmentHub` |
+| Deleting a lead empties the evidence of its candidate rows; the link is set to null by the database (foreign key `SetNull`), a merge moves the history to the lead that stays | `HuntEvidence.ForgetAsync` |
+| An API key may only READ the hunt endpoints (status, evidence, capabilities, catalog); start, review, verify and cancel are `[DenyApiKey]` | `HuntController` |
 | The ratchet: a candidate whose best reachable score cannot beat the best so far is marked `StoppedEarly` (still saved as a lead); the hunt stops at `targetCount` leads at the minimum score or at `maxCandidates` | `HuntService.SubmitCandidateAsync`, `ShouldStop` |
 | An unreachable website is recorded but not added as a lead | `HuntService` |
 | Every researched candidate is stored as a lead (source `Lead hunt <date>`) with an evidence note: accepted claims with source and quote, rejected claims with the reason | `HuntService` |
-| A hunt whose agent has been silent for 45 minutes is marked failed | `HuntSweepService` |
+| A hunt whose agent has been silent for 45 minutes, or that nobody started within 60, is marked failed | `HuntSweepService` |
 
 Fetching is SSRF-guarded (`UrlGuard`, `SafePageFetcher`): public http(s) addresses only; every connection and redirect hop is checked
 against private, loopback, link-local, IPv4-compatible, IPv4-translated, 6to4, NAT64, Teredo and documentation ranges; no proxy is used; a
@@ -174,7 +207,8 @@ Rules only, no model. The server fetches the lead's own website and applies the 
 | Setting (env) | Meaning |
 |---|---|
 | `JENGOWORK_BASE_URL`, `JENGOWORK_API_KEY` | JengoWork API and an agent key (`tm_...`) that may create tasks. Empty = Find new leads and Ask agent to review answer 503 "Agent hunting is not configured on this server" |
-| `HUNT_DISPATCH_BOARD_ID` | Optional, default `105` (board "Jengo Clients", publicId zKaEpzhJGG): `POST {base}/api/v2/list/105/task` with `{name, description}`. The task lands in the first lane, "prioritization backlog" |
+| `HUNT_DISPATCH_BOARD_ID` | Optional, default `105` (board "Jengo Clients", publicId zKaEpzhJGG): `POST {base}/api/v2/list/105/task` with `{name, description}`. The task lands in the first lane, "prioritization backlog" (see "How the task is picked up") |
+| `HUNT_DISPATCH_AGENT_PICKS_UP` | Optional, default `false`. Set `true` only when a lane really starts the agent by itself; it switches the texts of the screen (otherwise they say that a person starts the task) |
 | `HUNT_DISPATCH_STATUS` | Optional lane for the new task |
 | `HUNT_ALLOWED_EMAILS` | Comma separated; empty = administrators only |
 | `HUNT_MAX_PER_USER_PER_DAY`, `HUNT_MAX_VERIFY_PER_USER_PER_DAY` | default 5 and 20 |
@@ -186,17 +220,17 @@ There is no hunt secret to set: tokens are random per hunt. No OpenAI key is use
 ## Setting it up on an environment
 
 1. Set `JENGOWORK_BASE_URL` and `JENGOWORK_API_KEY` in the environment's `.env` and restart the stack.
-2. jengo-agi must monitor board 105 for the tasks to start an agent (not done by this app; until then a person can start the task by hand).
+2. jengo-agi does not monitor board 105 yet (`agiMonitored: false`), so a person starts each task on JengoWork (move it to todo, or run it by hand). Once the board is monitored and a lane starts an agent, set `HUNT_DISPATCH_AGENT_PICKS_UP=true`.
 3. Run the smoke test: it checks that the agent endpoints refuse a call without the token and that the capabilities answer.
 
 ## Endpoints
 
-User (JWT or API key): `GET /api/leads/hunt/capabilities`, `POST /api/leads/hunt`, `POST /api/leads/hunt/review`, `GET /api/leads/hunt`,
-`GET /api/leads/hunt/{id}`, `POST /api/leads/hunt/{id}/cancel`, `GET /api/leads/products`, `POST /api/leads/verify`,
-`POST /api/leads/{id}/verify[?dryRun=true&confirm=true]`, `GET /api/leads/{id}/evidence`. MCP: `start_lead_hunt`, `get_lead_hunt`.
+User (JWT; an API key may only use the read endpoints marked "key"): `GET /api/leads/hunt/capabilities` (key), `POST /api/leads/hunt`, `POST /api/leads/hunt/review`,
+`GET /api/leads/hunt` (key), `GET /api/leads/hunt/{id}` (key), `POST /api/leads/hunt/{id}/cancel`, `GET /api/leads/products` (key), `POST /api/leads/verify`,
+`POST /api/leads/{id}/verify[?dryRun=true&confirm=true]`, `GET /api/leads/{id}/evidence` (key). MCP: `start_lead_hunt`, `get_lead_hunt`.
 
-Agent (the token of that hunt only, header `X-Hunt-Token`; no login or API key opens them): `GET /api/hunt-agent/{id}/brief`,
-`POST /api/hunt-agent/{id}/progress`, `POST /api/hunt-agent/{id}/candidates`, `POST /api/hunt-agent/{id}/complete`. They only work while
+Agent (the token of that hunt only, header `X-Hunt-Token`; no login or API key opens them): `GET /api/hunt-agent/{id}/brief` (task token, once),
+then with the session token `POST /api/hunt-agent/{id}/known`, `.../progress`, `.../candidates`, `.../complete`. They only work while
 the hunt is Pending or Running, and whatever the agent creates belongs to the user who started the hunt.
 
 ## Privacy
@@ -212,6 +246,8 @@ anyone.
 | `20261119155650_AddLeadHunt` | `HuntJobs` and `HuntCandidates` (the first version; applied on test and acc) |
 | `20261119164155_HuntActiveJobIndexAndConfirm` | `ConfirmClear` column and the unique index `IX_HuntJobs_OneActivePerUser`. Before the index is created, a SQL step marks all but the newest Pending or Running job of each user as Failed ("Superseded"), so a database that ran under the old race still migrates. Tested on a data copy with such rows. |
 | `20261119170216_AddLeadHuntProvenance` | `Leads.HuntWrittenJson` (nullable; existing leads stay without provenance) |
+| `20261120121521_AddHuntAgentToken` | `HuntJobs.TokenHash` and `TokenExpiresAt` (nullable, no table rebuild) |
+| `20261120125337_HuntSessionTokenAndCandidateLead` | `HuntJobs.TokenExchanged` (false: a running hunt on an older build holds a task token and exchanges it at its next `/brief`), `HuntCandidates.VerifiedScore`, and the foreign key `HuntCandidates.LeadId -> Leads` with `ON DELETE SET NULL` (this rebuilds the SQLite table). First a SQL step empties the evidence and the link of candidate rows whose lead no longer exists, otherwise the key could not be created. Tested on a copy with data (valid link kept, orphan emptied, delete sets null). |
 
 How test and acc were handled: they applied `AddLeadHunt` (155650) and then `HuntActiveJobIndexAndConfirm`; their history was checked (no other hunt
 migration row, no active jobs), and the clean-up SQL was added to the migration afterwards, which changes nothing for a database that already ran it.

@@ -274,7 +274,7 @@ public class HuntController : ControllerBase
             job = ToDto(job),
             candidates = job.Candidates.OrderBy(c => c.CreatedAt).Select(c => new
             {
-                id = c.Id, leadId = c.LeadId, name = c.Name, website = c.Website, score = c.Score, maxReachable = c.MaxReachable,
+                id = c.Id, leadId = c.LeadId, name = c.Name, website = c.Website, score = c.Score, verifiedScore = c.VerifiedScore, maxReachable = c.MaxReachable,
                 outcome = c.Outcome, reason = c.Reason, at = c.CreatedAt,
             }),
         });

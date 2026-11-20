@@ -7,6 +7,12 @@ export interface HuntCapabilities {
   canStartHunt: boolean
   dispatchConfigured: boolean
   googlePlacesConfigured: boolean
+  /** False while a person has to start the JengoWork task (the board is not watched by jengo-agi yet). */
+  agentStartsAutomatically: boolean
+  /** A hunt that nobody started is ended after this many minutes. */
+  startWithinMinutes: number
+  /** A running hunt whose agent has been silent for this many minutes is ended. */
+  silenceMinutes: number
   maxPerDay: number
   message: string | null
 }
@@ -52,7 +58,10 @@ export interface HuntCandidate {
   leadId: string | null
   name: string
   website: string
+  /** The stored score. */
   score: number | null
+  /** The score from verified facts only; differs from `score` in a review of a lead that holds values nobody could verify. */
+  verifiedScore: number | null
   maxReachable: number | null
   outcome: string
   reason: string

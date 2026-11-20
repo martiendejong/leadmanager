@@ -174,6 +174,8 @@ public class HuntReviewFiveServiceTests : IDisposable
             Assert.IsType<UnauthorizedObjectResult>(await Agent("wrong-" + i).Progress(job.Id, new HuntProgressRequest("x")));
         var blocked = Assert.IsType<ObjectResult>(await Agent(session).Progress(job.Id, new HuntProgressRequest("x")));
         Assert.Equal(429, blocked.StatusCode);
+        // somebody who guessed at the hunt from one address does not lock the real agent out on another
+        Assert.IsType<OkObjectResult>(await Agent(session, ip: "203.0.113.99").Progress(job.Id, new HuntProgressRequest("x")));
 
         // many hunts from one address: the address is blocked as a whole
         HuntAuthThrottle.Reset();

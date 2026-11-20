@@ -30,7 +30,8 @@ export default function HuntPanel({ onFinished }: Props) {
     getRecentHunts()
       .then((jobs) => {
         setRecent(jobs.filter((j) => j.kind === 'Hunt'))
-        const running = jobs.find((j) => isActive(j.status))
+        // Only a Find-leads search is picked up again here: a review or verify run has its own place and must not take over this panel.
+        const running = jobs.find((j) => j.kind === 'Hunt' && isActive(j.status))
         if (running) setJobId(running.id)
       })
       .catch(() => undefined)
@@ -127,7 +128,7 @@ export default function HuntPanel({ onFinished }: Props) {
       <div className="rounded-md bg-gray-50 border border-gray-200 p-3 text-xs text-gray-600 space-y-1">
         <p><span className="font-semibold">Public data only.</span> Only what a business publishes itself is used: its own website. Every fact is saved with its source and the exact words, and the score is computed from verified facts only.</p>
         <p><span className="font-semibold">Check before you call or mail.</span> A mobile number or a personal e-mail address of a sole proprietor is personal data: check the GDPR rules and the Do-Not-Call register first.</p>
-        <p><span className="font-semibold">A Jengo agent will research this in the background (usually 10 to 30 minutes).</span> You can leave this page: found companies appear in the list as the agent submits them, and every one is checked again by the server before it gets a score.{caps && !caps.googlePlacesConfigured ? ' Google ratings are not checked on this server (no Google Places key), so a score of 9 is out of reach.' : ''}{caps ? ` You can start ${caps.maxPerDay} hunts per day.` : ''}</p>
+        <p><span className="font-semibold">A Jengo agent researches this in the background (10 to 30 minutes once it has started).</span> {caps && !caps.agentStartsAutomatically ? `The task is created on JengoWork and does not start by itself: a person has to start it (open the task and move it to todo). A search that nobody starts within ${caps.startWithinMinutes} minutes is ended. ` : ''}You can leave this page: found companies appear in the list as the agent submits them, and every one is checked again by the server before it gets a score.{caps && !caps.googlePlacesConfigured ? ' Google ratings are not checked on this server (no Google Places key), so a score of 9 is out of reach.' : ''}{caps ? ` You can start ${caps.maxPerDay} hunts per day.` : ''}</p>
       </div>
 
       <div className="flex justify-end">

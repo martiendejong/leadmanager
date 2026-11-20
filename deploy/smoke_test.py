@@ -14,6 +14,7 @@ import re
 import sys
 import datetime as dt
 import time
+import uuid
 from urllib.parse import quote
 
 import requests
@@ -289,13 +290,18 @@ def main() -> int:
         check(s.get(base + "/api/messages", headers=k, timeout=30).status_code == 200, "an API key reaches the messages")
         check(s.get(base + "/api/message-templates", headers=k, timeout=30).status_code in (401, 403), "an API key does not reach the template settings")
         # The agent endpoints are closed to everyone without the agent token (a login or an API key does not open them).
-        some_id = "00000000-0000-0000-0000-000000000001"
+        some_id = str(uuid.uuid4())   # a fresh id per run: wrong tokens are counted per hunt
         check(requests.get(f"{base}/api/hunt-agent/{some_id}/brief", timeout=30).status_code == 401, "agent endpoint refuses a call without the hunt token")
         check(requests.get(f"{base}/api/hunt-agent/{some_id}/brief", headers={"X-Hunt-Token": "wrong"}, timeout=30).status_code == 401, "agent endpoint refuses a wrong hunt token")
         check(s.get(f"{base}/api/hunt-agent/{some_id}/brief", headers=jwt, timeout=30).status_code == 401, "a normal login does not open the agent endpoint")
         check(s.get(f"{base}/api/hunt-agent/{some_id}/brief", headers=k, timeout=30).status_code == 401, "an API key does not open the agent endpoint")
         check(requests.post(f"{base}/api/hunt-agent/{some_id}/candidates", headers={"X-Hunt-Token": "wrong"}, json={"claims": {}}, timeout=30).status_code == 401, "submitting a candidate needs the hunt token")
         check(requests.post(f"{base}/api/hunt-agent/{some_id}/complete", headers={"X-Hunt-Token": "wrong"}, json={"summary": "x"}, timeout=30).status_code == 401, "completing a hunt needs the hunt token")
+        check(requests.post(f"{base}/api/hunt-agent/{some_id}/known", headers={"X-Hunt-Token": "wrong"}, json={"domains": ["example.nl"]}, timeout=30).status_code == 401, "the known-domains check needs the hunt token")
+        # a key may read the hunt status but never start, cancel or verify (the guard is per action)
+        check(s.post(f"{base}/api/leads/hunt", headers=k, json={"segment": "smoke test segment"}, timeout=30).status_code == 403, "an API key cannot start a lead hunt")
+        check(s.post(f"{base}/api/leads/hunt/{some_id}/cancel", headers=k, timeout=30).status_code == 403, "an API key cannot cancel a lead hunt")
+        check(s.get(f"{base}/api/leads/hunt/capabilities", headers=k, timeout=30).status_code == 200, "an API key may read the hunt capabilities")
         check(requests.get(f"{base}/api/agent/hunts/{some_id}", timeout=30).status_code in (401, 404), "the old agent route is gone")
 
         # The key reaches the CRM and nothing else.

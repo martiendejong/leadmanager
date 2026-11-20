@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import * as signalR from '@microsoft/signalr'
-import { cancelHunt, errorMessage, getHunt, isActive, type HuntCandidate, type HuntJob } from '../../api/hunt'
+import { cancelHunt, errorMessage, getHunt, getHuntCapabilities, isActive, type HuntCandidate, type HuntCapabilities, type HuntJob } from '../../api/hunt'
 
 const OUTCOME_LABEL: Record<string, string> = {
   Qualified: 'Qualified',
@@ -32,6 +32,7 @@ export default function HuntJobView({ jobId, onFinished }: Props) {
   const [candidates, setCandidates] = useState<HuntCandidate[]>([])
   const [error, setError] = useState<string | null>(null)
   const [cancelling, setCancelling] = useState(false)
+  const [caps, setCaps] = useState<HuntCapabilities | null>(null)
   const finishedRef = useRef(false)
   const onFinishedRef = useRef(onFinished)
   onFinishedRef.current = onFinished
@@ -50,6 +51,8 @@ export default function HuntJobView({ jobId, onFinished }: Props) {
       setError(errorMessage(err, 'Could not load the job'))
     }
   }, [jobId])
+
+  useEffect(() => { getHuntCapabilities().then(setCaps).catch(() => undefined) }, [])
 
   useEffect(() => {
     finishedRef.current = false
@@ -132,7 +135,9 @@ export default function HuntJobView({ jobId, onFinished }: Props) {
         </p>
       )}
       {isHunt && job.status === 'Pending' && (
-        <p className="text-sm text-gray-600">Waiting for the Jengo agent to pick up the task. This usually takes a few minutes, the research itself 10 to 30.</p>
+        caps && !caps.agentStartsAutomatically
+          ? <p className="text-sm text-gray-600">The task is on JengoWork and does not start by itself: a person has to start it (open the task and move it to todo, or run it by hand). If nobody starts it within {caps.startWithinMinutes} minutes this search ends and you can start it again. The research itself takes 10 to 30 minutes.</p>
+          : <p className="text-sm text-gray-600">Waiting for the Jengo agent to pick up the task. This usually takes a few minutes, the research itself 10 to 30.</p>
       )}
       {isHunt && job.summary && <div className="rounded-md bg-gray-50 border border-gray-200 p-3 text-sm text-gray-700 whitespace-pre-line">{job.summary}</div>}
       {active && job.current && <p className="text-sm text-gray-600">Checking <span className="font-medium">{job.current}</span>...</p>}
@@ -157,7 +162,14 @@ export default function HuntJobView({ jobId, onFinished }: Props) {
                     {c.leadId ? <Link to={`/leads/${c.leadId}`} className="font-medium text-indigo-700 hover:underline">{c.name}</Link> : <span className="font-medium">{c.name}</span>}
                     <div className="text-xs text-gray-400 break-all">{c.website}</div>
                   </td>
-                  <td className="px-2 py-2 text-center align-top"><ScoreBadge score={c.score} /></td>
+                  <td className="px-2 py-2 text-center align-top">
+                    <ScoreBadge score={c.score} />
+                    {c.verifiedScore != null && c.score != null && c.verifiedScore !== c.score && (
+                      <div className="mt-1 text-xs text-amber-700" title="The stored score counts values nobody could verify on the website. The verified-only score counts only what the server verified.">
+                        verified only {c.verifiedScore}
+                      </div>
+                    )}
+                  </td>
                   <td className="px-2 py-2 text-center align-top text-gray-500">{c.maxReachable ?? '-'}</td>
                   <td className="px-3 py-2 align-top">
                     <div className="font-medium text-gray-800">{OUTCOME_LABEL[c.outcome] ?? c.outcome}</div>

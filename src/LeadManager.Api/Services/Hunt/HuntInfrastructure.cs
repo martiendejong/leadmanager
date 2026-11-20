@@ -232,18 +232,19 @@ public static class HuntAuthThrottle
         return q.Count;
     }
 
-    /// <summary>True when this address or this hunt has had too many wrong tokens lately.</summary>
+    /// <summary>True when this address, or this address for this hunt, has had too many wrong tokens lately.</summary>
     public static bool Blocked(string? address, Guid huntId, DateTime? now = null)
     {
         var n = now ?? DateTime.UtcNow;
-        return (address != null && Count("ip|" + address, n) >= MaxFailuresPerAddress) || Count("id|" + huntId, n) >= MaxFailuresPerHunt;
+        // Per hunt AND address: somebody who only knows the hunt id (it stands in the task text) cannot lock the real agent out from another address.
+        return (address != null && Count("ip|" + address, n) >= MaxFailuresPerAddress) || Count("id|" + huntId + "|" + (address ?? "unknown"), n) >= MaxFailuresPerHunt;
     }
 
     public static void Fail(string? address, Guid huntId, DateTime? now = null)
     {
         var n = now ?? DateTime.UtcNow;
         if (address != null) Failures.GetOrAdd("ip|" + address, _ => new()).Enqueue(n);   // an unreadable address is not charged to everybody at once
-        Failures.GetOrAdd("id|" + huntId, _ => new()).Enqueue(n);
+        Failures.GetOrAdd("id|" + huntId + "|" + (address ?? "unknown"), _ => new()).Enqueue(n);
         if (Failures.Count > 20_000) foreach (var k in Failures.Keys.ToList()) if (Count(k, n) == 0) Failures.TryRemove(k, out _);
     }
 
