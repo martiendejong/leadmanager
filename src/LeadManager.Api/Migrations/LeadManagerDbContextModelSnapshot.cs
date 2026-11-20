@@ -1188,6 +1188,68 @@ namespace LeadManager.Api.Migrations
                     b.ToTable("Activities");
                 });
 
+            modelBuilder.Entity("LeadManager.Api.Models.LeadDemoIdea", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("BatchId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("GeneratedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Instruction")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("LeadId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Model")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ProductKey")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Prompt")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Shows")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("WhyFit")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LeadId");
+
+                    b.HasIndex("UserId", "LeadId", "Position");
+
+                    b.ToTable("LeadDemoIdeas");
+                });
+
             modelBuilder.Entity("LeadManager.Api.Models.LeadDocumentChunk", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1864,6 +1926,17 @@ namespace LeadManager.Api.Migrations
                 {
                     b.HasOne("LeadManager.Api.Models.Lead", "Lead")
                         .WithMany("Activities")
+                        .HasForeignKey("LeadId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Lead");
+                });
+
+            modelBuilder.Entity("LeadManager.Api.Models.LeadDemoIdea", b =>
+                {
+                    b.HasOne("LeadManager.Api.Models.Lead", "Lead")
+                        .WithMany()
                         .HasForeignKey("LeadId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
