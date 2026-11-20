@@ -17,11 +17,11 @@ public record ReviewLeadsRequest(Guid[]? Ids);
 /// <summary>
 /// Lead hunt and verify. A hunt is researched by a background Jengo agent that the app starts (a JengoWork task); every candidate the
 /// agent submits is re-checked by the server. A verify rescored existing leads from their own website by rules only: no key needed.
+/// An API key may only READ here (status, evidence, catalog); starting, cancelling and verifying need a person's login.
 /// </summary>
 [ApiController]
 [Route("api/leads")]
 [Authorize]
-[AllowApiKey]
 public class HuntController : ControllerBase
 {
     public const int MaxVerifyIds = 50;
@@ -48,10 +48,12 @@ public class HuntController : ControllerBase
     private int MaxPerDay => Math.Clamp(int.TryParse(_config["Hunt:MaxPerUserPerDay"], out var n) ? n : 5, 1, 50);
 
     // GET /api/leads/products : the catalog of our products that a lead's product fit may name (one file: Agent/PRODUCTS.md)
+    [AllowApiKey]
     [HttpGet("products")]
     public IActionResult Products() => Ok(ProductCatalog.All.Select(p => new { key = p.Key, name = p.Name, whatItIs = p.WhatItIs, fitsWhen = p.FitsWhen }));
 
     // GET /api/leads/hunt/capabilities
+    [AllowApiKey]
     [HttpGet("hunt/capabilities")]
     public async Task<IActionResult> Capabilities()
     {
@@ -67,6 +69,7 @@ public class HuntController : ControllerBase
     }
 
     // POST /api/leads/hunt
+    [DenyApiKey]
     [HttpPost("hunt")]
     public async Task<IActionResult> Start([FromBody] StartHuntRequest request, CancellationToken ct)
     {
@@ -125,6 +128,7 @@ public class HuntController : ControllerBase
     }
 
     // POST /api/leads/hunt/review : ask a Jengo agent to research existing leads (the server verifies what it submits)
+    [DenyApiKey]
     [HttpPost("hunt/review")]
     public async Task<IActionResult> ReviewByAgent([FromBody] ReviewLeadsRequest request, CancellationToken ct)
     {
@@ -173,6 +177,7 @@ public class HuntController : ControllerBase
     }
 
     // POST /api/leads/verify   and   POST /api/leads/{id}/verify[?dryRun=true]
+    [DenyApiKey]
     [HttpPost("verify")]
     public async Task<IActionResult> VerifyMany([FromBody] VerifyLeadsRequest request, CancellationToken ct = default)
     {
@@ -183,6 +188,7 @@ public class HuntController : ControllerBase
         return await StartVerify(ids, request.Confirm == true, ct);
     }
 
+    [DenyApiKey]
     [HttpPost("{id:guid}/verify")]
     public async Task<IActionResult> VerifyOne(Guid id, [FromQuery] bool dryRun = false, [FromQuery] bool confirm = false, CancellationToken ct = default)
     {
@@ -216,6 +222,7 @@ public class HuntController : ControllerBase
     }
 
     // GET /api/leads/hunt
+    [AllowApiKey]
     [HttpGet("hunt")]
     public async Task<IActionResult> Recent()
     {
@@ -225,6 +232,7 @@ public class HuntController : ControllerBase
     }
 
     // GET /api/leads/hunt/{id}
+    [AllowApiKey]
     [HttpGet("hunt/{id:guid}")]
     public async Task<IActionResult> Get(Guid id)
     {
@@ -243,6 +251,7 @@ public class HuntController : ControllerBase
     }
 
     // POST /api/leads/hunt/{id}/cancel
+    [DenyApiKey]
     [HttpPost("hunt/{id:guid}/cancel")]
     public async Task<IActionResult> Cancel(Guid id)
     {
@@ -265,6 +274,7 @@ public class HuntController : ControllerBase
     }
 
     // GET /api/leads/{id}/evidence : the sources and quotes behind the latest verification of a lead
+    [AllowApiKey]
     [HttpGet("{id:guid}/evidence")]
     public async Task<IActionResult> Evidence(Guid id)
     {
