@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useToast } from '../Toast'
 import { errorMessage } from '../../api/crm'
 import {
   CHANNELS, CHANNEL_LABELS, MAX_BODY, MAX_SUBJECT,
@@ -26,7 +25,6 @@ function fmt(iso: string) {
  * choose "Mark as sent". Only that, after a confirmation, moves the lead from New to Contacted. Saving a draft changes nothing.
  */
 export default function MessageSection({ lead, onLeadChanged, initialChannel }: Props) {
-  const { showToast } = useToast()
   const products = useProducts()
   const [channel, setChannel] = useState<Channel>(initialChannel ?? 'Email')
   const [product, setProduct] = useState('')
@@ -39,6 +37,15 @@ export default function MessageSection({ lead, onLeadChanged, initialChannel }: 
   const [busy, setBusy] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const dirty = useRef(false)
+  // Inline feedback next to the buttons: a toast is easy to miss and gone after a moment
+  const [notice, setNotice] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
+  const noticeTimer = useRef<number | undefined>(undefined)
+  const say = useCallback((kind: 'ok' | 'error', text: string) => {
+    setNotice({ kind, text })
+    window.clearTimeout(noticeTimer.current)
+    if (kind === 'ok') noticeTimer.current = window.setTimeout(() => setNotice(null), 6000)
+  }, [])
+  useEffect(() => () => window.clearTimeout(noticeTimer.current), [])
 
   const fits = (lead.productFit ?? []).filter((f) => products[f.product])
 
@@ -55,14 +62,15 @@ export default function MessageSection({ lead, onLeadChanged, initialChannel }: 
       setWarnings(p.warnings)
       dirty.current = false
     } catch (err) {
-      showToast(errorMessage(err, 'Could not prepare a message'), 'error')
+      say('error', errorMessage(err, 'Could not prepare a message'))
     }
-  }, [lead.id, showToast])
+  }, [lead.id, say])
 
   // A new lead (or a new start channel): start from the template and load the history.
   useEffect(() => {
     setEditing(null)
     setConfirming(false)
+    setNotice(null)
     setProduct('')
     setChannel(initialChannel ?? 'Email')
     void applyPrefill(initialChannel ?? 'Email', '')
@@ -84,7 +92,7 @@ export default function MessageSection({ lead, onLeadChanged, initialChannel }: 
   }
 
   const save = async (): Promise<LeadMessage | null> => {
-    if (!body.trim()) { showToast('Write a message first', 'error'); return null }
+    if (!body.trim()) { say('error', 'Write a message first.'); return null }
     setBusy(true)
     try {
       const dto = { channel, subject: channel === 'Email' ? subject : '', body }
@@ -94,19 +102,19 @@ export default function MessageSection({ lead, onLeadChanged, initialChannel }: 
       await loadHistory()
       return saved
     } catch (err) {
-      showToast(errorMessage(err, 'Could not save the draft'), 'error')
+      say('error', errorMessage(err, 'Could not save the draft.'))
       return null
     } finally {
       setBusy(false)
     }
   }
 
-  const saveDraft = async () => { if (await save()) showToast('Draft saved. Nothing was sent.', 'success') }
+  const saveDraft = async () => { if (await save()) say('ok', 'Draft saved. Nothing was sent.') }
 
   const copy = async () => {
     const text = channel === 'Email' && subject ? `${subject}\n\n${body}` : body
-    try { await navigator.clipboard.writeText(text); showToast('Copied to the clipboard', 'success') }
-    catch { showToast('Could not copy. Select the text and copy it yourself.', 'error') }
+    try { await navigator.clipboard.writeText(text); say('ok', 'Copied to the clipboard.') }
+    catch { say('error', 'Could not copy. Select the text and copy it yourself.') }
   }
 
   const openMailApp = async () => {
@@ -116,7 +124,7 @@ export default function MessageSection({ lead, onLeadChanged, initialChannel }: 
       const { url } = await getMailto(saved.id)
       window.location.href = url
     } catch (err) {
-      showToast(errorMessage(err, 'Could not open the mail app'), 'error')
+      say('error', errorMessage(err, 'Could not open the mail app.'))
     }
   }
 
@@ -129,11 +137,11 @@ export default function MessageSection({ lead, onLeadChanged, initialChannel }: 
       setEditing(null)
       setConfirming(false)
       onLeadChanged?.({ pipelineStatus: res.pipelineStatus, ...({ lastContactedAt: res.lastContactedAt } as Partial<Lead>) })
-      showToast(res.statusChanged ? 'Marked as sent. The lead is now Contacted.' : 'Marked as sent.', 'success')
       await loadHistory()
       await applyPrefill(channel, product)
+      say('ok', res.statusChanged ? 'Marked as sent. The lead is now Contacted.' : 'Marked as sent.')
     } catch (err) {
-      showToast(errorMessage(err, 'Could not mark the message as sent'), 'error')
+      say('error', errorMessage(err, 'Could not mark the message as sent.'))
     } finally {
       setBusy(false)
     }
@@ -146,7 +154,7 @@ export default function MessageSection({ lead, onLeadChanged, initialChannel }: 
       if (editing?.id === m.id) setEditing(null)
       await loadHistory()
     } catch (err) {
-      showToast(errorMessage(err, 'Could not delete the draft'), 'error')
+      say('error', errorMessage(err, 'Could not delete the draft.'))
     }
   }
 
@@ -197,15 +205,22 @@ export default function MessageSection({ lead, onLeadChanged, initialChannel }: 
       <p className="text-xs text-gray-400 mb-3">{body.length} / {MAX_BODY}</p>
 
       <div className="flex flex-wrap gap-2">
-        <button disabled={busy} onClick={saveDraft} className="text-sm px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50">Save draft</button>
-        <button disabled={busy} onClick={copy} className="text-sm px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50">Copy</button>
+        <button disabled={busy} onClick={saveDraft} className="whitespace-nowrap text-sm px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50">Save draft</button>
+        <button disabled={busy} onClick={copy} className="whitespace-nowrap text-sm px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50">Copy</button>
         {channel === 'Email' && (
           <button disabled={busy || !canMail} onClick={openMailApp}
             title={canMail ? 'Opens your mail app with this text. Nothing is sent until you send it there.' : 'No valid published e-mail address for this lead'}
-            className="text-sm px-3 py-1.5 rounded-lg border border-indigo-200 text-indigo-700 hover:bg-indigo-50 disabled:opacity-40">Open in mail app</button>
+            className="whitespace-nowrap text-sm px-3 py-1.5 rounded-lg border border-indigo-200 text-indigo-700 hover:bg-indigo-50 disabled:opacity-40">Open in mail app</button>
         )}
-        <button disabled={busy} onClick={() => setConfirming(true)} className="text-sm px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">Mark as sent</button>
+        <button disabled={busy} onClick={() => setConfirming(true)} className="whitespace-nowrap text-sm px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">Mark as sent</button>
       </div>
+
+      {notice && (
+        <p role={notice.kind === 'error' ? 'alert' : 'status'}
+          className={`mt-2 text-sm rounded px-2 py-1 border ${notice.kind === 'ok' ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
+          {notice.text}
+        </p>
+      )}
 
       {confirming && (
         <div role="dialog" aria-label="Confirm sent" className="mt-3 rounded-lg border border-indigo-200 bg-indigo-50 p-3 text-sm">

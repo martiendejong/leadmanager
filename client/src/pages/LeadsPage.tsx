@@ -363,12 +363,12 @@ export default function LeadsPage() {
       )}
 
       {/* Page header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Leads</h2>
           {!isLoading && (
             <p className="text-sm text-gray-500 mt-0.5">
-              {total.toLocaleString('en-GB')} leads in total
+              {total.toLocaleString('en-GB')} {total === 1 ? 'lead' : 'leads'} in total
             </p>
           )}
         </div>
@@ -464,8 +464,8 @@ export default function LeadsPage() {
           <div className="flex items-center gap-3">
             <span>
               {totalPages > 1
-                ? `Page ${currentPage} of ${totalPages} (${total.toLocaleString('en-GB')} leads)`
-                : `${total.toLocaleString('en-GB')} leads`}
+                ? `Page ${currentPage} of ${totalPages} (${total.toLocaleString('en-GB')} ${total === 1 ? 'lead' : 'leads'})`
+                : `${total.toLocaleString('en-GB')} ${total === 1 ? 'lead' : 'leads'}`}
             </span>
             <label className="flex items-center gap-1.5 text-xs text-gray-500">
               Per page:
@@ -522,7 +522,7 @@ export default function LeadsPage() {
       {/* Drag range indicator (subtle) */}
       {dragRange && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-indigo-700 text-white text-xs px-3 py-1.5 rounded-full shadow-lg z-50 pointer-events-none">
-          {selectedIds.size} leads selected
+          {selectedIds.size} {selectedIds.size === 1 ? 'lead' : 'leads'} selected
         </div>
       )}
 

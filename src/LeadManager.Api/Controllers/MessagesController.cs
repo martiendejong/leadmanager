@@ -89,7 +89,10 @@ public class MessagesController : ControllerBase
     internal async Task<PrefillDto> BuildPrefillAsync(Lead lead, string channel, string? product)
     {
         var userId = UserId;
-        var values = MessageTemplates.ValuesFor(lead, product);
+        // The sender is the signed in user's name (the company profile has no contact person).
+        var me = await _db.Users.AsNoTracking().Where(u => u.Id == userId).Select(u => new { u.FirstName, u.LastName }).FirstOrDefaultAsync();
+        var sender = me == null ? "" : $"{me.FirstName} {me.LastName}".Trim();
+        var values = MessageTemplates.ValuesFor(lead, product, sender);
         var productKey = ProductCatalog.Canonical(product) ?? (values.Product.Length > 0 ? ProductCatalog.All.FirstOrDefault(p => p.Name == values.Product)?.Key : null);
 
         var mine = await _db.MessageTemplates.AsNoTracking().Where(t => t.UserId == userId && t.Channel == channel).ToListAsync();

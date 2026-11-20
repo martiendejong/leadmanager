@@ -5,6 +5,7 @@ import type { Lead } from '../api/leads'
 import api from '../api/client'
 import CrmPanel from '../components/crm/CrmPanel'
 import MessageSection from '../components/leads/MessageSection'
+import LeadInsightBlock from '../components/leads/LeadInsightBlock'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -907,6 +908,9 @@ export default function LeadDetailPage() {
         <span className={`px-3 py-1 rounded-full text-xs font-medium ${pipeline.color}`}>{pipeline.label}</span>
       </div>
 
+      {/* Why this lead, what it needs, how we can help (the same block as in the slide-over) */}
+      <div className="mb-6"><LeadInsightBlock lead={lead} /></div>
+
       {/* Progress bar */}
       <div className="mb-6">
         <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
@@ -919,9 +923,9 @@ export default function LeadDetailPage() {
       </div>
 
       {/* Body: two columns */}
-      <div className="grid grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left: Lead info */}
-        <div className="col-span-1 space-y-4">
+        <div className="lg:col-span-1 space-y-4">
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Contact</h3>
             <div className="space-y-2.5">
@@ -987,7 +991,7 @@ export default function LeadDetailPage() {
         </div>
 
         {/* Right: Workflow */}
-        <div className="col-span-2">
+        <div className="lg:col-span-2 min-w-0">
           <div id="message" className="mb-4">
             <MessageSection lead={lead} onLeadChanged={(patch) => setLead((prev) => (prev ? { ...prev, ...patch } : prev))} />
           </div>

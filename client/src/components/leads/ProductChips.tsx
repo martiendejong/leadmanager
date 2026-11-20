@@ -56,11 +56,12 @@ export function ProductChips({ fit, compact = false }: { fit: ProductFit[]; comp
 
   return (
     <div className="space-y-2">
-      {chips}
       <ul className="space-y-2">
         {fit.map((f) => (
           <li key={f.product} className="border-l-2 border-indigo-300 pl-3 text-sm">
-            <div className="font-medium text-gray-800">{name(f.product)}</div>
+            <div>
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">{name(f.product)}</span>
+            </div>
             <div className="text-gray-700">{f.reason}</div>
             {f.evidenceQuote && (
               <blockquote className="text-xs text-gray-600 italic">

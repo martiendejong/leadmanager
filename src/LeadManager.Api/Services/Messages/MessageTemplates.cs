@@ -6,7 +6,7 @@ using LeadManager.Api.Services.Hunt;
 namespace LeadManager.Api.Services.Messages;
 
 /// <summary>The values a template can use: only fields that are stored on the lead (verified by the hunt or typed by a person). Nothing is invented.</summary>
-public record TemplateValues(string Name, string Owner, string Why, string Need, string Product, string Reason, string Language);
+public record TemplateValues(string Name, string Owner, string Why, string Need, string Product, string Reason, string Language, string Benefit = "", string Sender = "");
 
 public record BuiltInTemplate(string Channel, string Language, string Subject, string Body);
 
@@ -17,7 +17,7 @@ public record BuiltInTemplate(string Channel, string Language, string Subject, s
 /// </summary>
 public static class MessageTemplates
 {
-    public static readonly string[] Placeholders = { "name", "owner", "why", "need", "product", "reason" };
+    public static readonly string[] Placeholders = { "name", "owner", "why", "need", "product", "benefit", "sender", "reason" };
 
     private static readonly Regex Token = HuntRegex.New(@"\{([a-z]{2,10})\}", RegexOptions.IgnoreCase);
     private static readonly Regex AnyBrace = HuntRegex.New(@"\{([^{}\r\n]{1,40})\}");
@@ -28,20 +28,20 @@ public static class MessageTemplates
     private static readonly List<BuiltInTemplate> BuiltIn = new()
     {
         new(MessageChannels.Email, "nl", "Kennismaken met {name}",
-            "Hoi {owner},\n\nIk kwam {name} tegen en zou me graag kort aan u voorstellen.\nOp uw website lees ik: \"{need}\"\nOok viel mij op: \"{why}\"\nDaarom denk ik dat {product} u kan helpen.\n\nMag ik u hier kort over bellen? Past een moment deze of volgende week?\n\nMet vriendelijke groet,"),
+            "Hoi {owner},\n\nIk kwam {name} tegen en zou me graag kort aan u voorstellen.\nOp uw website lees ik: \"{need}\"\nOok viel mij op: \"{why}\"\n{benefit}\n\nMag ik u hier kort over bellen? Past een moment deze of volgende week?\n\nMet vriendelijke groet,\n{sender}"),
         new(MessageChannels.LinkedIn, "nl", "",
-            "Hoi {owner},\nIk kwam {name} tegen.\nIk las op uw website: \"{need}\"\nDaar kan {product} bij helpen.\nZullen we eens kort bellen?"),
+            "Hoi {owner},\nIk kwam {name} tegen.\nIk las op uw website: \"{need}\"\n{benefit}\nZullen we eens kort bellen?\n{sender}"),
         new(MessageChannels.WhatsApp, "nl", "",
-            "Hoi {owner}! Ik kwam {name} tegen.\nOp jullie site staat: \"{need}\"\nDaar kan {product} bij helpen.\nHeb je deze week een paar minuten om kort te bellen?"),
+            "Hoi {owner}! Ik kwam {name} tegen.\nOp jullie site staat: \"{need}\"\n{benefit}\nHeb je deze week een paar minuten om kort te bellen?\n{sender}"),
         new(MessageChannels.Phone, "nl", "",
             "Belnotitie {name}\nGesprekspartner: {owner}\nAanleiding: \"{why}\"\nBehoefte: \"{need}\"\nVoorstel: {product}\nVraag: past een korte kennismaking deze of volgende week?"),
 
         new(MessageChannels.Email, "en", "Getting to know {name}",
-            "Hi {owner},\n\nI came across {name} and would like to introduce myself briefly.\nOn your website I read: \"{need}\"\nI also noticed: \"{why}\"\nThat is why I think {product} could help you.\n\nMay I call you briefly about this? Would a moment this week or next suit you?\n\nKind regards,"),
+            "Hi {owner},\n\nI came across {name} and would like to introduce myself briefly.\nOn your website I read: \"{need}\"\nI also noticed: \"{why}\"\n{benefit}\n\nMay I call you briefly about this? Would a moment this week or next suit you?\n\nKind regards,\n{sender}"),
         new(MessageChannels.LinkedIn, "en", "",
-            "Hi {owner},\nI came across {name}.\nI read on your website: \"{need}\"\n{product} could help with that.\nShall we have a short call?"),
+            "Hi {owner},\nI came across {name}.\nI read on your website: \"{need}\"\n{benefit}\nShall we have a short call?\n{sender}"),
         new(MessageChannels.WhatsApp, "en", "",
-            "Hi {owner}! I came across {name}.\nYour site says: \"{need}\"\n{product} could help with that.\nDo you have a few minutes this week for a short call?"),
+            "Hi {owner}! I came across {name}.\nYour site says: \"{need}\"\n{benefit}\nDo you have a few minutes this week for a short call?\n{sender}"),
         new(MessageChannels.Phone, "en", "",
             "Call note {name}\nContact: {owner}\nReason: \"{why}\"\nNeed: \"{need}\"\nProposal: {product}\nQuestion: would a short introduction this week or next suit?"),
     };
@@ -50,6 +50,31 @@ public static class MessageTemplates
 
     public static BuiltInTemplate Get(string channel, string language) =>
         BuiltIn.First(t => t.Channel == channel && t.Language == language);
+
+    // ---- what each product does for the reader, written per language (the stored fit reason is English and is never pasted into Dutch text)
+
+    private static readonly Dictionary<string, (string Nl, string En)> Benefits = new()
+    {
+        ["coachos"] = ("CoachOS geeft uw klanten een persoonlijke AI-gids en chat op uw eigen website, zodat vragen en intake sneller lopen.",
+                       "CoachOS gives your clients a personal AI guide and chat on your own website, so questions and intake go faster."),
+        ["siteaudit"] = ("Een maandelijkse Site audit laat zien wat er op uw website op het gebied van veiligheid, SEO en vindbaarheid door AI beter kan.",
+                         "A monthly Site audit shows what can be improved on your website for security, SEO and findability by AI."),
+        ["visit"] = ("Het Visit-platform maakt uw aanbod meertalig vindbaar en boekbaar voor bezoekers van de regio.",
+                     "The Visit platform makes your offer findable and bookable in several languages for visitors of the region."),
+        ["werkteam"] = ("Ons AI Werkteam neemt administratie en terugkerend werk over, voor een vaste prijs en met menselijke controle.",
+                        "Our AI Work Team takes over admin and recurring work, for a fixed price and with human review."),
+        ["cloudws"] = ("Met de Jengo Cloud Workspace krijgt u een eigen AI-werkplek, ook bereikbaar vanaf uw telefoon.",
+                       "The Jengo Cloud Workspace gives you your own AI workspace, also reachable from your phone."),
+        ["custom"] = ("Wij bouwen maatwerksoftware voor een proces, register of koppeling die geen standaardproduct dekt.",
+                      "We build custom software for a process, register or integration that no standard product covers."),
+        ["mail"] = ("JengoMail laat AI uw e-mail voorbereiden, zodat u alleen nog hoeft goed te keuren.",
+                    "JengoMail lets AI prepare your e-mail, so you only have to approve."),
+        ["meet"] = ("Jengo Meet maakt live aantekeningen van uw gesprekken en zet afspraken om in taken.",
+                    "Jengo Meet takes live notes of your meetings and turns agreements into tasks."),
+    };
+
+    public static string Benefit(string productKey, string language) =>
+        Benefits.TryGetValue(productKey, out var b) ? (language == "nl" ? b.Nl : b.En) : "";
 
     // ---- language and values -------------------------------------------------------------------------------------------
 
@@ -72,16 +97,21 @@ public static class MessageTemplates
     /// <summary>The first need line split into its quote (the business's own words) and the label.</summary>
     private static (string Label, string Quote) FirstNeed(string? needs)
     {
-        var line = (needs ?? "").Split('\n').Select(l => l.Trim()).FirstOrDefault(l => l.Length > 0) ?? "";
-        var m = HuntRegex.Match(line, "^(.*?): \"(.*)\"$");
-        return m.Success ? (m.Groups[1].Value, m.Groups[2].Value) : ("", line);
+        // Only a need with a quote counts: the quote is the business's own words (in their language). A label without a quote is the
+        // agent's text (English), which must never end up in a message to the business.
+        foreach (var raw in (needs ?? "").Split('\n'))
+        {
+            var m = HuntRegex.Match(raw.Trim(), "^(.*?): \"(.*)\"$");
+            if (m.Success && m.Groups[2].Value.Trim().Length > 0) return (m.Groups[1].Value, m.Groups[2].Value);
+        }
+        return ("", "");
     }
 
     /// <summary>
     /// The values from what is stored on the lead. {why} is the verified quote of the observation (never the internal score text), {need} the
     /// quote of the first need (the business's own words), {product} the name of the chosen product, {reason} the reason stored with the fit.
     /// </summary>
-    public static TemplateValues ValuesFor(Lead lead, string? productKey)
+    public static TemplateValues ValuesFor(Lead lead, string? productKey, string? sender = null)
     {
         var language = LanguageOf(lead);
         var owner = !string.IsNullOrWhiteSpace(lead.OwnerFirstName) ? lead.OwnerFirstName.Trim()
@@ -102,14 +132,16 @@ public static class MessageTemplates
             : fits.FirstOrDefault(f => ProductCatalog.Canonical(f.Product) != null);
         var key = ProductCatalog.Canonical(productKey) ?? (fit != null ? ProductCatalog.Canonical(fit.Product) : null);
         var product = key == null ? "" : ProductCatalog.All.FirstOrDefault(p => p.Key == key)?.Name ?? "";
-        return new TemplateValues(Clip(lead.Name ?? "", 120), owner, why, need, product, fit == null ? "" : Clip(fit.Reason, 300), language);
+        return new TemplateValues(Clip(lead.Name ?? "", 120), owner, why, need, product, fit == null ? "" : Clip(fit.Reason, 300), language,
+            key == null ? "" : Benefit(key, language), Clip(sender ?? "", 80));
     }
 
     // ---- rendering -------------------------------------------------------------------------------------------------------
 
     private static string Value(TemplateValues v, string placeholder) => placeholder.ToLowerInvariant() switch
     {
-        "name" => v.Name, "owner" => v.Owner, "why" => v.Why, "need" => v.Need, "product" => v.Product, "reason" => v.Reason, _ => "",
+        "name" => v.Name, "owner" => v.Owner, "why" => v.Why, "need" => v.Need, "product" => v.Product, "reason" => v.Reason,
+        "benefit" => v.Benefit, "sender" => v.Sender, _ => "",
     };
 
     private static readonly Regex GreetingStart = HuntRegex.New(@"^\s*(?:Hoi|Beste|Hi|Dear|Hallo|Hello)\b", RegexOptions.IgnoreCase);

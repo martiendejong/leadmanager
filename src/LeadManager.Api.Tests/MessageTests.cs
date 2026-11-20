@@ -292,6 +292,56 @@ public class MessageTests : IDisposable
     }
 
     [Fact]
+    public async Task Prefill_DutchLead_NeverContainsEnglishNeedLabelsOrReasons_AndHasDutchBenefitAndSignOff()
+    {
+        var lead = SeedLead();
+        // a need without a quote is the agent's English text; the English reason is stored with the fit
+        lead.Needs = "First contact is by phone or mail, all arranged by hand." + "\n" + "Online zichtbaarheid: \"Mijn website is toe aan vernieuwing\"";
+        await _db.SaveChangesAsync();
+        EnsureUser(Me);
+        var user = _db.Users.Single(u => u.Id == Me); user.FirstName = "Frank"; user.LastName = "Tester"; await _db.SaveChangesAsync();
+
+        var p = Value<PrefillDto>(await Messages().Prefill(lead.Id, "Email", null));
+        Assert.Contains("Mijn website is toe aan vernieuwing", p.Body);
+        Assert.DoesNotContain("First contact", p.Body);
+        Assert.DoesNotContain("The site is dated", p.Body);
+        Assert.Contains("Een maandelijkse Site audit", p.Body);                     // Dutch phrasing of the product
+        Assert.EndsWith("Met vriendelijke groet," + "\n" + "Frank Tester", p.Body);          // the sign-off carries the user's name
+    }
+
+    [Fact]
+    public async Task Prefill_NeedWithoutAnyQuote_LeavesTheLineOut()
+    {
+        var lead = SeedLead();
+        lead.Needs = "Handmatige administratie";    // typed by a person, no quote
+        await _db.SaveChangesAsync();
+        var p = Value<PrefillDto>(await Messages().Prefill(lead.Id, "Email", null));
+        Assert.DoesNotContain("Handmatige administratie", p.Body);
+        Assert.DoesNotContain("Op uw website lees ik", p.Body);
+    }
+
+    [Fact]
+    public async Task Prefill_WithoutAUserName_EndsAtTheGreetingLine_NoEmptyPlaceholder()
+    {
+        var lead = SeedLead();
+        var p = Value<PrefillDto>(await Messages().Prefill(lead.Id, "Email", null));
+        Assert.EndsWith("Met vriendelijke groet,", p.Body);
+        Assert.DoesNotContain("{", p.Body);
+    }
+
+    [Fact]
+    public void Benefits_ExistForEveryCatalogProduct_InBothLanguages()
+    {
+        foreach (var product in LeadManager.Api.Services.Hunt.ProductCatalog.All)
+        {
+            Assert.False(string.IsNullOrWhiteSpace(MessageTemplates.Benefit(product.Key, "nl")), product.Key);
+            Assert.False(string.IsNullOrWhiteSpace(MessageTemplates.Benefit(product.Key, "en")), product.Key);
+            Assert.DoesNotContain("EUR", MessageTemplates.Benefit(product.Key, "nl"));      // no internal prices in a client text
+            Assert.DoesNotContain("per month", MessageTemplates.Benefit(product.Key, "en"));
+        }
+    }
+
+    [Fact]
     public async Task Prefill_IsEnglishForAnEnglishLead()
     {
         var lead = SeedLead(name: "Acme Ltd", website: "https://acme.example.com");
