@@ -61,6 +61,43 @@ All under `/api`, signed in or with an API key (not the templates).
 
 MCP tools: `get_message_prefill`, `list_messages`, `create_message_draft`, `update_message_draft`, `mark_message_sent` (see MCP.md). `mark_message_sent` needs the boolean `true`; a string or a missing flag is refused.
 
+## AI help: regenerate with an instruction, and demo ideas
+
+In the **Message** section (side panel and lead page), below the editor. **Optional**: without a key everything above keeps working and the AI buttons say "AI is not configured".
+
+* **Regenerate with an instruction**: type what you want ("shorter, more informal, mention their opening hours", at most 500 characters) and choose **Regenerate**. The text in the editor is replaced by the new draft (the editor text is the starting point; with an empty editor the template is). It is still only a draft: nothing is saved, sent or changed on the lead until you use **Save draft** as before. Channel is respected (subject for e-mail only, short for LinkedIn/WhatsApp, a call note for Phone). Dutch for a Dutch lead, English otherwise (the UI stays English). "Notes from the AI" lists what it left out, for example a fact it does not have.
+* **Demo ideas**: 2 to 4 demos we could build for this lead, each with a title, what it shows, why it fits THIS lead (pointing at the stored fact), the linked product key, and an **instruction prompt** with a **Copy** button to paste into a coding or AI agent. You can regenerate them with an instruction. The latest set is saved per lead (table `LeadDemoIdeas`), so it is still there after a reload; a new generation replaces it. If nothing fits, the AI says so (or suggests a custom/consultancy demo when a concrete need is stored); a lead with no stored why, needs or product fit gets "nothing stored" without a model call.
+
+### What the model gets, and the rules
+
+* Only stored facts: business name, sector, city, website, contact first name, sender name, **why**, **needs** (with quotes), **product fit** (with quotes), and the product catalog **without prices** (the internal hourly rate never leaves the server). Never anything the lead does not have: the model is told to leave out what it does not know and to say so in the notes.
+* All of that is **data**: wrapped in `<lead_facts>`, `<product_catalog>` and `<starting_text>`, cleaned like all website text (instruction-like phrases removed, `<` and `>` removed), and the model is told never to follow instructions inside it.
+* Your instruction is **below the rules** in the prompt: it steers tone, length and emphasis, it cannot lift a rule (no invented facts, no prices or rates, no em dashes, no links that are not in the facts).
+* The answer is **checked on the server** before you see it: JSON shape, no price or hourly rate, no link or address that is not in the facts, em/en dashes replaced, length limits, product keys from the catalog only. A bad answer is refused with 502 `ai_output_rejected`; ideas with a bad product key, a price or a made-up link are dropped.
+
+### Configuration
+
+| Setting | Env var | |
+|---|---|---|
+| `OpenAI:ApiKey` | `OPENAI_API_KEY` (compose: `OpenAI__ApiKey`) | Empty = AI is off (503 `ai_not_configured`). Deliberately empty on test. |
+| `AiCompose:Model` | `AI_COMPOSE_MODEL` (compose: `AiCompose__Model`) | Empty = `gpt-5.4-mini`, an id from `jengo-knowledge-private/models/CURRENT_MODELS.md`. Change it there when the list changes. |
+| `AiCompose:ReasoningEffort` | `AiCompose__ReasoningEffort` | Optional, passed as `reasoning_effort` when set. |
+
+One request = one model call, 60 s timeout, at most 4000 output tokens, JSON mode. Nothing but the model id, status code and duration is logged: never the key, the facts or the text.
+
+### API (signed in only: an API key gets 403, like the hunt)
+
+| Endpoint | |
+|---|---|
+| `GET /ai/status` | `{configured, model, maxInstruction}` |
+| `POST /leads/{id}/ai/message` `{channel, product?, instruction?, subject?, body?}` | `{channel, subject, body, language, model, notes, startedFrom}`; saves nothing |
+| `GET /leads/{id}/ai/demos` | the saved ideas `{items, generatedAt}` |
+| `POST /leads/{id}/ai/demos` `{instruction?}` | generates, replaces the saved set, answers `{items, noFitReason}` |
+
+Errors: 503 `ai_not_configured`, 400 `instruction_too_long`, 502 `ai_unavailable` (timeout, provider error, cut off), 502 `ai_output_rejected`, 429 (10 per minute per login). Not exposed as MCP tools (they cost money and an agent has no screen to review the output).
+
 ## Database
 
 Migration `AddLeadMessages`: table `LeadMessages`, table `MessageTemplates` (unique per user, channel and product key) and column `Leads.LastContactedAt`. It is a follow-up to the hunt migrations: an environment needs them in order. Prod has none of them yet.
+
+Migration `LeadDemoIdeas`: table `LeadDemoIdeas` (latest demo suggestions per user and lead, deleted with the lead).
