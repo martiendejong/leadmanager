@@ -4,6 +4,8 @@ public static class HuntKinds
 {
     public const string Hunt = "Hunt";
     public const string Verify = "Verify";
+    /// <summary>A Jengo agent reviews existing leads (research on the web), the server verifies what it submits.</summary>
+    public const string Review = "Review";
 }
 
 public static class HuntStatuses
@@ -69,6 +71,10 @@ public class HuntJob
     public DateTime? LastAgentCallAt { get; set; }
     /// <summary>The agent's own short summary when it finished.</summary>
     public string? Summary { get; set; }
+
+    /// <summary>SHA-256 (hex) of the per-hunt agent token; null when no token is valid (never issued, revoked or the job ended). The token itself is never stored.</summary>
+    public string? TokenHash { get; set; }
+    public DateTime? TokenExpiresAt { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? StartedAt { get; set; }

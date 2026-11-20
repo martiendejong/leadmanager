@@ -226,7 +226,9 @@ def main() -> int:
         check(s.get(base + "/api/leads/hunt", headers=jwt, timeout=30).status_code == 200, "recent hunts list answers")
         if caps.get("huntAvailable") is False:
             r = s.post(base + "/api/leads/hunt", headers=jwt, timeout=30, json={"segment": "smoke test segment"})
-            check(r.status_code == 503 and "not configured" in r.text, "starting a hunt without the agent dispatch says so (503)")
+            check(r.status_code == 503 and "Agent hunting is not configured on this server" in r.text, "starting a hunt without the JengoWork connection says so (503)")
+            r = s.post(base + "/api/leads/hunt/review", headers=jwt, timeout=30, json={"ids": []})
+            check(r.status_code == 503, "asking an agent to review without the JengoWork connection says so (503)")
         else:
             check(s.post(base + "/api/leads/hunt", headers=jwt, timeout=30, json={"segment": ""}).status_code == 400, "a hunt without a segment is refused")
         check(s.post(base + "/api/leads/verify", headers=jwt, timeout=30, json={"ids": []}).status_code == 400, "verify without leads is refused")
@@ -288,9 +290,13 @@ def main() -> int:
         check(s.get(base + "/api/message-templates", headers=k, timeout=30).status_code in (401, 403), "an API key does not reach the template settings")
         # The agent endpoints are closed to everyone without the agent token (a login or an API key does not open them).
         some_id = "00000000-0000-0000-0000-000000000001"
-        check(requests.get(f"{base}/api/agent/hunts/{some_id}", timeout=30).status_code in (401, 503), "agent endpoint refuses a call without the agent token")
-        check(requests.get(f"{base}/api/agent/hunts/{some_id}", headers={"X-Hunt-Agent-Token": "wrong"}, timeout=30).status_code in (401, 503), "agent endpoint refuses a wrong agent token")
-        check(s.get(f"{base}/api/agent/hunts/{some_id}", headers=jwt, timeout=30).status_code in (401, 503), "a normal login does not open the agent endpoint")
+        check(requests.get(f"{base}/api/hunt-agent/{some_id}/brief", timeout=30).status_code == 401, "agent endpoint refuses a call without the hunt token")
+        check(requests.get(f"{base}/api/hunt-agent/{some_id}/brief", headers={"X-Hunt-Token": "wrong"}, timeout=30).status_code == 401, "agent endpoint refuses a wrong hunt token")
+        check(s.get(f"{base}/api/hunt-agent/{some_id}/brief", headers=jwt, timeout=30).status_code == 401, "a normal login does not open the agent endpoint")
+        check(s.get(f"{base}/api/hunt-agent/{some_id}/brief", headers=k, timeout=30).status_code == 401, "an API key does not open the agent endpoint")
+        check(requests.post(f"{base}/api/hunt-agent/{some_id}/candidates", headers={"X-Hunt-Token": "wrong"}, json={"claims": {}}, timeout=30).status_code == 401, "submitting a candidate needs the hunt token")
+        check(requests.post(f"{base}/api/hunt-agent/{some_id}/complete", headers={"X-Hunt-Token": "wrong"}, json={"summary": "x"}, timeout=30).status_code == 401, "completing a hunt needs the hunt token")
+        check(requests.get(f"{base}/api/agent/hunts/{some_id}", timeout=30).status_code in (401, 404), "the old agent route is gone")
 
         # The key reaches the CRM and nothing else.
         check(s.get(base + "/api/leads", headers=k, timeout=30).status_code == 403, "API key is refused outside the CRM")

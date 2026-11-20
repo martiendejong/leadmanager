@@ -146,12 +146,16 @@ public class HuntService
                     cand.MaxReachable = LeadVerifier.MaxReachable(result.Facts, _places.IsConfigured);
 
                     matched = score >= job.MinScore;
+                    // The ratchet, enforced here and not left to the agent: a candidate that cannot beat the best score so far, even with every
+                    // point it has not been proven to lack, is not worth more research. It is still saved as a lead.
+                    var cannotBeat = !matched && job.Ratchet && job.BestScore > 0 && cand.MaxReachable is int mr && mr <= job.BestScore;
                     cand.Outcome = matched ? HuntOutcomes.Qualified
-                        : !string.IsNullOrWhiteSpace(sub.StopReason) ? HuntOutcomes.StoppedEarly : HuntOutcomes.BelowMinimum;
+                        : !string.IsNullOrWhiteSpace(sub.StopReason) || cannotBeat ? HuntOutcomes.StoppedEarly : HuntOutcomes.BelowMinimum;
                     var claimedNote = sub.ClaimedScore is int c && c != score ? $" The agent claimed {c}; the server verified {score}." : "";
                     cand.Reason = (matched
                         ? $"Verified score {score} reaches the minimum of {job.MinScore}."
                         : !string.IsNullOrWhiteSpace(sub.StopReason) ? $"Verified score {score}. The agent stopped researching: {TextSafety.Clean(sub.StopReason, 300)}"
+                        : cannotBeat ? $"Verified score {score}. Even with every missing point it cannot beat the best score so far ({job.BestScore}), so it was not researched further."
                         : $"Verified score {score} is below the minimum of {job.MinScore}.") + claimedNote;
                     cand.EvidenceJson = LeadVerifier.BuildEvidenceJson(result, cand.MaxReachable);
                     note = LeadVerifier.BuildNote(source, score, result, Array.Empty<string>()) + claimedNote;
@@ -188,6 +192,75 @@ public class HuntService
         return Done(cand.Outcome, cand.Reason, cand.Score, cand.LeadId, cand.Outcome == HuntOutcomes.Duplicate);
     }
 
+    /// <summary>
+    /// A review job: the agent researched one of the user's existing leads and submits what it found. The server fetches that lead's own website
+    /// itself and applies only the verified facts: nothing a person entered is overwritten (it is listed in the note instead), nothing is cleared.
+    /// </summary>
+    public async Task<SubmissionResult> SubmitReviewAsync(HuntJob job, Guid leadId, JsonElement claims, int? claimedScore, CancellationToken ct)
+    {
+        Touch(job);
+        await _db.SaveChangesAsync(CancellationToken.None);
+        SubmissionResult Done(string outcome, string reason, int? score = null, Guid? id = null, bool dup = false) =>
+            new(outcome, score, reason, id, dup, job.BestScore, job.Qualified, job.Screened, ShouldStop(job));
+
+        if (ShouldStop(job)) return Done(HuntOutcomes.Rejected, job.CancelRequested ? "The review was cancelled." : "The review already covered all its leads.");
+        if (!job.LeadIds.Contains(leadId)) return Done(HuntOutcomes.Rejected, "This lead is not part of this review.");
+        if (await _db.HuntCandidates.AnyAsync(c => c.JobId == job.Id && c.LeadId == leadId, CancellationToken.None))
+            return Done(HuntOutcomes.Duplicate, "This lead was already reviewed in this run.", dup: true);
+        var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == leadId && l.ImportedByUserId == job.UserId, CancellationToken.None);
+        if (lead == null) return Done(HuntOutcomes.Rejected, "This lead does not exist.");
+
+        job.CurrentCandidate = lead.Name;
+        await _db.SaveChangesAsync(CancellationToken.None);
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        budget.CancelAfter(CandidateBudget);
+        var cand = new HuntCandidate { JobId = job.Id, LeadId = lead.Id, Name = lead.Name, Website = lead.Website };
+        try
+        {
+            var site = await _verifier.QuickLookAsync(lead.Website, budget.Token);
+            if (!site.Reachable)
+            {
+                cand.Outcome = HuntOutcomes.Unreachable;
+                cand.Reason = "The website did not answer, so nothing could be checked. The lead was left as it is.";
+                cand.Score = lead.SalesPriorityScore;
+            }
+            else
+            {
+                await _verifier.DeepenAsync(site, budget.Token);
+                var result = _verifier.VerifyClaims(site, claims);
+                var kept = new List<string>();
+                var removed = LeadVerifier.Apply(lead, result, clearUnverified: false, _scoring, kept);
+                await ApplyGoogleAsync(lead, result, budget.Token, existingLead: true, removed, clear: false, kept);
+                LeadInsight.Apply(lead, result);
+                var score = lead.SalesPriorityScore ?? 0;
+                var claimedNote = claimedScore is int c && c != score ? $" The agent claimed {c}; the server verified {score}." : "";
+                cand.Score = score;
+                cand.MaxReachable = LeadVerifier.MaxReachable(result.Facts, _places.IsConfigured);
+                cand.Outcome = HuntOutcomes.Verified;
+                cand.Reason = $"Reviewed by the agent and verified by the server: score {score}." + claimedNote;
+                cand.EvidenceJson = LeadVerifier.BuildEvidenceJson(result, cand.MaxReachable);
+                _db.LeadNotes.Add(new LeadNote { LeadId = lead.Id, CreatedByUserId = job.UserId ?? "",
+                    Content = LeadVerifier.BuildNote("Agent review " + DateTime.UtcNow.ToString("yyyy-MM-dd"), score, result, removed) + KeptNote(kept) + claimedNote });
+            }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Review of lead {LeadId} failed", lead.Id);
+            _db.ChangeTracker.Clear();
+            cand = new HuntCandidate { JobId = job.Id, LeadId = leadId, Name = lead.Name, Website = lead.Website, Outcome = HuntOutcomes.Error,
+                Reason = ex is OperationCanceledException ? $"Checking this lead took longer than {(int)CandidateBudget.TotalSeconds} seconds. It was left as it is."
+                    : "Checking this lead failed: " + (ex is HttpRequestException ? ex.Message : "unexpected error.") };
+            job = await _db.HuntJobs.FirstAsync(j => j.Id == job.Id, CancellationToken.None);
+        }
+
+        await _db.Entry(job).ReloadAsync(CancellationToken.None);
+        job.Screened++;
+        if (cand.Outcome == HuntOutcomes.Verified) { job.Qualified++; job.BestScore = Math.Max(job.BestScore, cand.Score ?? 0); }
+        await Record(job, cand);
+        return Done(cand.Outcome, cand.Reason, cand.Score, cand.LeadId);
+    }
+
     /// <summary>True when the agent must stop: cancelled, enough matches, or enough candidates screened.</summary>
     public static bool ShouldStop(HuntJob job) =>
         job.CancelRequested || job.Status is HuntStatuses.Cancelled or HuntStatuses.Completed or HuntStatuses.Failed
@@ -208,8 +281,19 @@ public class HuntService
         else job.Status = job.CancelRequested ? HuntStatuses.Cancelled : HuntStatuses.Completed;
         job.CurrentCandidate = null;
         job.CompletedAt = DateTime.UtcNow;
+        HuntTokens.Revoke(job);
         await _db.SaveChangesAsync(CancellationToken.None);
         HuntLocks.Forget(job.Id);
+        await Push(job, null);
+    }
+
+    /// <summary>The agent says what it is working on. Only the display text is taken from it; the counters are the server's.</summary>
+    public async Task ProgressAsync(HuntJob job, string? current)
+    {
+        Touch(job);
+        var text = TextSafety.Clean(current, MaxNameLength);
+        job.CurrentCandidate = text.Length == 0 ? null : text;
+        await _db.SaveChangesAsync(CancellationToken.None);
         await Push(job, null);
     }
 
@@ -217,13 +301,14 @@ public class HuntService
     public static async Task<int> SweepStaleAsync(LeadManagerDbContext db, DateTime now, TimeSpan silence)
     {
         var limit = now - silence;
-        var stale = await db.HuntJobs.Where(j => j.Kind == HuntKinds.Hunt && (j.Status == HuntStatuses.Pending || j.Status == HuntStatuses.Running)
+        var stale = await db.HuntJobs.Where(j => (j.Kind == HuntKinds.Hunt || j.Kind == HuntKinds.Review) && (j.Status == HuntStatuses.Pending || j.Status == HuntStatuses.Running)
             && (j.LastAgentCallAt ?? j.CreatedAt) < limit).ToListAsync();
         foreach (var j in stale)
         {
             j.Status = HuntStatuses.Failed;
             j.Error = $"The Jengo agent did not report in {(int)silence.TotalMinutes} minutes. The candidates that were finished are saved.";
             j.CompletedAt = now;
+            HuntTokens.Revoke(j);
             HuntLocks.Forget(j.Id);
         }
         if (stale.Count > 0) await db.SaveChangesAsync();

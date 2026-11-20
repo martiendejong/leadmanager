@@ -1,12 +1,11 @@
 import apiClient from './client'
 
 export interface HuntCapabilities {
-  /** The agent dispatch and the agent token are both configured on this server. */
+  /** The JengoWork connection (and the public address the agent calls back on) is configured on this server. */
   huntAvailable: boolean
   /** The signed in user may start a hunt (an administrator, or on the allow list). */
   canStartHunt: boolean
   dispatchConfigured: boolean
-  agentTokenConfigured: boolean
   googlePlacesConfigured: boolean
   maxPerDay: number
   message: string | null
@@ -25,7 +24,7 @@ export type HuntStatus = 'Pending' | 'Running' | 'Completed' | 'Failed' | 'Cance
 
 export interface HuntJob {
   id: string
-  kind: 'Hunt' | 'Verify'
+  kind: 'Hunt' | 'Verify' | 'Review'
   status: HuntStatus
   segment: string
   region: string
@@ -96,7 +95,7 @@ export async function getProducts(): Promise<Product[]> {
 
 export const isActive = (s: HuntStatus) => s === 'Pending' || s === 'Running'
 
-/** The server message of a failed call (the 503 "The Jengo agent dispatch is not configured on this server" included). */
+/** The server message of a failed call (the 503 "Agent hunting is not configured on this server" included). */
 export function errorMessage(err: unknown, fallback = 'Something went wrong'): string {
   const e = err as { response?: { data?: { error?: string; message?: string } | string } }
   const data = e?.response?.data
@@ -111,6 +110,11 @@ export async function getHuntCapabilities(): Promise<HuntCapabilities> {
 
 export async function startHunt(criteria: HuntCriteria): Promise<{ jobId: string; taskUrl: string | null }> {
   return (await apiClient.post<{ jobId: string; taskUrl: string | null }>('/api/leads/hunt', criteria)).data
+}
+
+/** Ask a Jengo agent to research up to 5 of your leads on the web; the server verifies what it finds. Needs the JengoWork connection. */
+export async function startAgentReview(ids: string[]): Promise<{ jobId: string; taskUrl: string | null }> {
+  return (await apiClient.post<{ jobId: string; taskUrl: string | null }>('/api/leads/hunt/review', { ids })).data
 }
 
 /** Verify and rescore. Values a person typed are kept unless `confirm` is true; use previewVerify first to see what would change. */

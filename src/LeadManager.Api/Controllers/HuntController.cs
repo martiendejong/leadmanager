@@ -12,6 +12,7 @@ namespace LeadManager.Api.Controllers;
 
 public record StartHuntRequest(string? Segment, string? Region, int? MinScore, int? TargetCount, int? MaxCandidates, bool? Ratchet);
 public record VerifyLeadsRequest(Guid[]? Ids, bool? Confirm = null);
+public record ReviewLeadsRequest(Guid[]? Ids);
 
 /// <summary>
 /// Lead hunt and verify. A hunt is researched by a background Jengo agent that the app starts (a JengoWork task); every candidate the
@@ -24,8 +25,8 @@ public record VerifyLeadsRequest(Guid[]? Ids, bool? Confirm = null);
 public class HuntController : ControllerBase
 {
     public const int MaxVerifyIds = 50;
-    public const string NotConfigured = "The Jengo agent dispatch is not configured on this server";
-    public const string TokenMissing = "The Jengo agent token secret is not configured on this server";
+    public const int MaxReviewIds = 5;
+    public const string NotConfigured = DispatchNotConfiguredException.Text;   // "Agent hunting is not configured on this server"
 
     private readonly LeadManagerDbContext _db;
     private readonly IHuntDispatcher _dispatcher;
@@ -42,7 +43,8 @@ public class HuntController : ControllerBase
 
     private string? UserId => User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
 
-    private bool AgentTokenConfigured => !string.IsNullOrWhiteSpace(_config["Hunt:AgentSecret"]);
+    /// <summary>The JengoWork connection and the public address the agent calls back on are both set.</summary>
+    private bool Ready => _dispatcher.IsConfigured && HuntAccess.ApiBase(_config) != "";
     private int MaxPerDay => Math.Clamp(int.TryParse(_config["Hunt:MaxPerUserPerDay"], out var n) ? n : 5, 1, 50);
 
     // GET /api/leads/products : the catalog of our products that a lead's product fit may name (one file: Agent/PRODUCTS.md)
@@ -53,16 +55,14 @@ public class HuntController : ControllerBase
     [HttpGet("hunt/capabilities")]
     public async Task<IActionResult> Capabilities()
     {
-        var ready = _dispatcher.IsConfigured && AgentTokenConfigured;
         return Ok(new
         {
-            huntAvailable = ready,
-            canStartHunt = ready && await HuntAccess.IsAllowedAsync(_db, _config, UserId),
-            dispatchConfigured = _dispatcher.IsConfigured,
-            agentTokenConfigured = AgentTokenConfigured,
+            huntAvailable = Ready,
+            canStartHunt = Ready && await HuntAccess.IsAllowedAsync(_db, _config, UserId),
+            dispatchConfigured = Ready,
             googlePlacesConfigured = _places.IsConfigured,
             maxPerDay = MaxPerDay,
-            message = !_dispatcher.IsConfigured ? NotConfigured : !AgentTokenConfigured ? TokenMissing : null,
+            message = Ready ? null : NotConfigured,
         });
     }
 
@@ -70,8 +70,7 @@ public class HuntController : ControllerBase
     [HttpPost("hunt")]
     public async Task<IActionResult> Start([FromBody] StartHuntRequest request, CancellationToken ct)
     {
-        if (!_dispatcher.IsConfigured) return StatusCode(503, new { error = NotConfigured, code = "dispatch_not_configured" });
-        if (!AgentTokenConfigured) return StatusCode(503, new { error = TokenMissing, code = "agent_token_missing" });
+        if (!Ready) return StatusCode(503, new { error = NotConfigured, code = "dispatch_not_configured" });
         var userId = UserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
         if (!await HuntAccess.IsAllowedAsync(_db, _config, userId))
@@ -96,12 +95,18 @@ public class HuntController : ControllerBase
             UserId = userId, Kind = HuntKinds.Hunt, Segment = segment, Region = region, MinScore = min, TargetCount = target,
             MaxCandidates = maxCandidates, Ratchet = request.Ratchet ?? true, Total = maxCandidates,
         };
-        var refused = await CreateJobAsync(job, HuntKinds.Hunt, MaxPerDay, ct);
+        return await CreateAndDispatchAsync(job, HuntKinds.Hunt, MaxPerDay, ct);
+    }
+
+    /// <summary>Creates the job with a fresh token, then the JengoWork task whose text carries that token. A failed dispatch ends the job and revokes the token.</summary>
+    private async Task<IActionResult> CreateAndDispatchAsync(HuntJob job, string kind, int perDay, CancellationToken ct)
+    {
+        var token = HuntTokens.Issue(job);
+        var refused = await CreateJobAsync(job, kind, perDay, ct);
         if (refused != null) return refused;
 
         try
         {
-            var token = HuntTokens.For(_config["Hunt:AgentSecret"]!, job.Id);
             var result = await _dispatcher.DispatchAsync(job, HuntPrompt.Render(job, HuntAccess.ApiBase(_config), token), ct);
             job.TaskId = result.TaskId;
             job.TaskUrl = result.TaskUrl;
@@ -112,10 +117,34 @@ public class HuntController : ControllerBase
             job.Status = HuntStatuses.Failed;
             job.Error = ex is DispatchNotConfiguredException ? NotConfigured : "The Jengo agent could not be started: " + (ex is HttpRequestException ? ex.Message : "unexpected error.");
             job.CompletedAt = DateTime.UtcNow;
+            HuntTokens.Revoke(job);
             await _db.SaveChangesAsync(CancellationToken.None);
             return StatusCode(502, new { error = job.Error, jobId = job.Id });
         }
         return Accepted(new { jobId = job.Id, taskUrl = job.TaskUrl });
+    }
+
+    // POST /api/leads/hunt/review : ask a Jengo agent to research existing leads (the server verifies what it submits)
+    [HttpPost("hunt/review")]
+    public async Task<IActionResult> ReviewByAgent([FromBody] ReviewLeadsRequest request, CancellationToken ct)
+    {
+        if (!Ready) return StatusCode(503, new { error = NotConfigured, code = "dispatch_not_configured" });
+        var userId = UserId;
+        if (string.IsNullOrEmpty(userId)) return Unauthorized();
+        if (!await HuntAccess.IsAllowedAsync(_db, _config, userId))
+            return StatusCode(403, new { error = "You are not allowed to start a lead hunt. Ask an administrator.", code = "hunt_not_allowed" });
+        var ids = (request.Ids ?? Array.Empty<Guid>()).Distinct().ToArray();
+        if (ids.Length == 0) return BadRequest(new { error = "No lead IDs provided." });
+        if (ids.Length > MaxReviewIds) return BadRequest(new { error = $"Ask for a review of at most {MaxReviewIds} leads at a time." });
+        var own = await _db.Leads.Where(l => ids.Contains(l.Id) && l.ImportedByUserId == userId).Select(l => l.Id).ToListAsync(ct);
+        if (own.Count == 0) return NotFound(new { error = "None of these leads belong to your account." });
+
+        var job = new HuntJob
+        {
+            UserId = userId, Kind = HuntKinds.Review, LeadIds = own, Segment = $"Review of {own.Count} lead(s)", Region = "", MinScore = 0,
+            TargetCount = own.Count, MaxCandidates = own.Count, Total = own.Count, Ratchet = false,
+        };
+        return await CreateAndDispatchAsync(job, HuntKinds.Review, MaxPerDay, ct);
     }
 
     /// <summary>
@@ -222,11 +251,12 @@ public class HuntController : ControllerBase
         if (job == null) return NotFound();
         if (!HuntStatuses.IsActive(job.Status)) return Ok(ToDto(job));
         job.CancelRequested = true;
-        // A hunt that no agent has started yet ends now; a running hunt ends at the agent's next call (it gets stop=true).
-        if (job.Status == HuntStatuses.Pending || (job.Kind == HuntKinds.Hunt && job.LastAgentCallAt == null))
+        // An agent hunt or review ends now and its token is revoked: the agent's next call is refused and it stops. A verify job ends at its next lead.
+        if (job.Status == HuntStatuses.Pending || job.Kind != HuntKinds.Verify)
         {
             job.Status = HuntStatuses.Cancelled;
             job.CompletedAt = DateTime.UtcNow;
+            HuntTokens.Revoke(job);
         }
         await _db.SaveChangesAsync();
         _registry.Cancel(job.Id);

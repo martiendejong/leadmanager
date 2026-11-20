@@ -43,10 +43,15 @@ public class HuntServiceTests : IDisposable
     private static IConfiguration Config(params (string Key, string? Value)[] values) =>
         new ConfigurationBuilder().AddInMemoryCollection(values.Select(v => new KeyValuePair<string, string?>(v.Key, v.Value))).Build();
 
-    private const string Secret = "test-agent-secret-0123456789abcdef";
-    private static string TokenFor(HuntJob job) => HuntTokens.For(Secret, job.Id);
+    /// <summary>Issues a fresh token for the job (the previous one stops working) and saves its hash, as the start of a hunt does.</summary>
+    private string TokenFor(HuntJob job)
+    {
+        var token = HuntTokens.Issue(job);
+        _db.SaveChanges();
+        return token;
+    }
 
-    private static readonly (string, string?)[] Ready = { ("Hunt:AgentSecret", Secret), ("Sso:CallbackBaseUrl", "https://clients.example.test") };
+    private static readonly (string, string?)[] Ready = { ("Sso:CallbackBaseUrl", "https://clients.example.test") };
 
     private static GooglePlacesEnrichmentService Places() =>
         new(new HttpClient(), new ConfigurationBuilder().Build(), NullLogger<GooglePlacesEnrichmentService>.Instance);
@@ -320,18 +325,26 @@ public class HuntServiceTests : IDisposable
         new(segment, null, min, target, max, null);
 
     [Fact]
-    public async Task Without_dispatch_or_a_token_the_start_says_so_with_a_503()
+    public async Task Without_the_jengowork_connection_the_start_says_so_with_a_503()
     {
         var noDispatch = Assert.IsType<ObjectResult>(await Controller(Me, new FakeDispatcher(configured: false)).Start(Req(), default));
         Assert.Equal(503, noDispatch.StatusCode);
-        Assert.Contains("The Jengo agent dispatch is not configured on this server", JsonSerializer.Serialize(noDispatch.Value));
+        Assert.Contains("Agent hunting is not configured on this server", JsonSerializer.Serialize(noDispatch.Value));
+        // the review by an agent answers the same
+        var lead = new Lead { Name = "A", Website = "https://a.example.nl", ImportedByUserId = Me };
+        _db.Leads.Add(lead);
+        _db.SaveChanges();
+        var noReview = Assert.IsType<ObjectResult>(await Controller(Me, new FakeDispatcher(configured: false)).ReviewByAgent(new ReviewLeadsRequest(new[] { lead.Id }), default));
+        Assert.Equal(503, noReview.StatusCode);
 
-        var noToken = Assert.IsType<ObjectResult>(await Controller(Me, config: Config()).Start(Req(), default));
-        Assert.Equal(503, noToken.StatusCode);
+        // no public address for the agent to call back on: the same answer, and nothing is stored
+        var noBase = Assert.IsType<ObjectResult>(await Controller(Me, config: Config()).Start(Req(), default));
+        Assert.Equal(503, noBase.StatusCode);
         Assert.Empty(_db.HuntJobs);
 
         var caps = JsonSerializer.Serialize(Assert.IsType<OkObjectResult>(await Controller(Me, new FakeDispatcher(configured: false)).Capabilities()).Value);
         Assert.Contains("\"huntAvailable\":false", caps);
+        Assert.Contains("Agent hunting is not configured on this server", caps);
     }
 
     [Fact]
@@ -351,10 +364,18 @@ public class HuntServiceTests : IDisposable
 
         var prompt = Assert.Single(dispatcher.Dispatched).Prompt;
         Assert.Contains(job.Id.ToString(), prompt);
-        Assert.Contains("https://clients.example.test/api/agent/hunts/" + job.Id, prompt);
-        Assert.Contains(TokenFor(job), prompt);                      // the per-hunt token is in the task text
-        Assert.DoesNotContain(Secret, prompt);                       // the server secret never is
+        Assert.Contains("https://clients.example.test/api/hunt-agent/" + job.Id + "/brief", prompt);
+        Assert.Contains("X-Hunt-Token", prompt);
         Assert.Contains("<hunt-data>", prompt);
+        // the token is in the task text exactly once as a value, and only its hash is stored
+        Assert.NotNull(job.TokenHash);
+        Assert.NotNull(job.TokenExpiresAt);
+        Assert.InRange(job.TokenExpiresAt!.Value, DateTime.UtcNow.AddHours(2.9), DateTime.UtcNow.AddHours(3.1));
+        var tokenLine = prompt.Split('\n').First(l => l.Contains("X-Hunt-Token: "));
+        var token = System.Text.RegularExpressions.Regex.Match(tokenLine, @"X-Hunt-Token: ([A-Za-z0-9_-]{40,})").Groups[1].Value;
+        Assert.NotEmpty(token);
+        Assert.DoesNotContain(token, job.TokenHash);
+        Assert.True(HuntTokens.Valid(job, token));
 
         Assert.IsType<ConflictObjectResult>(await c.Start(Req("something else"), default));
         // another user is not blocked by it, but is not allowed either (not an admin, no allow list)
@@ -483,13 +504,14 @@ public class HuntServiceTests : IDisposable
         var stored = await _db.HuntJobs.SingleAsync();
         Assert.True(stored.CancelRequested);
         Assert.True(HuntService.ShouldStop(stored));
+        Assert.Null(stored.TokenHash);
     }
 
     // ---- the agent endpoints -----------------------------------------------------------------------------
 
     private HuntAgentController Agent(string? token, IConfiguration? config = null, FakePageFetcher? fetcher = null)
     {
-        var controller = new HuntAgentController(_db, Service(fetcher ?? Fetcher()), config ?? Config(Ready));
+        var controller = new HuntAgentController(_db, Service(fetcher ?? Fetcher()));
         var http = new DefaultHttpContext();
         if (token != null) http.Request.Headers[HuntAgentController.TokenHeader] = token;
         controller.ControllerContext = new ControllerContext { HttpContext = http };
@@ -500,30 +522,104 @@ public class HuntServiceTests : IDisposable
         new() { Name = name, Website = site, City = "Utrecht", Sector = "Design", ClaimedScore = claimed, Claims = Element(claims) };
 
     [Fact]
-    public async Task The_agent_endpoints_refuse_a_missing_or_wrong_token_and_say_when_none_is_configured()
+    public async Task The_agent_endpoints_refuse_a_missing_or_wrong_token()
     {
         var job = NewHunt();
+        TokenFor(job);
         Assert.IsType<UnauthorizedObjectResult>(await Agent(null).Brief(job.Id));
         Assert.IsType<UnauthorizedObjectResult>(await Agent("wrong-token").Brief(job.Id));
         Assert.IsType<UnauthorizedObjectResult>(await Agent("wrong-token").Submit(job.Id, Request("Tine", Site, "{}"), default));
         Assert.IsType<UnauthorizedObjectResult>(await Agent("").Complete(job.Id, new CompleteHuntRequest("x")));
-        Assert.IsType<UnauthorizedObjectResult>(await Agent("x").Fail(job.Id, new FailHuntRequest("x")));
-        Assert.Equal(503, Assert.IsType<ObjectResult>(await Agent(TokenFor(job), Config()).Brief(job.Id)).StatusCode);
+        Assert.IsType<UnauthorizedObjectResult>(await Agent("x").Progress(job.Id, new HuntProgressRequest("x")));
         Assert.Empty(_db.Leads);
         Assert.Null((await _db.HuntJobs.SingleAsync()).LastAgentCallAt); // a refused call does not even count as alive
+    }
+
+    [Fact]
+    public async Task A_token_expires_after_three_hours_and_a_job_without_token_opens_for_nobody()
+    {
+        var job = NewHunt();
+        var token = TokenFor(job);
+        Assert.IsType<OkObjectResult>(await Agent(token).Brief(job.Id));
+        Assert.True(HuntTokens.Valid(job, token, DateTime.UtcNow.AddHours(2.9)));
+        Assert.False(HuntTokens.Valid(job, token, DateTime.UtcNow.AddHours(3.1)));
+        job.TokenExpiresAt = DateTime.UtcNow.AddMinutes(-1);
+        _db.SaveChanges();
+        Assert.IsType<UnauthorizedObjectResult>(await Agent(token).Brief(job.Id));
+        Assert.IsType<UnauthorizedObjectResult>(await Agent(token).Submit(job.Id, Request("Tine", Site, GoodExtraction()), default));
+        Assert.Empty(_db.Leads);
+
+        var none = NewHunt(user: Other);   // never got a token
+        Assert.IsType<UnauthorizedObjectResult>(await Agent("anything").Brief(none.Id));
+        Assert.False(HuntTokens.Valid(none, null));
+    }
+
+    [Fact]
+    public async Task The_token_is_revoked_when_the_hunt_completes_fails_or_is_cancelled()
+    {
+        var done = NewHunt();
+        var t1 = TokenFor(done);
+        Assert.IsType<OkObjectResult>(await Agent(t1).Complete(done.Id, new CompleteHuntRequest("ok")));
+        Assert.Null(done.TokenHash);
+        Assert.IsType<UnauthorizedObjectResult>(await Agent(t1).Brief(done.Id));
+
+        var failed = NewHunt(user: Other);
+        var t2 = TokenFor(failed);
+        Assert.IsType<OkObjectResult>(await Agent(t2).Complete(failed.Id, new CompleteHuntRequest("cannot work", true)));
+        Assert.Equal(HuntStatuses.Failed, failed.Status);
+        Assert.IsType<UnauthorizedObjectResult>(await Agent(t2).Complete(failed.Id, new CompleteHuntRequest("again")));
+
+        _db.HuntJobs.RemoveRange(_db.HuntJobs);
+        _db.SaveChanges();
+        var c = Controller(Me);
+        await c.Start(Req("designers"), default);
+        var started = await _db.HuntJobs.SingleAsync();
+        Assert.NotNull(started.TokenHash);
+        Assert.IsType<OkObjectResult>(await c.Cancel(started.Id));
+        _db.ChangeTracker.Clear();
+        var cancelled = await _db.HuntJobs.SingleAsync();
+        Assert.Equal(HuntStatuses.Cancelled, cancelled.Status);
+        Assert.Null(cancelled.TokenHash);
+
+        // a silent hunt is swept and loses its token as well
+        var silent = NewHunt(user: Other);
+        TokenFor(silent);
+        silent.LastAgentCallAt = DateTime.UtcNow.AddHours(-2);
+        _db.SaveChanges();
+        Assert.Equal(1, await HuntService.SweepStaleAsync(_db, DateTime.UtcNow, TimeSpan.FromMinutes(45)));
+        Assert.Null(silent.TokenHash);
+    }
+
+    [Fact]
+    public async Task A_failed_dispatch_revokes_the_token()
+    {
+        var dispatcher = new FakeDispatcher { Fail = true };
+        Assert.Equal(502, Assert.IsType<ObjectResult>(await Controller(Me, dispatcher).Start(Req(), default)).StatusCode);
+        Assert.Null((await _db.HuntJobs.SingleAsync()).TokenHash);
+    }
+
+    [Fact]
+    public async Task Progress_updates_the_display_text_and_marks_the_agent_alive()
+    {
+        var job = NewHunt(status: HuntStatuses.Pending);
+        var ok = Assert.IsType<OkObjectResult>(await Agent(TokenFor(job)).Progress(job.Id, new HuntProgressRequest("Tine <b>van</b> Wel")));
+        Assert.Contains("\"stop\":false", JsonSerializer.Serialize(ok.Value));
+        Assert.Equal("Tine bvan/b Wel", job.CurrentCandidate);
+        Assert.Equal(HuntStatuses.Running, job.Status);
+        Assert.Equal(0, job.Screened);   // the counters are the server's, not the agent's
     }
 
     [Fact]
     public async Task The_token_only_works_for_hunts_that_are_still_active()
     {
         var unknown = Guid.NewGuid();
-        Assert.IsType<NotFoundObjectResult>(await Agent(HuntTokens.For(Secret, unknown)).Brief(unknown));
+        Assert.IsType<UnauthorizedObjectResult>(await Agent("some-token").Brief(unknown));
         foreach (var status in new[] { HuntStatuses.Completed, HuntStatuses.Failed, HuntStatuses.Cancelled })
         {
             var job = NewHunt(status: status);
-            var conflict = Assert.IsType<ConflictObjectResult>(await Agent(HuntTokens.For(Secret, job.Id)).Submit(job.Id, Request("Tine", Site, GoodExtraction()), default));
+            var conflict = Assert.IsType<ConflictObjectResult>(await Agent(TokenFor(job)).Submit(job.Id, Request("Tine", Site, GoodExtraction()), default));
             Assert.Contains("\"stop\":true", JsonSerializer.Serialize(conflict.Value));
-            Assert.IsType<ConflictObjectResult>(await Agent(HuntTokens.For(Secret, job.Id)).Complete(job.Id, new CompleteHuntRequest("x")));
+            Assert.IsType<ConflictObjectResult>(await Agent(TokenFor(job)).Complete(job.Id, new CompleteHuntRequest("x")));
         }
         Assert.Empty(_db.Leads);
 
@@ -531,7 +627,7 @@ public class HuntServiceTests : IDisposable
         var verify = new HuntJob { UserId = Me, Kind = HuntKinds.Verify, Status = HuntStatuses.Running };
         _db.HuntJobs.Add(verify);
         _db.SaveChanges();
-        Assert.IsType<NotFoundObjectResult>(await Agent(HuntTokens.For(Secret, verify.Id)).Brief(verify.Id));
+        Assert.IsType<UnauthorizedObjectResult>(await Agent(TokenFor(verify)).Brief(verify.Id));
     }
 
     [Fact]
@@ -541,12 +637,14 @@ public class HuntServiceTests : IDisposable
         _db.Leads.Add(new Lead { Name = "Not mine", Website = "https://other-users.example.nl", ImportedByUserId = Other });
         var job = NewHunt(status: HuntStatuses.Pending, min: 7, target: 2, max: 12);
         _db.SaveChanges();
-        var ok = Assert.IsType<OkObjectResult>(await Agent(HuntTokens.For(Secret, job.Id)).Brief(job.Id));
+        var ok = Assert.IsType<OkObjectResult>(await Agent(TokenFor(job)).Brief(job.Id));
         var json = JsonSerializer.Serialize(ok.Value);
         Assert.Contains("\"minScore\":7", json);
         Assert.Contains("\"targetCount\":2", json);
-        Assert.DoesNotContain("known.example.nl", json);          // the list of the user's leads is never handed out
-        Assert.DoesNotContain("knownDomains", json);
+        Assert.Contains("known.example.nl", json);                // the owner's own domains, for the dedupe
+        Assert.DoesNotContain("other-users.example.nl", json);    // never another user's
+        Assert.Contains("\"remaining\"", json);
+        Assert.Contains("\"bestScoreSoFar\":0", json);
         Assert.Equal(HuntStatuses.Running, (await _db.HuntJobs.SingleAsync()).Status);
     }
 
@@ -554,7 +652,7 @@ public class HuntServiceTests : IDisposable
     public async Task What_the_agent_submits_belongs_to_the_hunts_owner_and_is_verified_by_the_server()
     {
         var job = NewHunt(user: Other, target: 2);
-        var ok = Assert.IsType<OkObjectResult>(await Agent(HuntTokens.For(Secret, job.Id)).Submit(job.Id, Request("Tine", Site, GoodExtraction(), claimed: 8), default));
+        var ok = Assert.IsType<OkObjectResult>(await Agent(TokenFor(job)).Submit(job.Id, Request("Tine", Site, GoodExtraction(), claimed: 8), default));
         var json = JsonSerializer.Serialize(ok.Value);
         Assert.Contains("\"score\":8", json);
         Assert.Contains("\"stop\":false", json);
@@ -562,16 +660,16 @@ public class HuntServiceTests : IDisposable
         Assert.Equal(Other, lead.ImportedByUserId);
         Assert.Equal(1, (await _db.HuntJobs.SingleAsync()).Qualified);
 
-        Assert.IsType<BadRequestObjectResult>(await Agent(HuntTokens.For(Secret, job.Id)).Submit(job.Id, new SubmitCandidateRequest { Name = "x", Website = Site }, default)); // no claims object
+        Assert.IsType<BadRequestObjectResult>(await Agent(TokenFor(job)).Submit(job.Id, new SubmitCandidateRequest { Name = "x", Website = Site }, default)); // no claims object
     }
 
     [Fact]
     public async Task Complete_ends_the_hunt_and_a_second_call_is_refused()
     {
         var job = NewHunt();
-        Assert.IsType<OkObjectResult>(await Agent(HuntTokens.For(Secret, job.Id)).Complete(job.Id, new CompleteHuntRequest("Done: 1 match.")));
+        Assert.IsType<OkObjectResult>(await Agent(TokenFor(job)).Complete(job.Id, new CompleteHuntRequest("Done: 1 match.")));
         Assert.Equal(HuntStatuses.Completed, (await _db.HuntJobs.SingleAsync()).Status);
-        Assert.IsType<ConflictObjectResult>(await Agent(HuntTokens.For(Secret, job.Id)).Complete(job.Id, new CompleteHuntRequest("again")));
+        Assert.IsType<ConflictObjectResult>(await Agent(TokenFor(job)).Complete(job.Id, new CompleteHuntRequest("again")));
     }
 
     // ---- the prompt --------------------------------------------------------------------------------------
@@ -580,9 +678,9 @@ public class HuntServiceTests : IDisposable
     public void The_prompt_template_carries_the_rubric_the_lessons_and_the_critic_step()
     {
         var t = HuntPrompt.Template();
-        foreach (var must in new[] { "+2", "Owner LinkedIn", "Small company", "Established", "Personal mailbox", "Google", "critic pass", "do NOT rephrase", "X-Hunt-Agent-Token", "{{AGENT_TOKEN}}", "/check", "bestScoreSoFar", "VISIBLE text" })
-            Assert.Contains(must, t);
-        Assert.DoesNotContain(Secret, t);
+        foreach (var must in new[] { "+2", "Owner LinkedIn", "Small company", "Established", "Personal mailbox", "Google", "critic pass", "do NOT rephrase", "X-Hunt-Token", "{{AGENT_TOKEN}}", "knownDomains", "/progress", "/complete", "SEPARATE SUBAGENT", "bestScoreSoFar", "VISIBLE text", "never print", "Review mode" })
+            Assert.Contains(must, t, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("\u2014", t);   // no em dashes
     }
 
     [Fact]
@@ -606,39 +704,20 @@ public class HuntServiceTests : IDisposable
         // the token of hunt A on hunt B, on every endpoint
         Assert.IsType<UnauthorizedObjectResult>(await Agent(TokenFor(a)).Brief(b.Id));
         Assert.IsType<UnauthorizedObjectResult>(await Agent(TokenFor(a)).Submit(b.Id, Request("Tine", Site, GoodExtraction()), default));
-        Assert.IsType<UnauthorizedObjectResult>(await Agent(TokenFor(a)).Check(b.Id, new CheckWebsitesRequest(new[] { Site })));
         Assert.IsType<UnauthorizedObjectResult>(await Agent(TokenFor(a)).Complete(b.Id, new CompleteHuntRequest("x")));
-        Assert.IsType<UnauthorizedObjectResult>(await Agent(TokenFor(a)).Fail(b.Id, new FailHuntRequest("x")));
+        Assert.IsType<UnauthorizedObjectResult>(await Agent(TokenFor(a)).Progress(b.Id, new HuntProgressRequest("x")));
         // the server secret itself, a wrong value and an empty value are no token
-        Assert.IsType<UnauthorizedObjectResult>(await Agent(Secret).Brief(a.Id));
         Assert.IsType<UnauthorizedObjectResult>(await Agent("not-the-token").Brief(a.Id));
         Assert.IsType<UnauthorizedObjectResult>(await Agent("").Brief(a.Id));
         Assert.Empty(_db.Leads);
         Assert.Equal(HuntStatuses.Running, (await _db.HuntJobs.SingleAsync(j => j.Id == b.Id)).Status);
 
         // after the hunt ends its own token is refused as well
+        var ta = TokenFor(a);
         await Service(Fetcher()).CompleteAsync(a, "done", failed: false);
-        Assert.IsType<ConflictObjectResult>(await Agent(TokenFor(a)).Brief(a.Id));
+        Assert.IsType<UnauthorizedObjectResult>(await Agent(ta).Brief(a.Id));
 
-        Assert.NotEqual(HuntTokens.For(Secret, a.Id), HuntTokens.For(Secret, b.Id));
-        Assert.NotEqual(HuntTokens.For(Secret, a.Id), HuntTokens.For("another-secret", a.Id));
-        Assert.False(HuntTokens.Valid("", a.Id, HuntTokens.For("", a.Id)));
-        Assert.False(HuntTokens.Valid(Secret, a.Id, null));
-    }
-
-    [Fact]
-    public async Task The_check_endpoint_answers_yes_or_no_per_site_and_never_hands_out_the_list_of_leads()
-    {
-        _db.Leads.Add(new Lead { Name = "Known", Website = "https://known.example.nl", ImportedByUserId = Me });
-        _db.Leads.Add(new Lead { Name = "Theirs", Website = "https://theirs.example.nl", ImportedByUserId = Other });
-        var job = NewHunt();
-        var ok = Assert.IsType<OkObjectResult>(await Agent(TokenFor(job)).Check(job.Id, new CheckWebsitesRequest(new[] { "https://www.known.example.nl/x", "https://new.example.nl", "https://theirs.example.nl", "not a url" })));
-        var json = JsonSerializer.Serialize(ok.Value);
-        Assert.Contains("\"known\":true", json);
-        Assert.Equal(1, System.Text.RegularExpressions.Regex.Matches(json, "\"known\":true").Count); // only the user's own lead is known; the other user's is not
-        Assert.Contains("\"valid\":false", json);
-        Assert.IsType<BadRequestObjectResult>(await Agent(TokenFor(job)).Check(job.Id, new CheckWebsitesRequest(Array.Empty<string>())));
-        Assert.IsType<BadRequestObjectResult>(await Agent(TokenFor(job)).Check(job.Id, new CheckWebsitesRequest(Enumerable.Range(0, 26).Select(i => $"https://s{i}.example.nl").ToArray())));
+        Assert.NotEqual(TokenFor(a), TokenFor(b));
     }
 
     [Fact]
@@ -844,5 +923,205 @@ public class HuntServiceTests : IDisposable
             Assert.Equal("7", after.HuntJobs.Single().TaskId);
         }
         finally { SqliteConnection.ClearAllPools(); try { File.Delete(path); } catch { } }
+    }
+
+    // ---- rework: random hashed token, ratchet, review by an agent, migration on data ------------------------------------
+
+    [Fact]
+    public async Task The_ratchet_marks_a_candidate_that_cannot_beat_the_best_so_far_as_stopped_early_but_still_saves_it()
+    {
+        var job = NewHunt(target: 3);
+        var first = await Service(Fetcher()).SubmitCandidateAsync(job, Sub("Tine", Site, GoodExtraction(), claimed: 8), CancellationToken.None);
+        Assert.Equal(HuntOutcomes.Qualified, first.Outcome);
+        Assert.False(first.Stop);
+
+        var weak = await Service(Fetcher()).SubmitCandidateAsync(job, Sub("Weak", Weak, "{}", claimed: 5), CancellationToken.None);
+        Assert.Equal(HuntOutcomes.StoppedEarly, weak.Outcome);
+        Assert.Contains("cannot beat the best score so far (8)", weak.Reason);
+        Assert.Equal(2, await _db.Leads.CountAsync());                // every researched candidate is a lead
+        Assert.Equal(8, (await _db.HuntJobs.SingleAsync()).BestScore);
+
+        // with the ratchet off the same candidate is just below the minimum
+        var open = NewHunt(user: Other, target: 3);
+        open.Ratchet = false;
+        open.BestScore = 8;
+        _db.SaveChanges();
+        var plain = await Service(Fetcher()).SubmitCandidateAsync(open, Sub("Weak", Weak, "{}"), CancellationToken.None);
+        Assert.Equal(HuntOutcomes.BelowMinimum, plain.Outcome);
+    }
+
+    [Fact]
+    public async Task The_hunt_stops_at_the_target_and_at_the_candidate_limit_on_the_server()
+    {
+        var job = NewHunt(target: 1, max: 2);
+        var one = await Service(Fetcher()).SubmitCandidateAsync(job, Sub("Tine", Site, GoodExtraction()), CancellationToken.None);
+        Assert.True(one.Stop);   // target reached
+        var refused = await Service(Fetcher()).SubmitCandidateAsync(job, Sub("Weak", Weak, "{}"), CancellationToken.None);
+        Assert.Equal(HuntOutcomes.Rejected, refused.Outcome);
+        Assert.Equal(1, await _db.Leads.CountAsync());
+
+        var small = NewHunt(user: Other, target: 5, max: 1);
+        var r = await Service(Fetcher()).SubmitCandidateAsync(small, Sub("Weak", Weak, "{}"), CancellationToken.None);
+        Assert.True(r.Stop);   // candidate limit reached
+    }
+
+    private static readonly (string, string?)[] Configured = { ("Sso:CallbackBaseUrl", "https://clients.example.test") };
+
+    [Fact]
+    public async Task A_review_creates_a_task_for_the_callers_own_leads_only()
+    {
+        var mine = new Lead { Name = "Tine", Website = Site, ImportedByUserId = Me };
+        var theirs = new Lead { Name = "Theirs", Website = "https://theirs.example.nl", ImportedByUserId = Other };
+        _db.Leads.AddRange(mine, theirs);
+        _db.SaveChanges();
+        var dispatcher = new FakeDispatcher();
+        var c = Controller(Me, dispatcher);
+
+        Assert.IsType<BadRequestObjectResult>(await c.ReviewByAgent(new ReviewLeadsRequest(Array.Empty<Guid>()), default));
+        Assert.IsType<BadRequestObjectResult>(await c.ReviewByAgent(new ReviewLeadsRequest(Enumerable.Range(0, 6).Select(_ => Guid.NewGuid()).ToArray()), default));
+        Assert.IsType<NotFoundObjectResult>(await c.ReviewByAgent(new ReviewLeadsRequest(new[] { theirs.Id }), default));
+        Assert.Equal(403, Assert.IsType<ObjectResult>(await Controller(Other, dispatcher).ReviewByAgent(new ReviewLeadsRequest(new[] { theirs.Id }), default)).StatusCode);
+
+        Assert.IsType<AcceptedResult>(await c.ReviewByAgent(new ReviewLeadsRequest(new[] { mine.Id, theirs.Id }), default));
+        var job = await _db.HuntJobs.SingleAsync();
+        Assert.Equal(HuntKinds.Review, job.Kind);
+        Assert.Equal(new List<Guid> { mine.Id }, job.LeadIds);
+        Assert.NotNull(job.TokenHash);
+        Assert.Contains("\"mode\":\"review\"", Assert.Single(dispatcher.Dispatched).Prompt);
+        Assert.Equal("9001", job.TaskId);
+    }
+
+    [Fact]
+    public async Task An_agent_review_applies_only_verified_facts_and_never_overwrites_what_a_person_entered()
+    {
+        var lead = new Lead { Name = "Tine", Website = Site, ImportedByUserId = Me, OwnerName = "Typed By A Person", SalesPriorityScore = 1 };
+        var other = new Lead { Name = "Other", Website = "https://other.example.nl", ImportedByUserId = Me };
+        var foreign = new Lead { Name = "Foreign", Website = Site + "x", ImportedByUserId = Other };
+        _db.Leads.AddRange(lead, other, foreign);
+        var job = new HuntJob { UserId = Me, Kind = HuntKinds.Review, Status = HuntStatuses.Running, LeadIds = new List<Guid> { lead.Id }, TargetCount = 1, MaxCandidates = 1, Total = 1, Ratchet = false };
+        _db.HuntJobs.Add(job);
+        _db.SaveChanges();
+        var token = TokenFor(job);
+
+        var brief = JsonSerializer.Serialize(Assert.IsType<OkObjectResult>(await Agent(token).Brief(job.Id)).Value);
+        Assert.Contains("\"mode\":\"review\"", brief);
+        Assert.Contains(lead.Id.ToString(), brief);
+        Assert.DoesNotContain(other.Id.ToString(), brief);
+        Assert.DoesNotContain(foreign.Id.ToString(), brief);
+
+        // a review needs a lead id, and only one of its own leads
+        Assert.IsType<BadRequestObjectResult>(await Agent(token).Submit(job.Id, Request("x", Site, GoodExtraction()), default));
+        var notMine = Request("x", Site, GoodExtraction()); notMine.LeadId = other.Id;
+        var rejected = JsonSerializer.Serialize(Assert.IsType<OkObjectResult>(await Agent(token).Submit(job.Id, notMine, default)).Value);
+        Assert.Contains("Rejected", rejected);
+        var foreignReq = Request("x", Site, GoodExtraction()); foreignReq.LeadId = foreign.Id;
+        Assert.Contains("Rejected", JsonSerializer.Serialize(Assert.IsType<OkObjectResult>(await Agent(token).Submit(job.Id, foreignReq, default)).Value));
+
+        var req = Request("ignored name", "https://evil.example.test/", GoodExtraction(), claimed: 9);   // the stored website of the lead is used
+        req.LeadId = lead.Id;
+        var ok = JsonSerializer.Serialize(Assert.IsType<OkObjectResult>(await Agent(token).Submit(job.Id, req, default)).Value);
+        Assert.Contains("The agent claimed 9", ok);
+        Assert.Contains("\"stop\":true", ok);
+        _db.ChangeTracker.Clear();
+        var after = await _db.Leads.SingleAsync(l => l.Id == lead.Id);
+        Assert.Equal("Typed By A Person", after.OwnerName);              // the typed value stays
+        Assert.NotNull(after.OwnerMobile);                                // the verified mobile is added
+        Assert.True(after.SalesPriorityScore > 1);
+        Assert.Contains("differs from what the website shows", (await _db.LeadNotes.SingleAsync(n => n.LeadId == lead.Id)).Content);
+        Assert.Equal(Me, after.ImportedByUserId);
+
+        // the lead is not reviewed twice; the review is over
+        Assert.Contains("Rejected", JsonSerializer.Serialize(Assert.IsType<OkObjectResult>(await Agent(token).Submit(job.Id, req, default)).Value));
+    }
+
+    [Fact]
+    public async Task An_agent_review_claim_whose_quote_is_not_on_the_page_is_dropped()
+    {
+        var lead = new Lead { Name = "Tine", Website = Site, ImportedByUserId = Me };
+        _db.Leads.Add(lead);
+        var job = new HuntJob { UserId = Me, Kind = HuntKinds.Review, Status = HuntStatuses.Running, LeadIds = new List<Guid> { lead.Id }, TargetCount = 1, MaxCandidates = 1, Total = 1 };
+        _db.HuntJobs.Add(job);
+        _db.SaveChanges();
+        var claims = Json(new { ownerMobile = Claim("06 144 70 482", "Bel mij direct op 06 144 70 482 voor een afspraak", Site + "contact") });
+        var req = Request("x", Site, claims); req.LeadId = lead.Id;
+        Assert.IsType<OkObjectResult>(await Agent(TokenFor(job)).Submit(job.Id, req, default));
+        _db.ChangeTracker.Clear();
+        Assert.Null((await _db.Leads.SingleAsync()).OwnerMobile);
+    }
+
+    [Fact]
+    public void The_hunt_token_migration_keeps_existing_hunt_jobs_and_candidates()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"hunt-token-mig-{Guid.NewGuid():N}.db");
+        try
+        {
+            var options = new DbContextOptionsBuilder<LeadManagerDbContext>().UseSqlite($"Data Source={path};Pooling=False").Options;
+            var jobId = Guid.NewGuid();
+            using (var db = new LeadManagerDbContext(options))
+            {
+                var migrator = db.GetService<IMigrator>();
+                migrator.Migrate("20261120095907_AddLeadMessages");   // the state of acc before this change
+                using var conn = new SqliteConnection($"Data Source={path};Pooling=False");
+                conn.Open();
+                string Required(string table)
+                {
+                    var cols = new List<(string Name, string Type)>();
+                    using var cmd = conn.CreateCommand();
+                    cmd.CommandText = $"PRAGMA table_info({table})";
+                    using var r = cmd.ExecuteReader();
+                    while (r.Read()) if (r.GetInt32(3) == 1 && r.IsDBNull(4)) cols.Add((r.GetString(1), r.GetString(2).ToUpperInvariant()));
+                    var values = cols.Select(c => c.Name is "Id" or "JobId" ? $"'{jobId.ToString().ToUpperInvariant()}'" : c.Type.Contains("INT") || c.Type.Contains("REAL") ? "0" : c.Name.EndsWith("At") ? "'2026-11-01 00:00:00'" : c.Name == "LeadIds" ? "'[]'" : "'x'");
+                    return $"INSERT INTO {table} ({string.Join(",", cols.Select(c => c.Name))}) VALUES ({string.Join(",", values)})";
+                }
+                using (var ins = conn.CreateCommand()) { ins.CommandText = Required("HuntJobs"); ins.ExecuteNonQuery(); }
+                migrator.Migrate();
+            }
+            using var after = new LeadManagerDbContext(options);
+            var job = after.HuntJobs.Single();
+            Assert.Equal(jobId, job.Id);
+            Assert.Null(job.TokenHash);
+            Assert.Null(job.TokenExpiresAt);
+            job.TokenHash = "abc";
+            job.TokenExpiresAt = DateTime.UtcNow;
+            after.SaveChanges();
+        }
+        finally { SqliteConnection.ClearAllPools(); try { File.Delete(path); } catch { } }
+    }
+
+    private class StubHandler : HttpMessageHandler
+    {
+        public HttpRequestMessage? Seen { get; private set; }
+        public string? Body { get; private set; }
+        public System.Net.HttpStatusCode Status { get; set; } = System.Net.HttpStatusCode.OK;
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Seen = request;
+            Body = request.Content == null ? null : await request.Content.ReadAsStringAsync(cancellationToken);
+            return new HttpResponseMessage(Status) { Content = new StringContent("{\"id\": 4711, \"url\": \"https://tasks.example.test/t/4711\"}") };
+        }
+    }
+
+    [Fact]
+    public async Task The_jengowork_client_posts_the_task_to_board_105_with_the_bearer_key_and_nothing_else_secret()
+    {
+        var handler = new StubHandler();
+        var d = new JengoWorkHuntDispatcher(new HttpClient(handler), Config(("JengoWork:BaseUrl", "https://work.example.test/"), ("JengoWork:ApiKey", "tm_secret_key")));
+        Assert.True(d.IsConfigured);
+        var job = new HuntJob { Segment = "designers", UserId = Me };
+        var result = await d.DispatchAsync(job, "PROMPT TEXT", CancellationToken.None);
+        Assert.Equal("4711", result.TaskId);
+        Assert.Equal("https://tasks.example.test/t/4711", result.TaskUrl);
+        Assert.Equal("https://work.example.test/api/v2/list/105/task", handler.Seen!.RequestUri!.ToString());
+        Assert.Equal("Bearer", handler.Seen.Headers.Authorization!.Scheme);
+        Assert.Equal("tm_secret_key", handler.Seen.Headers.Authorization.Parameter);
+        Assert.Contains("PROMPT TEXT", handler.Body);
+        Assert.DoesNotContain("tm_secret_key", handler.Body);   // the JengoWork key is never in the task
+
+        handler.Status = System.Net.HttpStatusCode.InternalServerError;
+        await Assert.ThrowsAsync<HttpRequestException>(() => d.DispatchAsync(job, "x", CancellationToken.None));
+
+        Assert.False(new JengoWorkHuntDispatcher(new HttpClient(handler), Config()).IsConfigured);
+        Assert.False(new JengoWorkHuntDispatcher(new HttpClient(handler), Config(("JengoWork:BaseUrl", "https://work.example.test"))).IsConfigured);
+        await Assert.ThrowsAsync<DispatchNotConfiguredException>(() => new JengoWorkHuntDispatcher(new HttpClient(handler), Config()).DispatchAsync(job, "x", CancellationToken.None));
     }
 }

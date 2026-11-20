@@ -4,6 +4,7 @@ interface LeadsToolbarProps {
   selectedCount: number
   onEnrich: () => void
   onVerify: () => void
+  onAskAgent: () => void
   onDraftMessages: () => void
   onFind: () => void
   onExport: () => void
@@ -19,6 +20,7 @@ export default function LeadsToolbar({
   selectedCount,
   onEnrich,
   onVerify,
+  onAskAgent,
   onDraftMessages,
   onFind,
   onExport,
@@ -145,6 +147,19 @@ export default function LeadsToolbar({
           title="Check the facts of the selected leads against their own websites and recompute the score"
         >
           Verify & rescore{selectedCount > 0 ? ` (${selectedCount})` : ''}
+        </button>
+
+        <button
+          onClick={onAskAgent}
+          disabled={selectedCount === 0 || isEnriching}
+          className={`whitespace-nowrap px-3 py-1.5 text-sm rounded-md font-medium border transition-colors ${
+            selectedCount === 0 || isEnriching
+              ? 'border-gray-200 text-gray-400 cursor-not-allowed'
+              : 'border-indigo-300 text-indigo-700 hover:bg-indigo-50'
+          }`}
+          title="A Jengo agent researches up to 5 selected leads on the web in the background; the server verifies what it finds"
+        >
+          Ask agent to review{selectedCount > 0 ? ` (${selectedCount})` : ''}
         </button>
 
         <button

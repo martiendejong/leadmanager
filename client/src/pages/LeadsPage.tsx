@@ -7,7 +7,7 @@ import { useToast } from '../components/Toast'
 import JobDialog from '../components/leads/JobDialog'
 import HuntPanel from '../components/leads/HuntPanel'
 import HuntJobView from '../components/leads/HuntJobView'
-import { errorMessage, startVerify } from '../api/hunt'
+import { errorMessage, startAgentReview, startVerify } from '../api/hunt'
 import LeadsTable from '../components/leads/LeadsTable'
 import FilterBar from '../components/leads/FilterBar'
 import LeadsToolbar from '../components/leads/LeadsToolbar'
@@ -64,6 +64,7 @@ export default function LeadsPage() {
   const [showCsvImport, setShowCsvImport] = useState(false)
   const [showHunt, setShowHunt] = useState(false)
   const [verifyJobId, setVerifyJobId] = useState<string | null>(null)
+  const [reviewJobId, setReviewJobId] = useState<string | null>(null)
   const [onboardingDismissed, setOnboardingDismissed] = useState(
     () => localStorage.getItem('lm_onboarding_dismissed') === '1'
   )
@@ -224,6 +225,24 @@ export default function LeadsPage() {
       setVerifyJobId(jobId)
     } catch (err) {
       showToast(errorMessage(err, 'Could not start the verification'), 'error')
+    }
+  }, [selectedIds, showToast])
+
+  const handleAskAgent = useCallback(async () => {
+    if (selectedIds.size === 0) return
+    if (selectedIds.size > 5) {
+      showToast('Ask for a review of at most 5 leads at a time.', 'error')
+      return
+    }
+    const confirmed = window.confirm(
+      `Ask a Jengo agent to research ${selectedIds.size} lead${selectedIds.size !== 1 ? 's' : ''} on the web? It uses public information only and runs in the background (a JengoWork task is created). The server verifies everything it finds; nothing you typed is overwritten. Check the GDPR rules and the Do-Not-Call register before you contact anyone.`
+    )
+    if (!confirmed) return
+    try {
+      const { jobId } = await startAgentReview(Array.from(selectedIds))
+      setReviewJobId(jobId)
+    } catch (err) {
+      showToast(errorMessage(err, 'Could not start the agent review'), 'error')
     }
   }, [selectedIds, showToast])
 
@@ -413,6 +432,7 @@ export default function LeadsPage() {
         selectedCount={selectedIds.size}
         onEnrich={handleEnrich}
         onVerify={handleVerify}
+        onAskAgent={handleAskAgent}
         onDraftMessages={() => setShowBulkDraft(true)}
         onFind={() => setShowHunt(true)}
         onExport={handleExport}
@@ -553,6 +573,13 @@ export default function LeadsPage() {
       {verifyJobId && (
         <JobDialog title="Verify & rescore" onClose={() => { setVerifyJobId(null); loadLeads(filter); loadStats() }}>
           <HuntJobView jobId={verifyJobId} onFinished={() => { loadLeads(filter); loadStats() }} />
+        </JobDialog>
+      )}
+
+      {/* Agent review of selected leads */}
+      {reviewJobId && (
+        <JobDialog title="Agent review" onClose={() => { setReviewJobId(null); loadLeads(filter); loadStats() }}>
+          <HuntJobView jobId={reviewJobId} onFinished={() => { loadLeads(filter); loadStats() }} />
         </JobDialog>
       )}
 

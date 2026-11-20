@@ -33,26 +33,36 @@ must rest on facts that were seen, with their source:
 ```
 Leads screen  ->  POST /api/leads/hunt            (checks, creates HuntJob, creates a JengoWork task)
                   jengo-agi picks up the task      (spawns an agent with the task text = the versioned prompt, incl. the token of this hunt)
-Agent         ->  GET  /api/agent/hunts/{id}               brief (criteria, stop)
-              ->  POST /api/agent/hunts/{id}/check         which of these websites are already leads (yes/no per site)
-              ->  POST /api/agent/hunts/{id}/candidates    one researched company, with claims and quotes (one at a time)
+Agent         ->  GET  /api/hunt-agent/{id}/brief          criteria, rules, knownDomains (the user's own), best score so far, remaining budget, stop
+              ->  POST /api/hunt-agent/{id}/progress       what it is working on (display text only)
+              ->  POST /api/hunt-agent/{id}/candidates     one researched company, with claims and quotes (one at a time)
               <-  outcome, verified score, bestScoreSoFar, stop
-              ->  POST /api/agent/hunts/{id}/complete      (or /fail)
+              ->  POST /api/hunt-agent/{id}/complete      (failed:true when it cannot work)
 Leads screen  <-  progress via SignalR (HuntProgress) and a 4 s poll; found companies appear in the list as they arrive
 ```
 
-The prompt is `src/LeadManager.Api/Agent/LEAD_HUNT_PROMPT.md` (embedded resource, `prompt-version` on the first line). The criteria are
+The prompt is `docs/hunt/AGENT_PROMPT.md` (embedded resource, `prompt-version` on the first line). The criteria are
 rendered into a delimited data block. A segment or region with a line break, markup characters or an instruction-like phrase
 ("ignore previous instructions", "system:", ...) is **refused with 400**; the accepted text is reduced to letters, digits, spaces and
 `-,.&/()'`; segment at most 120 characters, region at most 80.
 
 ## The token of a hunt
 
-The agent proves itself with `X-Hunt-Agent-Token`. That token is `HMAC-SHA256(Hunt:AgentSecret, "hunt-agent:" + huntId)`, derived per
-hunt and compared in constant time. It opens **only that hunt** and **only while it is Pending or Running**, so it is useless after
-the hunt ends and for every other hunt. For that reason the dispatcher puts it **in the task text** (the least-leaky design: the agent
-needs no vault access, and a copy of the task text is worthless once the hunt is over). The server secret itself (`HUNT_AGENT_SECRET`) is
-never put anywhere but the server's environment (and the vault, for ops). Without the secret the agent endpoints answer 503.
+Every hunt (and every agent review) mints its own token: 32 random bytes, sent to JengoWork once as part of the task text and stored on the job
+only as a SHA-256 hash with an expiry of **3 hours**. The agent sends it as `X-Hunt-Token` on `/api/hunt-agent/{id}/...`. It opens **only that
+hunt**; it is separate from the user login and from API keys (neither opens these endpoints, and the token opens nothing else); it is
+**revoked** (hash removed) when the hunt completes, fails, is cancelled, goes silent for 45 minutes or its task could not be created. A wrong,
+expired, revoked, missing or foreign token is always the same 401, whether or not the hunt exists. The agent endpoints are rate limited
+(60 calls per minute per hunt). The token is the only credential in the task text: it holds no JengoWork key and no server secret, so a copy
+of the task text is worthless once the hunt is over. The criteria text is quoted data in the task (`<hunt-data>`) and the prompt tells the
+agent never to follow instructions inside it.
+
+## Agent review of existing leads
+
+**Ask agent to review** (Leads screen, up to 5 selected leads, `POST /api/leads/hunt/review`) creates the same kind of task for leads the user
+already has. The agent researches each lead on the web and submits claims with `leadId`; the server fetches the lead's own stored website,
+verifies the claims the same way and applies only verified facts. It never overwrites a value a person entered (it is listed in the lead's
+note instead) and never clears anything. **Verify and rescore** stays deterministic and server-side, with no agent and no model.
 
 ## What the server decides
 
@@ -64,7 +74,8 @@ never put anywhere but the server's environment (and the vault, for ops). Withou
 | `minScore` 4 to 9 (default 8), `targetCount` 1 to 10 (default 3), `maxCandidates` 5 to 40 (default 30) | `HuntController.Start` |
 | One candidate of a hunt is checked at a time (a second submission gets 429); the stop conditions are checked again after the slow part, before anything is saved | `HuntLocks`, `HuntService.SubmitCandidateAsync` |
 | A candidate may take 120 s and one site 60 s in total; one page fetch has a hard 20 s limit for the whole body, so a site that drips its answer cannot hold a worker | `SafePageFetcher`, `SitePages.Budget`, `HuntService.CandidateBudget` |
-| A company that is already a lead of the user is reported back and not added; the agent can only ask yes/no per website, never read the user's lead list | `HuntAgentController.Check` |
+| A company that is already a lead of the user is reported back and not added; the brief lists the hunt owner's own domains for the dedupe, never another user's | `HuntAgentController.Brief`, `HuntService` |
+| The ratchet: a candidate whose best reachable score cannot beat the best so far is marked `StoppedEarly` (still saved as a lead); the hunt stops at `targetCount` leads at the minimum score or at `maxCandidates` | `HuntService.SubmitCandidateAsync`, `ShouldStop` |
 | An unreachable website is recorded but not added as a lead | `HuntService` |
 | Every researched candidate is stored as a lead (source `Lead hunt <date>`) with an evidence note: accepted claims with source and quote, rejected claims with the reason | `HuntService` |
 | A hunt whose agent has been silent for 45 minutes is marked failed | `HuntSweepService` |
@@ -162,35 +173,30 @@ Rules only, no model. The server fetches the lead's own website and applies the 
 
 | Setting (env) | Meaning |
 |---|---|
-| `JENGOWORK_BASE_URL`, `JENGOWORK_API_KEY` | JengoWork API and an agent key (`tm_...`) that may create tasks |
-| `HUNT_DISPATCH_BOARD_ID` | The board (list id) that receives the tasks: `POST {base}/api/v2/list/{board}/task` with `{name, description}` |
-| `HUNT_DISPATCH_STATUS` | Optional lane for the new task so that jengo-agi picks it up at once (for example `todo`) |
-| `HUNT_AGENT_SECRET` | Server secret from which the token of each hunt is derived. Empty = Find new leads and the agent endpoints answer 503 |
+| `JENGOWORK_BASE_URL`, `JENGOWORK_API_KEY` | JengoWork API and an agent key (`tm_...`) that may create tasks. Empty = Find new leads and Ask agent to review answer 503 "Agent hunting is not configured on this server" |
+| `HUNT_DISPATCH_BOARD_ID` | Optional, default `105` (board "Jengo Clients", publicId zKaEpzhJGG): `POST {base}/api/v2/list/105/task` with `{name, description}`. The task lands in the first lane, "prioritization backlog" |
+| `HUNT_DISPATCH_STATUS` | Optional lane for the new task |
 | `HUNT_ALLOWED_EMAILS` | Comma separated; empty = administrators only |
 | `HUNT_MAX_PER_USER_PER_DAY`, `HUNT_MAX_VERIFY_PER_USER_PER_DAY` | default 5 and 20 |
 | `HUNT_API_BASE_URL` | The URL the agent calls; default the public URL |
 | `GOOGLE_PLACES_API_KEY` | Optional; without it no lead can reach 9 |
 
-Without the dispatch settings or the secret, **Find new leads** answers `503` ("The Jengo agent dispatch is not configured on this server" or
-"The Jengo agent token secret is not configured on this server") and the screen says so.
+There is no hunt secret to set: tokens are random per hunt. No OpenAI key is used by the hunt.
 
 ## Setting it up on an environment
 
-1. Pick or create a JengoWork board for the hunts and make sure **jengo-agi monitors it** (a board that is not monitored never starts an
-   agent). Put its id in `HUNT_DISPATCH_BOARD_ID`, and a lane name that jengo-agi polls in `HUNT_DISPATCH_STATUS`.
-2. Generate a long random value for `HUNT_AGENT_SECRET`, put it in the environment's `.env` (keep a copy in the vault, project 12, credential
-   `Clients hunt agent secret`) and restart the stack.
-3. Set `JENGOWORK_BASE_URL` and `JENGOWORK_API_KEY`.
-4. Run the smoke test: it checks that the agent endpoints refuse a call without the token and that the capabilities answer.
+1. Set `JENGOWORK_BASE_URL` and `JENGOWORK_API_KEY` in the environment's `.env` and restart the stack.
+2. jengo-agi must monitor board 105 for the tasks to start an agent (not done by this app; until then a person can start the task by hand).
+3. Run the smoke test: it checks that the agent endpoints refuse a call without the token and that the capabilities answer.
 
 ## Endpoints
 
-User (JWT or API key): `GET /api/leads/hunt/capabilities`, `POST /api/leads/hunt`, `GET /api/leads/hunt`, `GET /api/leads/hunt/{id}`,
-`POST /api/leads/hunt/{id}/cancel`, `GET /api/leads/products`, `POST /api/leads/verify`, `POST /api/leads/{id}/verify[?dryRun=true&confirm=true]`,
-`GET /api/leads/{id}/evidence`. MCP: `start_lead_hunt`, `get_lead_hunt`.
+User (JWT or API key): `GET /api/leads/hunt/capabilities`, `POST /api/leads/hunt`, `POST /api/leads/hunt/review`, `GET /api/leads/hunt`,
+`GET /api/leads/hunt/{id}`, `POST /api/leads/hunt/{id}/cancel`, `GET /api/leads/products`, `POST /api/leads/verify`,
+`POST /api/leads/{id}/verify[?dryRun=true&confirm=true]`, `GET /api/leads/{id}/evidence`. MCP: `start_lead_hunt`, `get_lead_hunt`.
 
-Agent (the token of that hunt only; no login or API key opens them): `GET /api/agent/hunts/{id}`, `POST /api/agent/hunts/{id}/check`,
-`POST /api/agent/hunts/{id}/candidates`, `POST /api/agent/hunts/{id}/complete`, `POST /api/agent/hunts/{id}/fail`. They only work while
+Agent (the token of that hunt only, header `X-Hunt-Token`; no login or API key opens them): `GET /api/hunt-agent/{id}/brief`,
+`POST /api/hunt-agent/{id}/progress`, `POST /api/hunt-agent/{id}/candidates`, `POST /api/hunt-agent/{id}/complete`. They only work while
 the hunt is Pending or Running, and whatever the agent creates belongs to the user who started the hunt.
 
 ## Privacy

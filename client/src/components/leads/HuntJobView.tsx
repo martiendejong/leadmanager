@@ -83,7 +83,8 @@ export default function HuntJobView({ jobId, onFinished }: Props) {
   if (!job) return <div className="text-sm text-gray-500">Loading...</div>
 
   const active = isActive(job.status)
-  const isHunt = job.kind === 'Hunt'
+  const isHunt = job.kind !== 'Verify'   // a hunt or a review: both are done by a Jengo agent
+  const isReview = job.kind === 'Review'
   const pct = job.total > 0 ? Math.min(100, Math.round((job.screened / job.total) * 100)) : 0
 
   const statusTone =
@@ -103,7 +104,7 @@ export default function HuntJobView({ jobId, onFinished }: Props) {
         <div className="flex items-center gap-2 text-sm">
           <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusTone}`}>{job.status}</span>
           <span className="text-gray-700">
-            {isHunt ? `Looked at ${job.screened} of at most ${job.total} companies` : `Verified ${job.screened} of ${job.total} leads`}
+            {isReview ? `Reviewed ${job.screened} of ${job.total} leads` : isHunt ? `Looked at ${job.screened} of at most ${job.total} companies` : `Verified ${job.screened} of ${job.total} leads`}
           </span>
         </div>
         {active && (
@@ -119,9 +120,9 @@ export default function HuntJobView({ jobId, onFinished }: Props) {
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
-        <Stat label={isHunt ? `Found (target ${job.targetCount})` : 'Rescored'} value={job.qualified} />
+        <Stat label={isReview ? 'Reviewed' : isHunt ? `Found (target ${job.targetCount})` : 'Rescored'} value={job.qualified} />
         <Stat label="Best score" value={job.best || '-'} />
-        {isHunt && <Stat label="Minimum score" value={job.minScore} />}
+        {isHunt && !isReview && <Stat label="Minimum score" value={job.minScore} />}
         {isHunt && <Stat label="Agent last reported" value={job.lastAgentCallAt ? new Date(job.lastAgentCallAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : 'not yet'} />}
       </div>
 

@@ -228,6 +228,16 @@ builder.Services.AddSingleton<LeadManager.Api.Services.Hunt.HuntQueue>();
 builder.Services.AddSingleton<LeadManager.Api.Services.Hunt.HuntRegistry>();
 builder.Services.AddHostedService<LeadManager.Api.Services.Hunt.HuntBackgroundService>();
 builder.Services.AddHostedService<LeadManager.Api.Services.Hunt.HuntSweepService>();
+// The agent endpoints answer to a token only, so they are rate limited per hunt (a guessed id or token gets nowhere fast).
+builder.Services.AddRateLimiter(o =>
+{
+    o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    o.AddPolicy(LeadManager.Api.Controllers.HuntRateLimit.Policy, ctx =>
+        System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+            (ctx.Request.RouteValues["id"]?.ToString() ?? ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown") + "|" + (ctx.Connection.RemoteIpAddress?.ToString() ?? ""),
+            _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+            { PermitLimit = LeadManager.Api.Controllers.HuntRateLimit.PerMinute, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+});
 // Named client for CompanyProfileService's WordPress REST probe
 builder.Services.AddHttpClient("wp-probe", c =>
 {
@@ -374,6 +384,7 @@ if (spaEnabled)
 // the browser would get index.html instead of the script.
 app.UseRouting();
 app.UseCors();
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 

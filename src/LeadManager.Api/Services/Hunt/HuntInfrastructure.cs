@@ -147,23 +147,38 @@ public static class HuntLocks
 }
 
 /// <summary>
-/// The token of one hunt: HMAC-SHA256 of the hunt id with the server secret. It opens the agent endpoints of that hunt only, and only while
-/// that hunt is Pending or Running, so it is useless after the hunt ends and for every other hunt. The task text may contain it.
+/// The token of one hunt: 32 random bytes, handed to the agent once (in the task text) and stored only as a SHA-256 hash on the job. It opens
+/// the agent endpoints of that hunt only, for <see cref="Lifetime"/>, and is revoked (hash removed) when the hunt completes, fails, is
+/// cancelled or goes silent. It is not a user login and not an API key; nothing else accepts it.
 /// </summary>
 public static class HuntTokens
 {
-    public static string For(string secret, Guid huntId)
+    public static readonly TimeSpan Lifetime = TimeSpan.FromHours(3);
+
+    private static string Hash(string token) =>
+        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(token)));
+
+    /// <summary>Creates a new token for the job, stores its hash and expiry on the job and returns the token (the only time it exists in clear).</summary>
+    public static string Issue(HuntJob job, DateTime? now = null)
     {
-        using var hmac = new System.Security.Cryptography.HMACSHA256(System.Text.Encoding.UTF8.GetBytes(secret));
-        var mac = hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes("hunt-agent:" + huntId.ToString("D")));
-        return Convert.ToBase64String(mac).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        var token = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        job.TokenHash = Hash(token);
+        job.TokenExpiresAt = (now ?? DateTime.UtcNow) + Lifetime;
+        return token;
     }
 
-    public static bool Valid(string secret, Guid huntId, string? given)
+    public static void Revoke(HuntJob job)
     {
-        if (string.IsNullOrEmpty(secret) || string.IsNullOrEmpty(given)) return false;
-        var a = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(given));
-        var b = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(For(secret, huntId)));
-        return System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(a, b);
+        job.TokenHash = null;
+        job.TokenExpiresAt = null;
+    }
+
+    /// <summary>True when the given token is the live token of this job: right hash, not expired, not revoked.</summary>
+    public static bool Valid(HuntJob job, string? given, DateTime? now = null)
+    {
+        if (string.IsNullOrEmpty(given) || given.Length > 200 || job.TokenHash == null || job.TokenExpiresAt == null) return false;
+        if ((now ?? DateTime.UtcNow) >= job.TokenExpiresAt.Value) return false;
+        return System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+            System.Text.Encoding.ASCII.GetBytes(Hash(given)), System.Text.Encoding.ASCII.GetBytes(job.TokenHash));
     }
 }

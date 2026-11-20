@@ -74,8 +74,8 @@ export default function HuntPanel({ onFinished }: Props) {
     <form onSubmit={handleStart} className="space-y-4">
       {caps && !caps.huntAvailable && (
         <div role="alert" className="rounded-md bg-amber-50 border border-amber-300 p-3 text-sm text-amber-900">
-          <p className="font-semibold">{caps.message ?? 'The Jengo agent dispatch is not configured on this server'}</p>
-          <p className="mt-0.5">Finding new leads starts a Jengo agent. Ask an administrator to set the JengoWork connection and the agent token for this environment. Verify and rescore on existing leads works without it.</p>
+          <p className="font-semibold">{caps.message ?? 'Agent hunting is not configured on this server'}</p>
+          <p className="mt-0.5">Finding new leads starts a Jengo agent through a JengoWork task. Ask an administrator to set the JengoWork connection for this environment. Verify and rescore on existing leads works without it.</p>
         </div>
       )}
       {caps && caps.huntAvailable && !caps.canStartHunt && (

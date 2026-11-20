@@ -13,7 +13,7 @@ public record DispatchResult(string TaskId, string? TaskUrl);
 
 public class DispatchNotConfiguredException : Exception
 {
-    public const string Text = "The Jengo agent dispatch is not configured on this server";
+    public const string Text = "Agent hunting is not configured on this server";
     public DispatchNotConfiguredException() : base(Text) { }
 }
 
@@ -26,9 +26,10 @@ public interface IHuntDispatcher
 
 /// <summary>
 /// Dispatches by creating a JengoWork task on the configured board: jengo-agi picks the task up and spawns an agent with the task
-/// text as its prompt. The task text contains the token OF THIS HUNT (an HMAC of the hunt id, see <see cref="HuntTokens"/>), and that is acceptable
-/// by design: the token opens only this hunt's agent endpoints, only while the hunt is Pending or Running, so a copy of the task text is
-/// worthless once the hunt ends and for every other hunt. It never contains the server secret, a JengoWork key or any other credential.
+/// text as its prompt. New tasks land in the first lane of the board ("prioritization backlog"); no lane is set here. The task text contains the
+/// token OF THIS HUNT (random, stored hashed, see <see cref="HuntTokens"/>), which is acceptable by design: it opens only this hunt's agent
+/// endpoints, for three hours, and is revoked when the hunt ends, so a copy of the task text is worthless afterwards and for every other hunt.
+/// It never contains a JengoWork key or any other credential.
 /// </summary>
 public class JengoWorkHuntDispatcher : IHuntDispatcher
 {
@@ -38,13 +39,16 @@ public class JengoWorkHuntDispatcher : IHuntDispatcher
     private readonly string _boardId;
     private readonly string _status;
 
+    /// <summary>The board "Jengo Clients" (publicId zKaEpzhJGG) in JengoWork.</summary>
+    public const string DefaultBoardId = "105";
+
     public JengoWorkHuntDispatcher(HttpClient http, IConfiguration config)
     {
         _http = http;
-        _http.Timeout = TimeSpan.FromSeconds(30);
+        _http.Timeout = TimeSpan.FromSeconds(20);
         _baseUrl = (config["JengoWork:BaseUrl"] ?? "").Trim().TrimEnd('/');
         _apiKey = (config["JengoWork:ApiKey"] ?? "").Trim();
-        _boardId = (config["Hunt:Dispatch:BoardId"] ?? "").Trim();
+        _boardId = (config["Hunt:Dispatch:BoardId"] is { Length: > 0 } b ? b : DefaultBoardId).Trim();
         _status = (config["Hunt:Dispatch:Status"] ?? "").Trim();
     }
 
@@ -90,7 +94,7 @@ public static class HuntPrompt
     {
         if (_template != null) return _template;
         var asm = typeof(HuntPrompt).Assembly;
-        var name = asm.GetManifestResourceNames().First(n => n.EndsWith("LEAD_HUNT_PROMPT.md", StringComparison.Ordinal));
+        var name = asm.GetManifestResourceNames().First(n => n.EndsWith("AGENT_PROMPT.md", StringComparison.Ordinal));
         using var stream = asm.GetManifestResourceStream(name)!;
         using var reader = new StreamReader(stream, Encoding.UTF8);
         return _template = reader.ReadToEnd();
@@ -110,12 +114,15 @@ public static class HuntPrompt
         return HuntRegex.Replace(kept.ToString(), @"\s+", " ").Trim();
     }
 
-    public static string TaskTitle(HuntJob job) => $"Lead hunt {job.Id.ToString()[..8]}: {Sanitize(job.Segment, 60)}";
+    public static string TaskTitle(HuntJob job) => job.Kind == HuntKinds.Review
+        ? $"Lead review {job.Id.ToString()[..8]}: {job.LeadIds.Count} lead(s)"
+        : $"Lead hunt {job.Id.ToString()[..8]}: {Sanitize(job.Segment, 60)}";
 
     public static string Render(HuntJob job, string apiBase, string agentToken)
     {
         var data = JsonSerializer.Serialize(new
         {
+            mode = job.Kind == HuntKinds.Review ? "review" : "hunt",
             huntId = job.Id,
             segment = job.Segment,
             region = job.Region,
@@ -128,6 +135,7 @@ public static class HuntPrompt
             .Replace("{{HUNT_ID}}", job.Id.ToString())
             .Replace("{{API_BASE}}", apiBase.TrimEnd('/'))
             .Replace("{{AGENT_TOKEN}}", agentToken)
+            .Replace("{{TOKEN_LIFETIME_HOURS}}", ((int)HuntTokens.Lifetime.TotalHours).ToString())
             .Replace("{{PRODUCTS}}", ProductCatalog.PublicText);
     }
 }
