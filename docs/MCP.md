@@ -47,7 +47,6 @@ deactivated user is rejected. A JWT from the login page is not a valid MCP token
 | `create_message_draft` / `update_message_draft` | Save or edit a draft. A draft changes nothing about the lead. **Nothing is ever sent by the app or by these tools** |
 | `mark_message_sent` | Record that the user sent a message themselves (`confirmed: true` is required): the lead moves from New to Contacted (never back from a later status) and an activity is written |
 | `link_item` | Link to something in another tool: JengoWork board or task, JengoKnowledge project, mail thread, Meet session |
-| `start_lead_hunt` | Find new leads: starts a background Jengo agent that researches companies in a segment on the web. The server checks each candidate against its own website; every fact is kept with its source and quote and the score is computed from verified facts only (maximum 9). Takes 10 to 30 minutes. Administrators or configured users only; answers 503 when the agent dispatch is not configured |
 | `get_lead_hunt` | Progress and result of a hunt: status, counters and one row per company with its verified score and why it stopped |
 
 For `get_lead`, `log_interaction`, `add_next_action`, `add_contact` and `link_item`, `parent_type` is

@@ -80,6 +80,12 @@ public class HuntJob
     /// for a session token and revokes the task token: after that the task text opens nothing. See <see cref="LeadManager.Api.Services.Hunt.HuntTokens"/>.
     /// </summary>
     public bool TokenExchanged { get; set; }
+    /// <summary>
+    /// SHA-256 of the task token that was exchanged, and when. For <see cref="LeadManager.Api.Services.Hunt.HuntTokens.ExchangeGrace"/> after the exchange a repeat
+    /// /brief with that task token is answered with a fresh session token (the first answer may have been lost on the way to the agent). After that the task token opens nothing.
+    /// </summary>
+    public string? TaskTokenHash { get; set; }
+    public DateTime? TokenExchangedAt { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? StartedAt { get; set; }

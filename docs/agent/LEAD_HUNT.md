@@ -227,7 +227,7 @@ There is no hunt secret to set: tokens are random per hunt. No OpenAI key is use
 
 User (JWT; an API key may only use the read endpoints marked "key"): `GET /api/leads/hunt/capabilities` (key), `POST /api/leads/hunt`, `POST /api/leads/hunt/review`,
 `GET /api/leads/hunt` (key), `GET /api/leads/hunt/{id}` (key), `POST /api/leads/hunt/{id}/cancel`, `GET /api/leads/products` (key), `POST /api/leads/verify`,
-`POST /api/leads/{id}/verify[?dryRun=true&confirm=true]`, `GET /api/leads/{id}/evidence` (key). MCP: `start_lead_hunt`, `get_lead_hunt`.
+`POST /api/leads/{id}/verify[?dryRun=true&confirm=true]`, `GET /api/leads/{id}/evidence` (key). MCP: `get_lead_hunt` (progress only: starting a hunt costs an agent run and is closed to API keys, so `start_lead_hunt` answers with a refusal and is not listed).
 
 Agent (the token of that hunt only, header `X-Hunt-Token`; no login or API key opens them): `GET /api/hunt-agent/{id}/brief` (task token, once),
 then with the session token `POST /api/hunt-agent/{id}/known`, `.../progress`, `.../candidates`, `.../complete`. They only work while

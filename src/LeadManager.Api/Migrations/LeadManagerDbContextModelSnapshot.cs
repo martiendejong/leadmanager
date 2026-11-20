@@ -794,11 +794,17 @@ namespace LeadManager.Api.Migrations
                     b.Property<string>("TaskId")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("TaskTokenHash")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("TaskUrl")
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("TokenExchanged")
                         .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("TokenExchangedAt")
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("TokenExpiresAt")
                         .HasColumnType("TEXT");

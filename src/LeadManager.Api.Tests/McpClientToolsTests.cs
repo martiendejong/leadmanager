@@ -203,4 +203,33 @@ public class McpClientToolsTests : IDisposable
         var (_, badDate) = await Tool(key, "add_document", new { client_id = clientId, kind = "Other", title = "x", signed_at = "morgen" });
         Assert.True(badDate);
     }
+
+    [Fact]
+    public async Task A_key_cannot_start_a_lead_hunt_through_mcp_and_the_tool_is_not_listed()
+    {
+        var key = SeedKey("hunt@x.test");
+        var (text, isError) = await Tool(key, "start_lead_hunt", new { segment = "graphic designers" });
+        Assert.True(isError);
+        Assert.Contains("not available with an API key", text);
+        Assert.Empty(_db.HuntJobs);
+
+        var http = new DefaultHttpContext();
+        http.Request.Headers.Authorization = $"Bearer {key}";
+        var controller = new LeadManagerMcpController(_options, new ApiKeyTokenValidator(_db), _db, _access, NullLogger<LeadManagerMcpController>.Instance)
+        { ControllerContext = new ControllerContext { HttpContext = http } };
+        var body = JsonSerializer.SerializeToElement(new { jsonrpc = "2.0", id = 1, method = "tools/list" });
+        var reply = JsonSerializer.SerializeToElement(Assert.IsType<OkObjectResult>(await controller.Post(body)).Value);
+        var names = reply.GetProperty("result").GetProperty("tools").EnumerateArray().Select(t => t.GetProperty("name").GetString()).ToList();
+        Assert.DoesNotContain("start_lead_hunt", names);
+        Assert.Contains("get_lead_hunt", names);
+    }
+
+    [Fact]
+    public void No_mcp_tool_calls_an_action_that_is_closed_to_api_keys()
+    {
+        // Every MCP caller holds an API key, so the tool layer must never call a hunt action marked [DenyApiKey] (Start, ReviewByAgent, VerifyMany, VerifyOne, Cancel).
+        var source = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "LeadManager.Api", "Mcp", "LeadManagerMcpController.cs"));
+        foreach (var call in new[] { "hunt.Start(", ".ReviewByAgent(", ".VerifyMany(", ".VerifyOne(", "hunt.Cancel(" })
+            Assert.DoesNotContain(call, source);
+    }
 }

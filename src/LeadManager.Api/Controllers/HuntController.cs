@@ -193,7 +193,8 @@ public class HuntController : ControllerBase
         var since = DateTime.UtcNow.Date;
         // A hunt or review for which no task could be created never ran: it does not use up the person's day. (A verify has no task by design.)
         if (await _db.HuntJobs.CountAsync(j => j.UserId == job.UserId && j.Kind == kind && j.CreatedAt >= since && (j.Kind == HuntKinds.Verify || j.TaskId != null), ct) >= perDay)
-            return StatusCode(429, new { error = kind == HuntKinds.Hunt ? $"You can start {perDay} lead hunts per day. Try again tomorrow." : $"You can start {perDay} verify runs per day. Try again tomorrow.", code = "daily_cap" });
+            return StatusCode(429, new { error = kind == HuntKinds.Hunt ? $"You can start {perDay} lead hunts per day. Try again tomorrow."
+                : kind == HuntKinds.Review ? $"You can start {perDay} agent reviews per day. Try again tomorrow." : $"You can start {perDay} verify runs per day. Try again tomorrow.", code = "daily_cap" });
 
         _db.HuntJobs.Add(job);
         try { await _db.SaveChangesAsync(ct); }
@@ -289,15 +290,17 @@ public class HuntController : ControllerBase
         var job = await _db.HuntJobs.FirstOrDefaultAsync(j => j.Id == id && j.UserId == userId);
         if (job == null) return NotFound();
         if (!HuntStatuses.IsActive(job.Status)) return Ok(ToDto(job));
-        job.CancelRequested = true;
+        // One conditional update on the active statuses, like the agent paths: a hunt that completed while this request was being handled is left as it is.
         // An agent hunt or review ends now and its token is revoked: the agent's next call is refused and it stops. A verify job ends at its next lead.
-        if (job.Status == HuntStatuses.Pending || job.Kind != HuntKinds.Verify)
-        {
-            job.Status = HuntStatuses.Cancelled;
-            job.CompletedAt = DateTime.UtcNow;
-            HuntTokens.Revoke(job);
-        }
-        await _db.SaveChangesAsync();
+        var endsNow = job.Status == HuntStatuses.Pending || job.Kind != HuntKinds.Verify;
+        var active = _db.HuntJobs.Where(j => j.Id == id && j.UserId == userId && (j.Status == HuntStatuses.Pending || j.Status == HuntStatuses.Running));
+        if (endsNow)
+            await active.ExecuteUpdateAsync(s => s.SetProperty(j => j.CancelRequested, true).SetProperty(j => j.Status, HuntStatuses.Cancelled)
+                .SetProperty(j => j.CompletedAt, (DateTime?)DateTime.UtcNow).SetProperty(j => j.TokenHash, (string?)null).SetProperty(j => j.TokenExpiresAt, (DateTime?)null)
+                .SetProperty(j => j.TokenExchanged, false).SetProperty(j => j.TaskTokenHash, (string?)null).SetProperty(j => j.TokenExchangedAt, (DateTime?)null));
+        else
+            await active.ExecuteUpdateAsync(s => s.SetProperty(j => j.CancelRequested, true));
+        await _db.Entry(job).ReloadAsync();
         _registry.Cancel(job.Id);
         if (!HuntStatuses.IsActive(job.Status)) HuntLocks.Forget(job.Id);
         return Ok(ToDto(job));

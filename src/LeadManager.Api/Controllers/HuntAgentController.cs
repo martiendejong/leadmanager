@@ -46,6 +46,7 @@ public record KnownDomainsRequest(string[]? Domains);
 public class HuntAgentController : ControllerBase
 {
     public const string TokenHeader = "X-Hunt-Token";
+    private const string GraceRetryKey = "hunt.graceRetry";
     private const int MaxBodyChars = 60_000;
     public const int MaxKnownPerCall = 20;
 
@@ -71,7 +72,9 @@ public class HuntAgentController : ControllerBase
         var given = Request.Headers[TokenHeader].ToString();
         if (string.IsNullOrEmpty(given)) return (null, Unauthorized(new { error = "Missing " + TokenHeader }));   // not a guess: nothing to charge
         var job = await _db.HuntJobs.FirstOrDefaultAsync(j => j.Id == id && (j.Kind == HuntKinds.Hunt || j.Kind == HuntKinds.Review));
-        if (job == null || !HuntTokens.Valid(job, given))
+        var graceRetry = job != null && allowTaskToken && !HuntTokens.Valid(job, given) && HuntTokens.IsGraceRetry(job, given);
+        if (graceRetry) HttpContext.Items[GraceRetryKey] = true;
+        if (job == null || (!HuntTokens.Valid(job, given) && !graceRetry))
         {
             HuntAuthThrottle.Fail(Address, id);
             return (null, Unauthorized(new { error = "Invalid, expired or revoked agent token for this hunt." }));
@@ -93,14 +96,22 @@ public class HuntAgentController : ControllerBase
         await _hunts.TouchAsync(job!);
         if (!HuntStatuses.IsActive(job!.Status)) return Conflict(new { error = $"This hunt is {job.Status.ToLowerInvariant()}.", stop = true });
 
-        // The first call exchanges the task token for a session token, once: only the call that still finds the task token in place gets the new one.
+        // The first call exchanges the task token for a session token. A repeat of that call with the task token inside the grace window
+        // (the first answer was lost on the way) gets a fresh session token and the previous one dies; after the window the task token is dead.
         string? sessionToken = null;
-        if (!job.TokenExchanged)
+        var retry = HttpContext.Items.ContainsKey(GraceRetryKey);
+        if (!job.TokenExchanged || retry)
         {
             var session = HuntTokens.NewSession(job);
             var old = job.TokenHash;
-            var rows = await _db.HuntJobs.Where(j => j.Id == id && j.TokenHash == old && !j.TokenExchanged && (j.Status == HuntStatuses.Pending || j.Status == HuntStatuses.Running))
-                .ExecuteUpdateAsync(s => s.SetProperty(j => j.TokenHash, session.Hash).SetProperty(j => j.TokenExchanged, true).SetProperty(j => j.TokenExpiresAt, (DateTime?)session.ExpiresAt));
+            var now = DateTime.UtcNow;
+            var live = _db.HuntJobs.Where(j => j.Id == id && j.TokenHash == old && (j.Status == HuntStatuses.Pending || j.Status == HuntStatuses.Running));
+            var rows = retry
+                ? await live.Where(j => j.TokenExchanged)
+                    .ExecuteUpdateAsync(s => s.SetProperty(j => j.TokenHash, session.Hash).SetProperty(j => j.TokenExpiresAt, (DateTime?)session.ExpiresAt))
+                : await live.Where(j => !j.TokenExchanged)
+                    .ExecuteUpdateAsync(s => s.SetProperty(j => j.TaskTokenHash, old).SetProperty(j => j.TokenExchangedAt, (DateTime?)now)
+                        .SetProperty(j => j.TokenHash, session.Hash).SetProperty(j => j.TokenExchanged, true).SetProperty(j => j.TokenExpiresAt, (DateTime?)session.ExpiresAt));
             if (rows != 1) return Unauthorized(new { error = "Invalid, expired or revoked agent token for this hunt." });
             sessionToken = session.Token;
             await _db.Entry(job).ReloadAsync();

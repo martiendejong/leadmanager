@@ -162,6 +162,8 @@ public static class HuntTokens
     public static readonly TimeSpan SessionIdle = TimeSpan.FromMinutes(30);
     /// <summary>Whatever the agent does, no token of a hunt works longer than this after the hunt was created.</summary>
     public static readonly TimeSpan HardLimit = TimeSpan.FromHours(3);
+    /// <summary>After the exchange a repeat /brief with the task token still works for this long (the first answer may have been lost); after that it is a plain 401.</summary>
+    public static readonly TimeSpan ExchangeGrace = TimeSpan.FromMinutes(2);
 
     private static string Hash(string token) =>
         Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(token)));
@@ -201,6 +203,21 @@ public static class HuntTokens
         job.TokenHash = null;
         job.TokenExpiresAt = null;
         job.TokenExchanged = false;
+        job.TaskTokenHash = null;
+        job.TokenExchangedAt = null;
+    }
+
+    /// <summary>
+    /// True when <paramref name="given"/> is the task token that was exchanged less than <see cref="ExchangeGrace"/> ago on a job that is still live:
+    /// a retry of the exchange call, not a replay of a leaked task text.
+    /// </summary>
+    public static bool IsGraceRetry(HuntJob job, string? given, DateTime? now = null)
+    {
+        if (string.IsNullOrEmpty(given) || given.Length > 200 || !job.TokenExchanged || job.TaskTokenHash == null || job.TokenExchangedAt == null || job.TokenHash == null) return false;
+        var t = now ?? DateTime.UtcNow;
+        if (t - job.TokenExchangedAt.Value >= ExchangeGrace || t >= (job.TokenExpiresAt ?? DateTime.MinValue)) return false;
+        return System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+            System.Text.Encoding.ASCII.GetBytes(Hash(given)), System.Text.Encoding.ASCII.GetBytes(job.TaskTokenHash));
     }
 
     /// <summary>True when the given token is the live token of this job: right hash, not expired, not revoked.</summary>

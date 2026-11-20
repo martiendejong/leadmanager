@@ -137,7 +137,9 @@ public class HuntReviewFiveServiceTests : IDisposable
         Assert.True(HuntTokens.Valid(after, session));
         Assert.DoesNotContain(session, after.TokenHash);
 
-        // the task token is dead for brief too; the session token works everywhere and is not repeated in the answer
+        // after the grace window the task token is dead for brief too; the session token works everywhere and is not repeated in the answer
+        await _db.HuntJobs.Where(j => j.Id == job.Id).ExecuteUpdateAsync(u => u.SetProperty(j => j.TokenExchangedAt, (DateTime?)DateTime.UtcNow.AddMinutes(-3)));
+        _db.ChangeTracker.Clear();
         Assert.IsType<UnauthorizedObjectResult>(await Agent(taskToken).Brief(job.Id));
         Assert.IsType<OkObjectResult>(await Agent(session).Progress(job.Id, new HuntProgressRequest("Tine")));
         var again = JsonDocument.Parse(Text(Assert.IsType<OkObjectResult>(await Agent(session).Brief(job.Id)).Value)).RootElement;
@@ -693,5 +695,95 @@ public class HuntReviewFiveServiceTests : IDisposable
         await HuntEvidence.ForgetAsync(_db, new[] { lead.Id });
         _db.ChangeTracker.Clear();
         Assert.Contains("\"available\":false", Text(Assert.IsType<OkObjectResult>(await Controller(Me).Evidence(lead.Id)).Value));
+    }
+
+    // ---- coordinator review: a lost first answer must not strand the hunt ----------------------------------------------
+
+    [Fact]
+    public async Task A_repeat_of_the_exchange_inside_the_grace_window_gets_a_fresh_session_and_the_old_one_dies()
+    {
+        var dispatcher = new FakeDispatcher();
+        Assert.IsType<AcceptedResult>(await Controller(Me, dispatcher).Start(Req(), default));
+        var taskToken = TaskTokenOf(Assert.Single(dispatcher.Dispatched).Prompt);
+        var job = await _db.HuntJobs.SingleAsync();
+
+        var first = SessionOf(await Agent(taskToken).Brief(job.Id));
+        // the answer never reached the agent: it asks again with the task token it still has
+        var second = SessionOf(await Agent(taskToken).Brief(job.Id));
+        Assert.NotEqual(first, second);
+        _db.ChangeTracker.Clear();
+        var after = await _db.HuntJobs.SingleAsync();
+        Assert.True(HuntTokens.Valid(after, second));
+        Assert.False(HuntTokens.Valid(after, first));       // the previous session is revoked
+        Assert.DoesNotContain(second, after.TokenHash);
+        Assert.IsType<OkObjectResult>(await Agent(second).Progress(job.Id, new HuntProgressRequest("Tine")));
+        Assert.IsType<UnauthorizedObjectResult>(await Agent(first).Progress(job.Id, new HuntProgressRequest("Tine")));
+
+        // a wrong token is no retry
+        Assert.IsType<UnauthorizedObjectResult>(await Agent("not-the-task-token").Brief(job.Id));
+        // the task token opens nothing but /brief, retry or not
+        Assert.IsType<UnauthorizedObjectResult>(await Agent(taskToken).Progress(job.Id, new HuntProgressRequest("x")));
+    }
+
+    [Fact]
+    public async Task A_repeat_of_the_exchange_after_the_grace_window_or_on_an_ended_hunt_is_refused()
+    {
+        var dispatcher = new FakeDispatcher();
+        Assert.IsType<AcceptedResult>(await Controller(Me, dispatcher).Start(Req(), default));
+        var taskToken = TaskTokenOf(Assert.Single(dispatcher.Dispatched).Prompt);
+        var job = await _db.HuntJobs.SingleAsync();
+        var session = SessionOf(await Agent(taskToken).Brief(job.Id));
+
+        // just inside the window it still works (and replaces the session), just outside it does not
+        await _db.HuntJobs.Where(j => j.Id == job.Id).ExecuteUpdateAsync(u => u.SetProperty(j => j.TokenExchangedAt, (DateTime?)DateTime.UtcNow.AddSeconds(-110)));
+        _db.ChangeTracker.Clear();
+        var renewed = SessionOf(await Agent(taskToken).Brief(job.Id));
+        Assert.NotEqual(session, renewed);
+        await _db.HuntJobs.Where(j => j.Id == job.Id).ExecuteUpdateAsync(u => u.SetProperty(j => j.TokenExchangedAt, (DateTime?)DateTime.UtcNow.AddSeconds(-130)));
+        _db.ChangeTracker.Clear();
+        Assert.IsType<UnauthorizedObjectResult>(await Agent(taskToken).Brief(job.Id));
+        Assert.IsType<OkObjectResult>(await Agent(renewed).Progress(job.Id, new HuntProgressRequest("Tine")));   // the live session is untouched by the refused retry
+
+        // a cancelled hunt has no token at all: neither the task token nor the session works, and the grace fields are gone
+        Assert.IsType<OkObjectResult>(await Controller(Me).Cancel(job.Id));
+        _db.ChangeTracker.Clear();
+        var ended = await _db.HuntJobs.SingleAsync();
+        Assert.Equal(HuntStatuses.Cancelled, ended.Status);
+        Assert.Null(ended.TokenHash);
+        Assert.Null(ended.TaskTokenHash);
+        Assert.Null(ended.TokenExchangedAt);
+        Assert.IsType<UnauthorizedObjectResult>(await Agent(taskToken).Brief(job.Id));
+    }
+
+    [Fact]
+    public async Task Cancel_leaves_a_hunt_that_already_completed_as_it_is()
+    {
+        var job = NewHunt(status: HuntStatuses.Running);
+        HuntTokens.Issue(job);
+        _db.SaveChanges();
+        var controller = Controller(Me);
+        // the job is read as active by Cancel, but completes before the update is applied: simulate with the same context state
+        await _db.HuntJobs.Where(j => j.Id == job.Id).ExecuteUpdateAsync(u => u.SetProperty(j => j.Status, HuntStatuses.Completed).SetProperty(j => j.Summary, "done"));
+        _db.ChangeTracker.Clear();
+        Assert.IsType<OkObjectResult>(await controller.Cancel(job.Id));
+        var after = await _db.HuntJobs.AsNoTracking().SingleAsync();
+        Assert.Equal(HuntStatuses.Completed, after.Status);
+        Assert.False(after.CancelRequested);
+        Assert.Equal("done", after.Summary);
+    }
+
+    [Fact]
+    public async Task The_daily_cap_message_names_the_kind_of_job()
+    {
+        for (var i = 0; i < 5; i++)
+            _db.HuntJobs.Add(new HuntJob { UserId = Me, Kind = HuntKinds.Review, Segment = "Review of 1 lead(s)", MinScore = 0, TargetCount = 1, MaxCandidates = 1, Total = 1, Status = HuntStatuses.Completed, TaskId = "t" + i });
+        var lead = new Lead { Name = "Tine", Website = "https://tine.example", ImportedByUserId = Me };
+        _db.Leads.Add(lead);
+        _db.SaveChanges();
+        var result = Assert.IsType<ObjectResult>(await Controller(Me).ReviewByAgent(new ReviewLeadsRequest(new[] { lead.Id }), default));
+        Assert.Equal(429, result.StatusCode);
+        var text = Text(result.Value);
+        Assert.Contains("agent reviews", text);
+        Assert.DoesNotContain("verify runs", text);
     }
 }

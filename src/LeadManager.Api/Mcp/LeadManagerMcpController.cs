@@ -179,17 +179,6 @@ public class LeadManagerMcpController : McpControllerBase
         Tool("list_actions",
             "All open next actions over leads and clients in a period, with parent name. Default: everything open up to a year ahead.",
             new { from = Str("ISO 8601 start (optional)"), to = Str("ISO 8601 end (optional)"), include_done = new { type = "boolean" } }),
-        Tool("start_lead_hunt",
-            "Find new leads: starts a background Jengo agent that researches real companies in a segment on the web. The server re-checks every candidate against the company's own website and stores it as a lead with a score computed from verified facts only (every fact has a source and quote). Takes 10 to 30 minutes; poll get_lead_hunt. Admins or configured users only.",
-            new
-            {
-                segment = Str("What to look for, e.g. independent graphic designers"),
-                region = Str("Optional region, e.g. Utrecht"),
-                min_score = new { type = "integer", description = "Minimum verified score, 4-9, default 8" },
-                target_count = new { type = "integer", description = "Leads to find, 1-10, default 3" },
-                max_candidates = new { type = "integer", description = "Companies to look at at most, 5-40, default 30" },
-            },
-            "segment"),
         Tool("get_lead_hunt",
             "Progress and result of a lead hunt: status, counters and one row per company looked at with its verified score and why it stopped.",
             new { job_id = Str("Id returned by start_lead_hunt") },
@@ -395,14 +384,8 @@ public class LeadManagerMcpController : McpControllerBase
                 }
 
                 case "start_lead_hunt":
-                {
-                    var hunt = Hunt(userId);
-                    if (hunt == null) return ("The lead hunt is not available on this server.", true);
-                    if (!TryInt(args, "min_score", out var minScore, out var huntError) || !TryInt(args, "target_count", out var target, out huntError)
-                        || !TryInt(args, "max_candidates", out var maxCand, out huntError))
-                        return (huntError!, true);
-                    return Present(await hunt.Start(new StartHuntRequest(ArgStr(args, "segment"), ArgStr(args, "region"), minScore, target, maxCand, null), default));
-                }
+                    // Every MCP caller holds an API key and a key may never start paid agent work ([DenyApiKey] on HuntController.Start): refuse here, do not build the controller.
+                    return ("Starting a lead hunt costs an agent run and is not available with an API key. Start it in the app (Leads, Find new leads); get_lead_hunt shows its progress.", true);
 
                 case "get_lead_hunt":
                 {
