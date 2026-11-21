@@ -277,6 +277,28 @@ def main() -> int:
                           "download returns the same bytes as a nosniff attachment")
                 check(s.post(f"{base}/api/documents/{quote_id}/files", headers={"Authorization": jwt["Authorization"]}, timeout=60,
                              files={"file": ("x.exe", b"MZ", "application/octet-stream")}).status_code == 400, "an .exe upload is refused")
+            # Services and agreements overview: a service, a concept and a sent contract, same file twice = one file.
+            r = s.post(f"{base}/api/clients/{client_id}/services", headers=jwt, timeout=30, json={"kind": "WebsiteManagement", "status": "Active"})
+            check(r.status_code == 201, "add a website management service")
+            svc_id = r.json().get("id") if r.status_code == 201 else None
+            r = s.post(f"{base}/api/clients/{client_id}/documents", headers=jwt, timeout=30,
+                       json={"kind": "Nda", "title": "Smoke concept NDA", "status": "Draft", "sourceRef": "smoke:nda"})
+            nda_id = r.json().get("id") if r.status_code == 201 else None
+            r2 = s.post(f"{base}/api/clients/{client_id}/documents", headers=jwt, timeout=30,
+                        json={"kind": "Nda", "title": "Smoke concept NDA", "status": "Draft", "sourceRef": "smoke:nda"})
+            check(r2.status_code == 200 and r2.json().get("id") == nda_id, "the same source reference updates the document instead of duplicating it")
+            r = s.post(f"{base}/api/clients/{client_id}/documents", headers=jwt, timeout=30,
+                       json={"kind": "Agreement", "title": "Smoke beheercontract", "status": "Sent", "serviceId": svc_id})
+            check(r.status_code == 201 and r.json().get("serviceId") == svc_id, "a sent contract links to the service")
+            if nda_id:
+                fu = lambda: s.post(f"{base}/api/documents/{nda_id}/files", headers={"Authorization": jwt["Authorization"]}, timeout=60,
+                                    files={"file": ("same.txt", b"identical bytes", "text/plain")})
+                a, b = fu(), fu()
+                check(a.status_code == 201 and b.status_code == 200 and a.json().get("id") == b.json().get("id"), "an identical file is linked once, not a conflict")
+            r = s.get(f"{base}/api/agreements", headers=jwt, params={"service": "WebsiteManagement"}, timeout=30)
+            mine = [c for c in r.json() if c["clientId"] == client_id] if r.status_code == 200 else []
+            check(len(mine) == 1 and len(mine[0]["contracts"]) >= 1 and any(d["title"] == "Smoke concept NDA" for d in mine[0]["concepts"]),
+                  "agreements overview lists the client with its contract and its concept")
             r = s.post(f"{base}/api/clients/{client_id}/next-actions", headers=jwt, timeout=30, json={"title": "smoke actie", "dueAt": due})
             check(r.status_code == 201, "plan a next action on the client")
             r = s.get(base + "/api/next-actions", headers=jwt, timeout=30)
