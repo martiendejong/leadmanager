@@ -67,6 +67,22 @@ public class OrganizationsController : ControllerBase
         return Created($"api/organizations/{org.Id}", new OrganizationDto(org.Id, org.Name, org.Slug, OrganizationRoles.Admin, 1, 0));
     }
 
+    // DELETE /api/organizations/{id} : only an empty organisation (no leads, no hunts), by an application admin who is its admin
+    [DenyApiKey]
+    [Authorize(Roles = "Admin")]
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Delete(Guid id)
+    {
+        var denied = await RequireAdminAsync(id);
+        if (denied != null) return denied;
+        if (await _db.Leads.AnyAsync(l => l.OrganizationId == id) || await _db.HuntJobs.AnyAsync(j => j.OrganizationId == id))
+            return Conflict(new { error = "Only an organisation without leads can be deleted. Move its leads first." });
+        var org = await _db.Organizations.FirstAsync(o => o.Id == id);
+        _db.Organizations.Remove(org); // its members go with it
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
     // GET /api/organizations/{id}/members
     [HttpGet("{id:guid}/members")]
     public async Task<IActionResult> Members(Guid id)

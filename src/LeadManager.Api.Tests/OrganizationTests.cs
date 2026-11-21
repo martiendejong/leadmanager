@@ -293,6 +293,32 @@ public class OrganizationTests : IDisposable
     }
 
     [Fact]
+    public async Task TheMoveEndpoint_FollowsTheSameRules()
+    {
+        var lead = SeedLead(Pg, "Mover2");
+        Assert.IsType<OkObjectResult>(await Leads(Anna).MoveToOrganization(lead.Id, new MoveLeadDto(Karibu)));
+        Assert.Equal(Karibu, _db.Leads.Single().OrganizationId);
+        Assert.IsType<BadRequestObjectResult>(await Leads(Anna).MoveToOrganization(lead.Id, new MoveLeadDto(Pog)));
+        // Ben has no access to the lead in Karibu Mara any more
+        Assert.IsType<NotFoundResult>(await Leads(Ben).MoveToOrganization(lead.Id, new MoveLeadDto(Pg)));
+        Assert.IsType<NotFoundResult>(await Leads(Dirk).MoveToOrganization(lead.Id, new MoveLeadDto(Pg)));
+    }
+
+    [Fact]
+    public async Task OnlyAnEmptyOrganisation_CanBeDeleted_ByItsAdmin()
+    {
+        var created = Value<OrganizationDto>(await Orgs(Anna).Create(new CreateOrganizationDto("Temp Org")));
+        SeedLead(created.Id, "Occupant");
+        Assert.IsType<ConflictObjectResult>(await Orgs(Anna).Delete(created.Id));
+        _db.Leads.RemoveRange(_db.Leads.Where(l => l.OrganizationId == created.Id));
+        _db.SaveChanges();
+        Assert.IsType<NotFoundResult>(await Orgs(Dirk).Delete(created.Id));
+        Assert.IsType<NoContentResult>(await Orgs(Anna).Delete(created.Id));
+        Assert.False(_db.Organizations.Any(o => o.Id == created.Id));
+        Assert.False(_db.OrganizationMembers.Any(m => m.OrganizationId == created.Id));
+    }
+
+    [Fact]
     public async Task Moving_IntoAnOrganisationThatHoldsTheSameBusiness_IsAConflict()
     {
         var mine = SeedLead(Pg, "Twin");

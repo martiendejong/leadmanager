@@ -180,6 +180,36 @@ public class LeadsController : ControllerBase
         return Ok(ToDto(lead));
     }
 
+    /// <summary>
+    /// Moves a lead to another organisation: the person must be a member of the target as well, and the target must not already hold
+    /// the same business (same name and website). Null = moved (saved by the caller).
+    /// </summary>
+    private async Task<IActionResult?> MoveAsync(Lead lead, string? userId, Guid target, string name, string website)
+    {
+        if (!await Organizations.IsMemberAsync(_db, userId, target))
+            return BadRequest(new { error = "You are not a member of that organisation." });
+        if (await _db.Leads.AnyAsync(l => l.Id != lead.Id && l.OrganizationId == target && l.Name == name && l.Website == website))
+            return Conflict(new { error = "That organisation already has a lead with this name and website." });
+        lead.OrganizationId = target;
+        return null;
+    }
+
+    // PUT /api/leads/{id}/organization : move the lead to another organisation the person is a member of
+    [HttpPut("{id:guid}/organization")]
+    public async Task<IActionResult> MoveToOrganization(Guid id, [FromBody] MoveLeadDto dto)
+    {
+        var userId = GetCurrentUserId();
+        var lead = await _db.Leads.VisibleTo(_db, userId).FirstOrDefaultAsync(l => l.Id == id);
+        if (lead == null) return NotFound();
+        if (dto.OrganizationId != lead.OrganizationId)
+        {
+            var error = await MoveAsync(lead, userId, dto.OrganizationId, lead.Name, lead.Website);
+            if (error != null) return error;
+            await _db.SaveChangesAsync();
+        }
+        return Ok(ToDto(lead));
+    }
+
     // PUT /api/leads/{id}
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> UpdateLead(Guid id, [FromBody] UpdateLeadDto dto)
@@ -188,16 +218,10 @@ public class LeadsController : ControllerBase
         var lead = await _db.Leads.VisibleTo(_db, userId).FirstOrDefaultAsync(l => l.Id == id);
         if (lead == null) return NotFound();
 
-        // Moving to another organisation: the person must be a member of the target as well, and the target must not
-        // already hold the same business (same name and website).
         if (dto.OrganizationId.HasValue && dto.OrganizationId.Value != lead.OrganizationId)
         {
-            if (!await Organizations.IsMemberAsync(_db, userId, dto.OrganizationId.Value))
-                return BadRequest(new { error = "You are not a member of that organisation." });
-            var site = NormalizeWebsiteUrl(dto.Website) ?? lead.Website;
-            if (await _db.Leads.AnyAsync(l => l.Id != lead.Id && l.OrganizationId == dto.OrganizationId.Value && l.Name == dto.Name && l.Website == site))
-                return Conflict(new { error = "That organisation already has a lead with this name and website." });
-            lead.OrganizationId = dto.OrganizationId.Value;
+            var moveError = await MoveAsync(lead, userId, dto.OrganizationId.Value, dto.Name, NormalizeWebsiteUrl(dto.Website) ?? lead.Website);
+            if (moveError != null) return moveError;
         }
 
         lead.Name = dto.Name;

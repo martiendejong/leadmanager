@@ -130,6 +130,8 @@ public record UpdateLeadDto(
     // Moves the lead to another organisation the person is a member of
     Guid? OrganizationId = null);
 
+public record MoveLeadDto(Guid OrganizationId);
+
 public record LeadFilterParams(
     bool? Enriched = null,
     DateTime? EnrichedAfter = null,
