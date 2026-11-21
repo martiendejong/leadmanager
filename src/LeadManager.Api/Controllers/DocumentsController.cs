@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using static LeadManager.Api.Services.CrmRules;
 
 namespace LeadManager.Api.Controllers;
@@ -16,6 +18,7 @@ public record DocumentFileDto(
 
 public record DocumentDto(
     Guid Id, Guid ClientId, Guid? ProjectId, string? ProjectName, Guid? PredecessorId,
+    Guid? ServiceId, int Version, string? SourceRef,
     string Kind, string Status, string Title, string? Reference,
     [property: JsonConverter(typeof(UtcDateTimeConverter))] DateTime DocumentDate,
     [property: JsonConverter(typeof(UtcNullableDateTimeConverter))] DateTime? SignedAt,
@@ -29,7 +32,8 @@ public record UpsertDocumentDto(
     [property: JsonConverter(typeof(UtcNullableDateTimeConverter))] DateTime? DocumentDate,
     [property: JsonConverter(typeof(UtcNullableDateTimeConverter))] DateTime? SignedAt,
     [property: JsonConverter(typeof(UtcNullableDateTimeConverter))] DateTime? ValidUntil,
-    decimal? Amount, string? Notes, string? Url, Guid? ProjectId, Guid? PredecessorId);
+    decimal? Amount, string? Notes, string? Url, Guid? ProjectId, Guid? PredecessorId,
+    Guid? ServiceId = null, int? Version = null, string? SourceRef = null);
 
 /// <summary>
 /// The dossier of a client: quotes, orders and signed agreements (processing agreement, NDA, ...), each with
@@ -53,7 +57,7 @@ public class DocumentsController : ControllerBase
     private string? UserId => User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
 
     private static DocumentDto ToDto(ClientDocument d, string? projectName) => new(
-        d.Id, d.ClientId, d.ProjectId, projectName, d.PredecessorId, d.Kind.ToString(), d.Status.ToString(), d.Title,
+        d.Id, d.ClientId, d.ProjectId, projectName, d.PredecessorId, d.ServiceId, d.Version, d.SourceRef, d.Kind.ToString(), d.Status.ToString(), d.Title,
         d.Reference, d.DocumentDate, d.SignedAt, d.ValidUntil, d.Amount, d.Notes, d.Url, d.CreatedAt,
         d.Files.OrderBy(f => f.UploadedAt).Select(f => new DocumentFileDto(f.Id, f.FileName, f.ContentType, f.SizeBytes, f.Label, f.UploadedAt)).ToList());
 
@@ -109,6 +113,9 @@ public class DocumentsController : ControllerBase
         if (dto.ProjectId.HasValue && !await _db.Projects.AnyAsync(p => p.Id == dto.ProjectId && p.ClientId == doc.ClientId))
             return "Project does not belong to this client.";
 
+        if (dto.ServiceId.HasValue && !await _db.ClientServices.AnyAsync(sv => sv.Id == dto.ServiceId && sv.ClientId == doc.ClientId))
+            return "Service does not belong to this client.";
+
         if (dto.PredecessorId.HasValue)
         {
             if (dto.PredecessorId == doc.Id) return "A document cannot follow itself.";
@@ -137,6 +144,12 @@ public class DocumentsController : ControllerBase
         if (status == DocumentStatus.Signed && doc.SignedAt == null) doc.SignedAt = doc.DocumentDate;
         doc.ProjectId = dto.ProjectId;
         doc.PredecessorId = dto.PredecessorId;
+        doc.ServiceId = dto.ServiceId;
+        if (dto.Version is < 1 or > 999) return "Version is not valid.";
+        if (dto.Version.HasValue) doc.Version = dto.Version.Value;
+        var sourceRef = Clean(dto.SourceRef);
+        if (TooLong(sourceRef, MaxReference)) return "Source reference is too long.";
+        doc.SourceRef = sourceRef;
         return null;
     }
 
@@ -145,6 +158,19 @@ public class DocumentsController : ControllerBase
     public async Task<IActionResult> Create(Guid clientId, [FromBody] UpsertDocumentDto dto)
     {
         if (!await OwnsClient(clientId)) return NotFound();
+        // A source that reports the same document again (same SourceRef) updates it instead of duplicating it.
+        var sref = Clean(dto.SourceRef);
+        if (sref != null)
+        {
+            var existing = await _db.ClientDocuments.Include(d => d.Files).FirstOrDefaultAsync(d => d.ClientId == clientId && d.SourceRef == sref);
+            if (existing != null)
+            {
+                var upErr = await Apply(existing, dto);
+                if (upErr != null) return BadRequest(new { error = upErr });
+                await _db.SaveChangesAsync();
+                return Ok(ToDto(existing, await ProjectName(existing.ProjectId)));
+            }
+        }
         var doc = new ClientDocument { ClientId = clientId, CreatedByUserId = UserId };
         var error = await Apply(doc, dto);
         if (error != null) return BadRequest(new { error });
@@ -209,6 +235,16 @@ public class DocumentsController : ControllerBase
         catch (InvalidDataException)
         {
             return BadRequest(new { error = "File is larger than 25 MB." });
+        }
+
+        // An exact duplicate (same SHA-256) on the same document is not a conflict: link silently, keep one copy.
+        var same = doc.Files.FirstOrDefault(f => f.Sha256 == sha);
+        if (same != null)
+        {
+            _storage.TryDelete(storagePath);
+            HttpContext.RequestServices?.GetService<ILogger<DocumentsController>>()
+                ?.LogInformation("Duplicate file {Sha} for document {Doc} linked to existing file {File}", sha, doc.Id, same.Id);
+            return Ok(new DocumentFileDto(same.Id, same.FileName, same.ContentType, same.SizeBytes, same.Label, same.UploadedAt));
         }
 
         var row = new ClientDocumentFile

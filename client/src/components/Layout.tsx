@@ -31,6 +31,7 @@ export default function Layout() {
       <NavLink to="/leads" className={linkClass} end onClick={closeMenu}>Leads</NavLink>
       <NavLink to="/messages" className={linkClass} onClick={closeMenu}>Messages</NavLink>
       <NavLink to="/clients" className={linkClass} onClick={closeMenu}>Clients</NavLink>
+      <NavLink to="/agreements" className={linkClass} onClick={closeMenu}>Agreements</NavLink>
       <NavLink to="/profile" className={linkClass} onClick={closeMenu}>Profile</NavLink>
       <NavLink to="/leads/search" className={linkClass} onClick={closeMenu}>Find leads</NavLink>
       <NavLink to="/leads/analytics" className={linkClass} onClick={closeMenu}>Analytics</NavLink>
@@ -49,6 +50,7 @@ export default function Layout() {
       <NavLink to="/leads" className={mobileLinkClass} end onClick={closeMenu}>Leads</NavLink>
       <NavLink to="/messages" className={mobileLinkClass} onClick={closeMenu}>Messages</NavLink>
       <NavLink to="/clients" className={mobileLinkClass} onClick={closeMenu}>Clients</NavLink>
+      <NavLink to="/agreements" className={mobileLinkClass} onClick={closeMenu}>Agreements</NavLink>
       <NavLink to="/profile" className={mobileLinkClass} onClick={closeMenu}>Profile</NavLink>
       <NavLink to="/leads/search" className={mobileLinkClass} onClick={closeMenu}>Find leads</NavLink>
       <NavLink to="/leads/analytics" className={mobileLinkClass} onClick={closeMenu}>Analytics</NavLink>

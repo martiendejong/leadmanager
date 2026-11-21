@@ -13,6 +13,7 @@ import ProfilePage from './pages/ProfilePage'
 import AnalyticsPage from './pages/AnalyticsPage'
 import PipelinePage from './pages/PipelinePage'
 import ClientsPage from './pages/ClientsPage'
+import AgreementsPage from './pages/AgreementsPage'
 import ClientDetailPage from './pages/ClientDetailPage'
 import IntakePage from './pages/IntakePage'
 import SalesSettingsPage from './pages/SalesSettingsPage'
@@ -136,6 +137,17 @@ function App() {
               }
             >
               <Route index element={<ClientsPage />} />
+            </Route>
+
+            <Route
+              path="/agreements"
+              element={
+                <ProtectedRoute>
+                  <Layout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<AgreementsPage />} />
             </Route>
 
             <Route

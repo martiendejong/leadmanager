@@ -311,7 +311,13 @@ namespace LeadManager.Api.Migrations
                     b.Property<string>("Reference")
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid?>("ServiceId")
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime?>("SignedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SourceRef")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Status")
@@ -328,13 +334,20 @@ namespace LeadManager.Api.Migrations
                     b.Property<DateTime?>("ValidUntil")
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("Version")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
                     b.HasIndex("PredecessorId");
 
                     b.HasIndex("ProjectId");
 
+                    b.HasIndex("ServiceId");
+
                     b.HasIndex("ClientId", "DocumentDate");
+
+                    b.HasIndex("ClientId", "SourceRef");
 
                     b.ToTable("ClientDocuments");
                 });
@@ -446,6 +459,63 @@ namespace LeadManager.Api.Migrations
                     b.HasIndex("ClientId");
 
                     b.ToTable("ClientIntakes");
+                });
+
+            modelBuilder.Entity("LeadManager.Api.Models.ClientService", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedByUserId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("EndDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("MonthlyAmount")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("ProjectId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SourceRef")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("StartDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId");
+
+                    b.HasIndex("ClientId", "Kind");
+
+                    b.HasIndex("ClientId", "SourceRef");
+
+                    b.ToTable("ClientServices");
                 });
 
             modelBuilder.Entity("LeadManager.Api.Models.CompanyProfile", b =>
@@ -1964,6 +2034,11 @@ namespace LeadManager.Api.Migrations
                         .WithMany()
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("LeadManager.Api.Models.ClientService", null)
+                        .WithMany()
+                        .HasForeignKey("ServiceId")
+                        .OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("LeadManager.Api.Models.ClientDocumentFile", b =>
@@ -1986,6 +2061,20 @@ namespace LeadManager.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("Client");
+                });
+
+            modelBuilder.Entity("LeadManager.Api.Models.ClientService", b =>
+                {
+                    b.HasOne("LeadManager.Api.Models.Client", null)
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("LeadManager.Api.Models.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("LeadManager.Api.Models.Contact", b =>

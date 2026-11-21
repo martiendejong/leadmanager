@@ -7,6 +7,7 @@ import CrmPanel from '../components/crm/CrmPanel'
 import ProjectsSection from '../components/crm/ProjectsSection'
 import PriorityCard from '../components/crm/PriorityCard'
 import DocumentsSection from '../components/crm/DocumentsSection'
+import ServicesSection from '../components/crm/ServicesSection'
 import {
   ENGAGEMENT_CATEGORIES,
   CATEGORY_DESCRIPTIONS,
@@ -293,6 +294,10 @@ export default function ClientDetailPage() {
         onHistoryChanged={() => setHistoryTick((t) => t + 1)}
         onChanged={() => { getClient(client.id).then(setClient).catch(() => showToast('Could not refresh', 'error')) }}
       />
+
+      <div className="mt-6">
+        <ServicesSection clientId={client.id} />
+      </div>
 
       {/* Quotes, orders and signed agreements with their files */}
       <div className="mt-6">

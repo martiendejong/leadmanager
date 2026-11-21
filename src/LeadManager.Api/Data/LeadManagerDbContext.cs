@@ -44,6 +44,7 @@ public class LeadManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<CalendarFeed> CalendarFeeds { get; set; }
     public DbSet<ClientDocument> ClientDocuments { get; set; }
     public DbSet<ClientDocumentFile> ClientDocumentFiles { get; set; }
+    public DbSet<ClientService> ClientServices { get; set; }
 
     // Every save that touches a lead stamps UpdatedAt, whoever made the change (screen, import, enrichment, API).
     private void StampLeads()
@@ -275,6 +276,20 @@ public class LeadManagerDbContext : IdentityDbContext<ApplicationUser>
             e.Property(x => x.Amount).HasPrecision(14, 2);
             e.HasIndex(x => new { x.ClientId, x.DocumentDate });
             e.HasIndex(x => x.PredecessorId);
+            e.HasOne<ClientService>().WithMany().HasForeignKey(x => x.ServiceId).OnDelete(DeleteBehavior.SetNull);
+            e.HasIndex(x => x.ServiceId);
+            e.HasIndex(x => new { x.ClientId, x.SourceRef });
+        });
+
+        builder.Entity<ClientService>(e =>
+        {
+            e.HasOne<Client>().WithMany().HasForeignKey(x => x.ClientId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Project>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.SetNull);
+            e.Property(x => x.Kind).HasConversion<string>();
+            e.Property(x => x.Status).HasConversion<string>();
+            e.Property(x => x.MonthlyAmount).HasPrecision(14, 2);
+            e.HasIndex(x => new { x.ClientId, x.Kind });
+            e.HasIndex(x => new { x.ClientId, x.SourceRef });
         });
 
         builder.Entity<ClientDocumentFile>(e =>
