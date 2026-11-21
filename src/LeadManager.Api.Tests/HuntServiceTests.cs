@@ -155,6 +155,33 @@ public class HuntServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Leads_found_by_a_hunt_belong_to_the_organisation_of_the_hunt_and_are_a_duplicate_only_within_it()
+    {
+        var karibu = OrganizationSeed.KaribuMara;
+        _db.OrganizationMembers.Add(new OrganizationMember { OrganizationId = karibu, UserId = Me, Email = "user-me@example.nl", Role = OrganizationRoles.Member });
+        _db.SaveChanges();
+        var job = NewHunt();
+        job.OrganizationId = karibu;
+        _db.SaveChanges();
+
+        var result = await Service(Fetcher()).SubmitCandidateAsync(job, Sub("Tine", Site, GoodExtraction(), claimed: 8), CancellationToken.None);
+
+        Assert.False(result.Duplicate);
+        Assert.Equal(karibu, (await _db.Leads.SingleAsync()).OrganizationId);
+        // the same site found by a hunt of another organisation is a new lead there, not a duplicate
+        job.Status = HuntStatuses.Completed;
+        _db.SaveChanges();
+        var other = NewHunt();
+        other.OrganizationId = OrganizationSeed.Prospergenics;
+        _db.OrganizationMembers.Add(new OrganizationMember { OrganizationId = OrganizationSeed.Prospergenics, UserId = Me, Email = "user-me@example.nl", Role = OrganizationRoles.Member });
+        _db.SaveChanges();
+        var again = await Service(Fetcher()).SubmitCandidateAsync(other, Sub("Tine", Site, GoodExtraction(), claimed: 8), CancellationToken.None);
+        Assert.False(again.Duplicate);
+        Assert.Equal(2, await _db.Leads.CountAsync());
+        Assert.Contains(await _db.Leads.ToListAsync(), l => l.OrganizationId == OrganizationSeed.Prospergenics);
+    }
+
+    [Fact]
     public async Task A_candidate_the_agent_stopped_early_is_kept_as_a_lead_with_its_reason()
     {
         var job = NewHunt();
