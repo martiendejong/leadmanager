@@ -3,6 +3,9 @@ import { createLeadWithDupCheck, mergeLead, uploadLeadDocuments } from '../../ap
 import type { CreateLeadDto, DuplicateLead } from '../../api/leads'
 import { useToast } from '../Toast'
 import DuplicateModal from './DuplicateModal'
+import OrganizationSelect from '../organizations/OrganizationSelect'
+import { useOrganizations } from '../../contexts/OrganizationContext'
+import { errorMessage } from '../../api/hunt'
 
 interface CreateLeadFormProps {
   onSuccess: () => void
@@ -11,6 +14,7 @@ interface CreateLeadFormProps {
 
 export default function CreateLeadForm({ onSuccess, onCancel }: CreateLeadFormProps) {
   const { showToast } = useToast()
+  const { defaultOrgId, rememberOrg } = useOrganizations()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -26,6 +30,7 @@ export default function CreateLeadForm({ onSuccess, onCancel }: CreateLeadFormPr
     companyEmail: '',
     source: 'Handmatig',
     manualInput: '',
+    organizationId: defaultOrgId ?? '',
   })
 
   const [charCount, setCharCount] = useState(0)
@@ -95,6 +100,11 @@ export default function CreateLeadForm({ onSuccess, onCancel }: CreateLeadFormPr
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
+    if (!formData.organizationId) {
+      showToast('Choose the organisation this lead belongs to.', 'error')
+      return
+    }
+
     // Validate at least one input type
     const hasWebsite = !!formData.website?.trim()
     const hasManualInput = !!formData.manualInput?.trim()
@@ -131,11 +141,12 @@ export default function CreateLeadForm({ onSuccess, onCancel }: CreateLeadFormPr
         await uploadLeadDocuments(lead.id, selectedFiles)
       }
 
+      if (formData.organizationId) rememberOrg(formData.organizationId)
       showToast('Lead created successfully!', 'success')
       onSuccess()
     } catch (err: any) {
       console.error('Failed to create lead:', err)
-      showToast(err.response?.data || 'Could not create lead.', 'error')
+      showToast(errorMessage(err, 'Could not create lead.'), 'error')
     } finally {
       setIsSubmitting(false)
     }
@@ -154,7 +165,7 @@ export default function CreateLeadForm({ onSuccess, onCancel }: CreateLeadFormPr
         onSuccess()
       }
     } catch (err: any) {
-      showToast(err.response?.data || 'Could not merge leads.', 'error')
+      showToast(errorMessage(err, 'Could not merge leads.'), 'error')
     } finally {
       setIsSubmitting(false)
     }
@@ -174,7 +185,7 @@ export default function CreateLeadForm({ onSuccess, onCancel }: CreateLeadFormPr
         onSuccess()
       }
     } catch (err: any) {
-      showToast(err.response?.data || 'Could not create lead.', 'error')
+      showToast(errorMessage(err, 'Could not create lead.'), 'error')
     } finally {
       setIsSubmitting(false)
     }
@@ -208,6 +219,12 @@ export default function CreateLeadForm({ onSuccess, onCancel }: CreateLeadFormPr
           <div>
             <h3 className="font-medium mb-3">Basic information</h3>
             <div className="grid grid-cols-2 gap-4">
+              <OrganizationSelect
+                className="col-span-2"
+                id="create-lead-organization"
+                value={formData.organizationId ?? ''}
+                onChange={(id) => setFormData((prev) => ({ ...prev, organizationId: id }))}
+              />
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Company name <span className="text-red-500">*</span>

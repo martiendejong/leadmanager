@@ -4,6 +4,8 @@ import {
   type HuntCapabilities, type HuntCriteria, type HuntJob,
 } from '../../api/hunt'
 import HuntJobView from './HuntJobView'
+import OrganizationSelect from '../organizations/OrganizationSelect'
+import { useOrganizations } from '../../contexts/OrganizationContext'
 
 interface Props {
   /** Called when a job finishes, so the lead list can refresh. */
@@ -17,8 +19,9 @@ const DEFAULTS: HuntCriteria = { segment: '', region: '', minScore: 8, targetCou
  * each company's own website itself, accepts only the facts whose quotes are on those pages, and computes the score itself.
  */
 export default function HuntPanel({ onFinished }: Props) {
+  const { defaultOrgId, rememberOrg } = useOrganizations()
   const [caps, setCaps] = useState<HuntCapabilities | null>(null)
-  const [form, setForm] = useState<HuntCriteria>(DEFAULTS)
+  const [form, setForm] = useState<HuntCriteria>({ ...DEFAULTS, organizationId: defaultOrgId ?? '' })
   const [jobId, setJobId] = useState<string | null>(null)
   const [starting, setStarting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -39,7 +42,7 @@ export default function HuntPanel({ onFinished }: Props) {
 
   const set = <K extends keyof HuntCriteria>(key: K, value: HuntCriteria[K]) => setForm((f) => ({ ...f, [key]: value }))
   const segmentOk = form.segment.trim().length >= 3
-  const canStart = !!caps?.canStartHunt && segmentOk && !starting
+  const canStart = !!caps?.canStartHunt && segmentOk && !starting && !!form.organizationId
 
   async function handleStart(e: React.FormEvent) {
     e.preventDefault()
@@ -48,6 +51,7 @@ export default function HuntPanel({ onFinished }: Props) {
     setError(null)
     try {
       const { jobId } = await startHunt({ ...form, segment: form.segment.trim(), region: form.region.trim() })
+      if (form.organizationId) rememberOrg(form.organizationId)
       setFinished(false)
       setJobId(jobId)
     } catch (err) {
@@ -86,6 +90,13 @@ export default function HuntPanel({ onFinished }: Props) {
         </div>
       )}
       {error && <div role="alert" className="rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-700">{error}</div>}
+
+      <OrganizationSelect
+        id="hunt-organization"
+        label="Find leads for organisation"
+        value={form.organizationId ?? ''}
+        onChange={(id) => set('organizationId', id)}
+      />
 
       <div>
         <label htmlFor="hunt-segment" className="block text-sm font-medium text-gray-700">Segment <span className="text-red-500">*</span></label>

@@ -100,6 +100,8 @@ export interface Lead {
   productFit?: ProductFit[] | null
   // When a message to this lead was last marked as sent by the user
   lastContactedAt?: string | null
+  // The organisation this lead belongs to (names: GET /api/organizations)
+  organizationId: string
 }
 
 export interface LeadsResponse {
@@ -122,6 +124,8 @@ export interface LeadFilter {
   hasLinkedIn?: boolean
   priorityLabel?: string
   pipelineStatus?: string
+  /** Comma separated organisation ids; empty = all my organisations */
+  organizationId?: string
 }
 
 export interface LeadStats {
@@ -158,20 +162,22 @@ export async function fetchLeads(filter: LeadFilter): Promise<LeadsResponse> {
   if (filter.hasLinkedIn !== undefined) params.hasLinkedIn = filter.hasLinkedIn
   if (filter.priorityLabel) params.priorityLabel = filter.priorityLabel
   if (filter.pipelineStatus) params.pipelineStatus = filter.pipelineStatus
+  if (filter.organizationId) params.organizationId = filter.organizationId
 
   const res = await apiClient.get<LeadsResponse>('/api/leads', { params })
   return res.data
 }
 
-export async function fetchLeadStats(): Promise<LeadStats> {
-  const res = await apiClient.get<LeadStats>('/api/leads/stats')
+export async function fetchLeadStats(organizationId?: string): Promise<LeadStats> {
+  const res = await apiClient.get<LeadStats>('/api/leads/stats', { params: organizationId ? { organizationId } : undefined })
   return res.data
 }
 
-export async function importLeads(file: File): Promise<void> {
+export async function importLeads(file: File, organizationId?: string): Promise<void> {
   const formData = new FormData()
   formData.append('file', file)
   await apiClient.post('/api/leads/import', formData, {
+    params: organizationId ? { organizationId } : undefined,
     headers: { 'Content-Type': 'multipart/form-data' },
   })
 }
@@ -188,10 +194,11 @@ export interface CsvImportResult {
   enrichmentJobId?: string | null
 }
 
-export async function importLeadsFromCsv(file: File): Promise<CsvImportResult> {
+export async function importLeadsFromCsv(file: File, organizationId?: string): Promise<CsvImportResult> {
   const formData = new FormData()
   formData.append('file', file)
   const res = await apiClient.post<CsvImportResult>('/api/leads/import', formData, {
+    params: organizationId ? { organizationId } : undefined,
     headers: { 'Content-Type': 'multipart/form-data' },
   })
   return res.data
@@ -204,6 +211,7 @@ export async function exportLeads(format: 'csv' | 'xlsx', filters: LeadFilter): 
   if (filters.enrichedBefore) params.enrichedBefore = filters.enrichedBefore
   if (filters.sortBy) params.sortBy = filters.sortBy
   if (filters.sortDesc !== undefined) params.sortDesc = filters.sortDesc
+  if (filters.organizationId) params.organizationId = filters.organizationId
 
   const token = localStorage.getItem('lm_token')
   const baseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:5000'
@@ -279,8 +287,8 @@ export async function searchLeads(
   return res.data
 }
 
-export async function importSearchResults(leads: LeadSearchResult[]): Promise<ImportResultDto> {
-  const res = await apiClient.post<ImportResultDto>('/api/leads/search/import', { leads })
+export async function importSearchResults(leads: LeadSearchResult[], organizationId?: string): Promise<ImportResultDto> {
+  const res = await apiClient.post<ImportResultDto>('/api/leads/search/import', { leads, organizationId: organizationId ?? null })
   return res.data
 }
 
@@ -293,6 +301,8 @@ export interface CreateLeadDto {
   companyEmail: string
   source: string
   manualInput?: string | null
+  /** Required when the person is a member of several organisations */
+  organizationId?: string
 }
 
 export async function createLead(dto: CreateLeadDto): Promise<Lead> {
@@ -358,6 +368,12 @@ export async function createLeadWithDupCheck(
 
 export async function mergeLead(targetId: string, sourceId: string): Promise<Lead> {
   const res = await apiClient.post<Lead>(`/api/leads/${targetId}/merge`, { sourceLeadId: sourceId })
+  return res.data
+}
+
+/** Moves a lead to another organisation the person is a member of. */
+export async function moveLeadToOrganization(id: string, organizationId: string): Promise<Lead> {
+  const res = await apiClient.put<Lead>(`/api/leads/${id}/organization`, { organizationId })
   return res.data
 }
 
@@ -454,8 +470,9 @@ export interface LeadsAnalytics {
   teamPerformance: LeadsAnalyticsTeamItem[]
 }
 
-export async function getLeadsAnalytics(from?: string, to?: string): Promise<LeadsAnalytics> {
+export async function getLeadsAnalytics(from?: string, to?: string, organizationId?: string): Promise<LeadsAnalytics> {
   const params: Record<string, string> = {}
+  if (organizationId) params.organizationId = organizationId
   if (from) params.from = from
   if (to) params.to = to
   const res = await apiClient.get<LeadsAnalytics>('/api/leads/analytics', { params })
@@ -503,10 +520,10 @@ export async function updateLeadPipelineStatus(leadId: string, status: string): 
   return res.data
 }
 
-export async function fetchLeadsByPipeline(): Promise<Lead[]> {
+export async function fetchLeadsByPipeline(organizationId?: string): Promise<Lead[]> {
   // Fetch all leads without pagination for the kanban board
   const res = await apiClient.get<{ items: Lead[]; total: number }>('/api/leads', {
-    params: { page: 1, pageSize: 500 },
+    params: { page: 1, pageSize: 500, organizationId },
   })
   return res.data.items
 }

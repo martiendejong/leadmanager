@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { LeadsAnalytics } from '../api/leads'
 import { getLeadsAnalytics } from '../api/leads'
+import OrganizationFilter from '../components/organizations/OrganizationFilter'
+import { useOrganizations } from '../contexts/OrganizationContext'
 
 function StatCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (
@@ -137,6 +139,7 @@ async function exportChartAsPng(element: HTMLElement, filename: string) {
 }
 
 export default function AnalyticsPage() {
+  const { filterParam } = useOrganizations()
   const [analytics, setAnalytics] = useState<LeadsAnalytics | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -148,7 +151,7 @@ export default function AnalyticsPage() {
     setLoading(true)
     setError(null)
     try {
-      const data = await getLeadsAnalytics(fromVal || undefined, toVal || undefined)
+      const data = await getLeadsAnalytics(fromVal || undefined, toVal || undefined, filterParam)
       setAnalytics(data)
     } catch (err: any) {
       setError('Could not load analytics')
@@ -159,7 +162,8 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     load()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterParam])
 
   const handleFilter = (e: React.FormEvent) => {
     e.preventDefault()
@@ -185,6 +189,7 @@ export default function AnalyticsPage() {
 
   return (
     <div className="space-y-6">
+      <OrganizationFilter />
       {/* Page header */}
       <div className="flex items-center justify-between">
         <div>

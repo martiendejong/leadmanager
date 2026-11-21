@@ -52,6 +52,8 @@ export interface TodayAction {
   title: string
   dueAt: string
   overdue: boolean
+  /** Set for lead actions */
+  organizationId?: string | null
 }
 
 export interface Contact {
@@ -143,8 +145,8 @@ export async function completeNextAction(id: string): Promise<void> {
   await apiClient.post(`/api/next-actions/${id}/complete`)
 }
 
-export async function getTodayActions(): Promise<TodayAction[]> {
-  const res = await apiClient.get<TodayAction[]>('/api/next-actions/today')
+export async function getTodayActions(organizationId?: string): Promise<TodayAction[]> {
+  const res = await apiClient.get<TodayAction[]>('/api/next-actions/today', { params: organizationId ? { organizationId } : undefined })
   return res.data
 }
 
@@ -238,10 +240,12 @@ export interface ActionRow {
   dueAt: string
   doneAt: string | null
   overdue: boolean
+  /** Set for lead actions */
+  organizationId?: string | null
 }
 
-export async function getActions(): Promise<ActionRow[]> {
-  const res = await apiClient.get<ActionRow[]>('/api/next-actions')
+export async function getActions(organizationId?: string): Promise<ActionRow[]> {
+  const res = await apiClient.get<ActionRow[]>('/api/next-actions', { params: organizationId ? { organizationId } : undefined })
   return res.data
 }
 

@@ -8,6 +8,9 @@ import {
 } from '../api/leads'
 import type { Lead, PipelineStatus } from '../api/leads'
 import { useToast } from '../components/Toast'
+import OrganizationFilter from '../components/organizations/OrganizationFilter'
+import OrganizationBadge from '../components/organizations/OrganizationBadge'
+import { useOrganizations } from '../contexts/OrganizationContext'
 
 const COLUMN_COLORS: Record<PipelineStatus, string> = {
   New: 'bg-gray-50 border-gray-200',
@@ -56,6 +59,7 @@ function KanbanCard({ lead, onDragStart }: KanbanCardProps) {
         <p className="text-sm font-semibold text-gray-900 leading-tight truncate flex-1">{lead.name}</p>
         <ScoreBadge score={lead.salesPriorityScore} />
       </div>
+      <div className="mt-1"><OrganizationBadge organizationId={lead.organizationId} /></div>
       {lead.city && (
         <p className="text-xs text-gray-500 flex items-center gap-1 mt-1">
           <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -135,6 +139,7 @@ function KanbanColumn({ status, leads, onDragStart, onDrop }: ColumnProps) {
 
 export default function PipelinePage() {
   const { showToast } = useToast()
+  const { filterParam } = useOrganizations()
   const navigate = useNavigate()
   const [leads, setLeads] = useState<Lead[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -143,7 +148,7 @@ export default function PipelinePage() {
   const load = async () => {
     setIsLoading(true)
     try {
-      const data = await fetchLeadsByPipeline()
+      const data = await fetchLeadsByPipeline(filterParam)
       setLeads(data)
     } catch {
       showToast('Could not load leads', 'error')
@@ -154,7 +159,8 @@ export default function PipelinePage() {
 
   useEffect(() => {
     load()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterParam])
 
   const handleDragStart = (e: React.DragEvent, leadId: string) => {
     dragLeadId.current = leadId
@@ -195,6 +201,7 @@ export default function PipelinePage() {
 
   return (
     <div className="flex flex-col gap-4 h-full">
+      <OrganizationFilter />
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { getLead, updateLeadWorkflow } from '../api/leads'
+import LeadOrganization from '../components/organizations/LeadOrganization'
 import type { Lead } from '../api/leads'
 import api from '../api/client'
 import CrmPanel from '../components/crm/CrmPanel'
@@ -889,6 +890,7 @@ export default function LeadDetailPage() {
           </Link>
           <div className="min-w-0">
             <h1 className="text-xl sm:text-2xl font-bold text-gray-900 break-words">{lead.name}</h1>
+            <div className="mt-1"><LeadOrganization lead={lead} onMoved={(updated) => setLead((prev) => (prev ? { ...prev, organizationId: updated.organizationId } : prev))} /></div>
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
               {lead.website && (
                 <a href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`}

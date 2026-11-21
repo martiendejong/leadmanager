@@ -12,6 +12,7 @@ import LeadNotesPanel from './LeadNotesPanel'
 import EvidencePanel from './EvidencePanel'
 import LeadInsightBlock from './LeadInsightBlock'
 import MessageSection from './MessageSection'
+import LeadOrganization from '../organizations/LeadOrganization'
 
 interface Props {
   lead: Lead | null
@@ -245,6 +246,9 @@ export default function LeadDetailPanel({ lead, onClose, onLeadUpdated }: Props)
             <div className="flex items-start justify-between p-5 border-b border-gray-200">
               <div className="flex-1 min-w-0">
                 <h2 className="text-lg font-bold text-gray-900 truncate">{lead.name}</h2>
+                <div className="mt-1">
+                  <LeadOrganization lead={lead} onMoved={(updated) => onLeadUpdated?.(updated)} />
+                </div>
                 {lead.website && (
                   <a
                     href={safeHref(lead.resolvedUrl || lead.website)}

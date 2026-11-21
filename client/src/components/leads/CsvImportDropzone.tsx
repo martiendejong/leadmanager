@@ -1,5 +1,8 @@
 import { useCallback, useRef, useState } from 'react'
 import { importLeadsFromCsv } from '../../api/leads'
+import { errorMessage as apiErrorMessage } from '../../api/hunt'
+import OrganizationSelect from '../organizations/OrganizationSelect'
+import { useOrganizations } from '../../contexts/OrganizationContext'
 import type { CsvImportResult } from '../../api/leads'
 
 interface CsvImportDropzoneProps {
@@ -19,6 +22,8 @@ const COLUMN_ALIASES: Record<string, string[]> = {
 type ImportState = 'idle' | 'preview' | 'importing' | 'done' | 'error'
 
 export default function CsvImportDropzone({ onSuccess, onCancel }: CsvImportDropzoneProps) {
+  const { defaultOrgId, rememberOrg } = useOrganizations()
+  const [organizationId, setOrganizationId] = useState<string>(defaultOrgId ?? '')
   const [state, setState] = useState<ImportState>('idle')
   const [isDragOver, setIsDragOver] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -108,21 +113,25 @@ export default function CsvImportDropzone({ onSuccess, onCancel }: CsvImportDrop
 
   const handleImport = useCallback(async () => {
     if (!selectedFile) return
+    if (!organizationId) {
+      setErrorMessage('Choose the organisation the leads belong to.')
+      return
+    }
     setState('importing')
     try {
-      const importResult = await importLeadsFromCsv(selectedFile)
+      const importResult = await importLeadsFromCsv(selectedFile, organizationId)
+      rememberOrg(organizationId)
       setResult(importResult)
       setState('done')
       if (importResult.created > 0) {
         onSuccess(importResult)
       }
     } catch (err: unknown) {
-      const msg =
-        err instanceof Error ? err.message : 'Import failed. Check the CSV file.'
+      const msg = apiErrorMessage(err, err instanceof Error ? err.message : 'Import failed. Check the CSV file.')
       setErrorMessage(msg)
       setState('error')
     }
-  }, [selectedFile, onSuccess])
+  }, [selectedFile, onSuccess, organizationId, rememberOrg])
 
   const handleReset = useCallback(() => {
     setState('idle')
@@ -161,6 +170,15 @@ export default function CsvImportDropzone({ onSuccess, onCancel }: CsvImportDrop
         </div>
 
         <div className="p-5">
+          {(state === 'idle' || state === 'preview') && (
+            <OrganizationSelect
+              className="mb-4"
+              id="csv-import-organization"
+              label="Import into organisation"
+              value={organizationId}
+              onChange={setOrganizationId}
+            />
+          )}
           {/* Idle: drop zone */}
           {state === 'idle' && (
             <>
