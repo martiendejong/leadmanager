@@ -37,6 +37,7 @@ public class LeadsExportTests : IDisposable
 
         var options = new DbContextOptionsBuilder<LeadManagerDbContext>()
             .UseSqlite(_connection)
+            .AddInterceptors(new TestOrgInterceptor())
             .Options;
 
         _db = new LeadManagerDbContext(options);

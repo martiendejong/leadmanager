@@ -26,6 +26,8 @@ COPY LeadManager.sln /src/leadmanager/
 COPY src/ /src/leadmanager/src/
 # The agent prompt of the lead hunt lives in docs/hunt and is embedded in the API.
 COPY docs/hunt/ /src/leadmanager/docs/hunt/
+# The seeded organisation memberships (people by e-mail) are embedded in the API as well.
+COPY deploy/org_members.json /src/leadmanager/deploy/org_members.json
 RUN dotnet publish /src/leadmanager/src/LeadManager.Api/LeadManager.Api.csproj \
       -c Release -o /out -p:UseAppHost=false \
       -p:WebSearchProject=/src/websearch/WebSearch/WebSearch.csproj

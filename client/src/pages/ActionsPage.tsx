@@ -12,6 +12,9 @@ import {
   type CalendarFeed,
 } from '../api/crm'
 import { getClients, type Client } from '../api/clients'
+import OrganizationFilter from '../components/organizations/OrganizationFilter'
+import OrganizationBadge from '../components/organizations/OrganizationBadge'
+import { useOrganizations } from '../contexts/OrganizationContext'
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
@@ -48,6 +51,7 @@ function ActionLine({ a, onDone }: { a: ActionRow; onDone: (id: string) => void 
         <p className="text-sm text-gray-900 break-words">{a.title}</p>
         <p className="text-xs text-gray-500">
           <Link to={parentLink(a)} className="text-indigo-600 hover:underline">{a.parentName}</Link>
+          {a.organizationId && <OrganizationBadge organizationId={a.organizationId} className="ml-1.5" />}
           {' · '}
           <span className={a.overdue ? 'text-red-600 font-medium' : ''}>{fmtDay(a.dueAt)} {fmtTime(a.dueAt)}</span>
         </p>
@@ -304,6 +308,7 @@ function FeedCard() {
 /** All next actions across leads and clients, as a list and as a month calendar. */
 export default function ActionsPage() {
   const { showToast } = useToast()
+  const { filterParam } = useOrganizations()
   const [rows, setRows] = useState<ActionRow[] | null>(null)
   const [tab, setTab] = useState<'list' | 'calendar'>('list')
   const [adding, setAdding] = useState(false)
@@ -311,7 +316,7 @@ export default function ActionsPage() {
 
   useEffect(() => {
     let cancelled = false
-    getActions()
+    getActions(filterParam)
       .then((d) => { if (!cancelled) setRows(d) })
       .catch((err) => {
         if (cancelled) return
@@ -319,7 +324,7 @@ export default function ActionsPage() {
         setRows([])
       })
     return () => { cancelled = true }
-  }, [tick, showToast])
+  }, [tick, showToast, filterParam])
 
   const done = useCallback(async (id: string) => {
     try {
@@ -348,6 +353,7 @@ export default function ActionsPage() {
         </div>
       </div>
 
+      <OrganizationFilter className="mb-3" />
       {adding && <NewActionForm onAdded={() => { setAdding(false); setTick((n) => n + 1) }} onCancel={() => setAdding(false)} />}
       <FeedCard />
 

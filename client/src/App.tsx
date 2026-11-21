@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useEffect } from 'react'
 import { AuthProvider } from './contexts/AuthContext'
+import { OrganizationProvider } from './contexts/OrganizationContext'
 import { ToastProvider } from './components/Toast'
 import ProtectedRoute from './components/ProtectedRoute'
 import Layout from './components/Layout'
@@ -20,6 +21,7 @@ import TodayPage from './pages/TodayPage'
 import MessagesPage from './pages/MessagesPage'
 import ActionsPage from './pages/ActionsPage'
 import IntegrationsPage from './pages/IntegrationsPage'
+import OrganizationsPage from './pages/OrganizationsPage'
 
 // Handle SSO token injected by the backend into the URL fragment after redirect
 function SsoTokenHandler() {
@@ -43,6 +45,7 @@ function App() {
       <SsoTokenHandler />
       <ToastProvider>
         <AuthProvider>
+          <OrganizationProvider>
           <Routes>
             {/* Public */}
             <Route path="/login" element={<LoginPage />} />
@@ -169,6 +172,18 @@ function App() {
               <Route index element={<SalesSettingsPage />} />
             </Route>
 
+            {/* Settings > Organisations: organisations and their members */}
+            <Route
+              path="/settings/organizations"
+              element={
+                <ProtectedRoute>
+                  <Layout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<OrganizationsPage />} />
+            </Route>
+
             {/* Messages: drafts and sent messages over all leads */}
             <Route
               path="/messages"
@@ -232,6 +247,7 @@ function App() {
             {/* Catch-all */}
             <Route path="*" element={<Navigate to="/today" replace />} />
           </Routes>
+          </OrganizationProvider>
         </AuthProvider>
       </ToastProvider>
     </BrowserRouter>

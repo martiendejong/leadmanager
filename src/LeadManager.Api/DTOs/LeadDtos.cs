@@ -94,7 +94,9 @@ public record LeadDto(
     string? Needs = null,
     IReadOnlyList<ProductFitDto>? ProductFit = null,
     // When a message to this lead was last marked as sent by the user
-    DateTime? LastContactedAt = null);
+    DateTime? LastContactedAt = null,
+    // The organisation this lead belongs to (the name comes from GET /api/organizations)
+    Guid OrganizationId = default);
 
 /// <summary>One of our products that can help a lead, with the observed trigger. Product is a key of the catalog (coachos, siteaudit, visit, werkteam, cloudws, custom, mail, meet, karibumara, farmmgmt, maaride).</summary>
 public record ProductFitDto(string Product, string Reason, string? EvidenceQuote, string? SourceUrl);
@@ -107,7 +109,9 @@ public record CreateLeadDto(
     string Phone,
     string CompanyEmail,
     string Source,
-    string? ManualInput = null);  // Task #3
+    string? ManualInput = null,  // Task #3
+    // Required when the person is a member of several organisations; with only one it is the default
+    Guid? OrganizationId = null);
 
 public record UpdateLeadDto(
     string Name,
@@ -122,7 +126,11 @@ public record UpdateLeadDto(
     string OwnerLastName,
     string PersonalEmail,
     string LinkedInUrl,
-    string? ManualInput = null);  // Task #3
+    string? ManualInput = null,  // Task #3
+    // Moves the lead to another organisation the person is a member of
+    Guid? OrganizationId = null);
+
+public record MoveLeadDto(Guid OrganizationId);
 
 public record LeadFilterParams(
     bool? Enriched = null,
@@ -136,7 +144,9 @@ public record LeadFilterParams(
     bool? HasOwner = null,
     bool? HasLinkedIn = null,
     string? PriorityLabel = null,
-    string? PipelineStatus = null);
+    string? PipelineStatus = null,
+    // Comma separated organisation ids or slugs; empty = all organisations of the person
+    string? OrganizationId = null);
 
 public record CsvImportRowError(int Row, string Message);
 public record CsvImportResultDto(int Created, int Skipped, List<CsvImportRowError> Errors, Guid? EnrichmentJobId = null);
@@ -149,7 +159,7 @@ public record SetReminderDto(DateTime? ReminderDate);
 
 public record LeadSearchRequest(string Sector, string? Location, int Limit = 25);
 public record LeadSearchResult(string Name, string Website, string City, string Sector, string Phone, string Email, string Source, string Snippet = "", string? OwnerName = null, string? Description = null, string? Services = null, string? TargetAudience = null);
-public record LeadSearchImportRequest(List<LeadSearchResult> Leads);
+public record LeadSearchImportRequest(List<LeadSearchResult> Leads, Guid? OrganizationId = null);
 
 // Duplicate detection (869ck3j4y)
 public record DuplicateLeadDto(Guid Id, string Name, string Website, string City, string Sector, int? Score);

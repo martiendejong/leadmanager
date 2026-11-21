@@ -761,6 +761,9 @@ namespace LeadManager.Api.Migrations
                     b.Property<int>("MinScore")
                         .HasColumnType("INTEGER");
 
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("Qualified")
                         .HasColumnType("INTEGER");
 
@@ -819,6 +822,8 @@ namespace LeadManager.Api.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("OrganizationId");
 
                     b.HasIndex("UserId")
                         .IsUnique()
@@ -1036,6 +1041,9 @@ namespace LeadManager.Api.Migrations
                     b.Property<string>("OpeningHours")
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("OwnerFirstName")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -1154,7 +1162,9 @@ namespace LeadManager.Api.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Name", "Website", "ImportedByUserId")
+                    b.HasIndex("OrganizationId");
+
+                    b.HasIndex("Name", "Website", "OrganizationId")
                         .IsUnique();
 
                     b.ToTable("Leads");
@@ -1511,6 +1521,132 @@ namespace LeadManager.Api.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Notifications");
+                });
+
+            modelBuilder.Entity("LeadManager.Api.Models.Organization", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Slug")
+                        .IsUnique();
+
+                    b.ToTable("Organizations");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("6f0a7c10-0000-4000-8000-000000000001"),
+                            CreatedAt = new DateTime(2026, 11, 21, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Name = "Prospergenics",
+                            Slug = "prospergenics"
+                        },
+                        new
+                        {
+                            Id = new Guid("6f0a7c10-0000-4000-8000-000000000002"),
+                            CreatedAt = new DateTime(2026, 11, 21, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Name = "Martien de Jong",
+                            Slug = "martien-de-jong"
+                        },
+                        new
+                        {
+                            Id = new Guid("6f0a7c10-0000-4000-8000-000000000003"),
+                            CreatedAt = new DateTime(2026, 11, 21, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Name = "Port of Giethoorn",
+                            Slug = "port-of-giethoorn"
+                        },
+                        new
+                        {
+                            Id = new Guid("6f0a7c10-0000-4000-8000-000000000004"),
+                            CreatedAt = new DateTime(2026, 11, 21, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Name = "Karibu Mara",
+                            Slug = "karibu-mara"
+                        },
+                        new
+                        {
+                            Id = new Guid("6f0a7c10-0000-4000-8000-000000000005"),
+                            CreatedAt = new DateTime(2026, 11, 21, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Name = "Rena Farm system",
+                            Slug = "rena-farm-system"
+                        },
+                        new
+                        {
+                            Id = new Guid("6f0a7c10-0000-4000-8000-000000000006"),
+                            CreatedAt = new DateTime(2026, 11, 21, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Name = "MaaLink Ride",
+                            Slug = "maalink-ride"
+                        },
+                        new
+                        {
+                            Id = new Guid("6f0a7c10-0000-4000-8000-000000000007"),
+                            CreatedAt = new DateTime(2026, 11, 21, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Name = "Weerzien Mara",
+                            Slug = "weerzien-mara"
+                        });
+                });
+
+            modelBuilder.Entity("LeadManager.Api.Models.OrganizationMember", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(254)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("OrganizationId", "Email")
+                        .IsUnique();
+
+                    b.ToTable("OrganizationMembers");
+                });
+
+            modelBuilder.Entity("LeadManager.Api.Models.OrganizationSeedLog", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("AppliedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Key");
+
+                    b.ToTable("OrganizationSeedLog");
                 });
 
             modelBuilder.Entity("LeadManager.Api.Models.Project", b =>
@@ -1899,6 +2035,15 @@ namespace LeadManager.Api.Migrations
                     b.Navigation("Job");
                 });
 
+            modelBuilder.Entity("LeadManager.Api.Models.HuntJob", b =>
+                {
+                    b.HasOne("LeadManager.Api.Models.Organization", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("LeadManager.Api.Models.Interaction", b =>
                 {
                     b.HasOne("LeadManager.Api.Models.Client", null)
@@ -1920,6 +2065,17 @@ namespace LeadManager.Api.Migrations
                         .WithMany()
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("LeadManager.Api.Models.Lead", b =>
+                {
+                    b.HasOne("LeadManager.Api.Models.Organization", "Organization")
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Organization");
                 });
 
             modelBuilder.Entity("LeadManager.Api.Models.LeadActivity", b =>
@@ -2020,6 +2176,17 @@ namespace LeadManager.Api.Migrations
                         .WithMany()
                         .HasForeignKey("LeadId")
                         .OnDelete(DeleteBehavior.Cascade);
+                });
+
+            modelBuilder.Entity("LeadManager.Api.Models.OrganizationMember", b =>
+                {
+                    b.HasOne("LeadManager.Api.Models.Organization", "Organization")
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Organization");
                 });
 
             modelBuilder.Entity("LeadManager.Api.Models.Project", b =>

@@ -1,3 +1,4 @@
+using LeadManager.Api.Services;
 using LeadManager.Api.Data;
 using LeadManager.Api.Models;
 using LeadManager.Api.Services.Enrichment;
@@ -41,7 +42,7 @@ public class EnrichmentController : ControllerBase
 
         // Only allow enriching leads owned by this user
         var validIds = await _db.Leads
-            .Where(l => request.Ids.Contains(l.Id) && l.ImportedByUserId == userId)
+            .VisibleTo(_db, userId).Where(l => request.Ids.Contains(l.Id))
             .Select(l => l.Id)
             .ToListAsync();
 

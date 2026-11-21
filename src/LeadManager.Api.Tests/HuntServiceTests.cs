@@ -31,8 +31,10 @@ public class HuntServiceTests : IDisposable
     {
         _connection = new SqliteConnection("Data Source=:memory:");
         _connection.Open();
-        _db = new LeadManagerDbContext(new DbContextOptionsBuilder<LeadManagerDbContext>().UseSqlite(_connection).Options);
+        _db = new LeadManagerDbContext(new DbContextOptionsBuilder<LeadManagerDbContext>().UseSqlite(_connection).AddInterceptors(new TestOrgInterceptor()).Options);
         _db.Database.EnsureCreated();
+        TestOrgInterceptor.Join(_db, Me);
+        TestOrgInterceptor.Join(_db, Other);
         foreach (var id in new[] { Me, Other }) _db.Users.Add(new ApplicationUser { Id = id, UserName = id, NormalizedUserName = id.ToUpperInvariant(), Email = id + "@example.nl" });
         _db.UserRoles.Add(new IdentityUserRole<string> { UserId = Me, RoleId = AdminRoleId });
         _db.SaveChanges();
@@ -150,6 +152,33 @@ public class HuntServiceTests : IDisposable
         var result = await Service(Fetcher()).SubmitCandidateAsync(job, Sub("Tine", Site, claims, claimed: 10), CancellationToken.None);
         Assert.Equal(0, result.Score);
         Assert.Null((await _db.Leads.SingleAsync()).GoogleRating);
+    }
+
+    [Fact]
+    public async Task Leads_found_by_a_hunt_belong_to_the_organisation_of_the_hunt_and_are_a_duplicate_only_within_it()
+    {
+        var karibu = OrganizationSeed.KaribuMara;
+        _db.OrganizationMembers.Add(new OrganizationMember { OrganizationId = karibu, UserId = Me, Email = "user-me@example.nl", Role = OrganizationRoles.Member });
+        _db.SaveChanges();
+        var job = NewHunt();
+        job.OrganizationId = karibu;
+        _db.SaveChanges();
+
+        var result = await Service(Fetcher()).SubmitCandidateAsync(job, Sub("Tine", Site, GoodExtraction(), claimed: 8), CancellationToken.None);
+
+        Assert.False(result.Duplicate);
+        Assert.Equal(karibu, (await _db.Leads.SingleAsync()).OrganizationId);
+        // the same site found by a hunt of another organisation is a new lead there, not a duplicate
+        job.Status = HuntStatuses.Completed;
+        _db.SaveChanges();
+        var other = NewHunt();
+        other.OrganizationId = OrganizationSeed.Prospergenics;
+        _db.OrganizationMembers.Add(new OrganizationMember { OrganizationId = OrganizationSeed.Prospergenics, UserId = Me, Email = "user-me@example.nl", Role = OrganizationRoles.Member });
+        _db.SaveChanges();
+        var again = await Service(Fetcher()).SubmitCandidateAsync(other, Sub("Tine", Site, GoodExtraction(), claimed: 8), CancellationToken.None);
+        Assert.False(again.Duplicate);
+        Assert.Equal(2, await _db.Leads.CountAsync());
+        Assert.Contains(await _db.Leads.ToListAsync(), l => l.OrganizationId == OrganizationSeed.Prospergenics);
     }
 
     [Fact]
@@ -907,7 +936,7 @@ public class HuntServiceTests : IDisposable
         var path = Path.Combine(Path.GetTempPath(), $"hunt-mig-{Guid.NewGuid():N}.db");
         try
         {
-            var options = new DbContextOptionsBuilder<LeadManagerDbContext>().UseSqlite($"Data Source={path};Pooling=False").Options;
+            var options = new DbContextOptionsBuilder<LeadManagerDbContext>().UseSqlite($"Data Source={path};Pooling=False").AddInterceptors(new TestOrgInterceptor()).Options;
             using (var db = new LeadManagerDbContext(options))
             {
                 var migrator = db.GetService<IMigrator>();
@@ -1072,7 +1101,7 @@ public class HuntServiceTests : IDisposable
         var path = Path.Combine(Path.GetTempPath(), $"hunt-token-mig-{Guid.NewGuid():N}.db");
         try
         {
-            var options = new DbContextOptionsBuilder<LeadManagerDbContext>().UseSqlite($"Data Source={path};Pooling=False").Options;
+            var options = new DbContextOptionsBuilder<LeadManagerDbContext>().UseSqlite($"Data Source={path};Pooling=False").AddInterceptors(new TestOrgInterceptor()).Options;
             var jobId = Guid.NewGuid();
             using (var db = new LeadManagerDbContext(options))
             {

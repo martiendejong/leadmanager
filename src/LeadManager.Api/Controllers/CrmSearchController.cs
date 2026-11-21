@@ -46,7 +46,7 @@ public class CrmSearchController : CrmControllerBase
     // The filtering happens in SQL on a narrow projection: a lead row carries large AI text fields and
     // this endpoint is called per incoming mail, so it must not load every lead of the user.
     [HttpGet("find")]
-    public async Task<IActionResult> Find([FromQuery] string? email, [FromQuery] string? domain, [FromQuery] string? q)
+    public async Task<IActionResult> Find([FromQuery] string? email, [FromQuery] string? domain, [FromQuery] string? q, [FromQuery] string? organizationId = null)
     {
         var userId = GetCurrentUserId();
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
@@ -62,16 +62,18 @@ public class CrmSearchController : CrmControllerBase
         if (email == null && dom == null && q == null) return Ok(Array.Empty<CrmMatchDto>());
 
         var matches = new List<CrmMatchDto>();
+        // With an organisation filter only leads of those organisations are searched (clients have no organisation).
+        var orgs = await Organizations.ParseFilterAsync(_db, userId, organizationId);
 
         var leads = await _db.Leads
-            .Where(l => l.ImportedByUserId == userId)
+            .VisibleTo(_db, userId).InOrganizations(orgs)
             .Where(l => (email != null && (l.CompanyEmail.ToLower() == email || l.PersonalEmail.ToLower() == email))
                         || (dom != null && l.Website.ToLower().Contains(dom))
                         || (q != null && l.Name.ToLower().Contains(q)))
             // Strongest match first, so a broad name query can never push an exact email out of the cap.
             .OrderBy(l => (email != null && (l.CompanyEmail.ToLower() == email || l.PersonalEmail.ToLower() == email)) ? 0
                           : (dom != null && l.Website.ToLower().Contains(dom)) ? 1 : 2)
-            .Select(l => new { l.Id, l.Name, l.Website, l.CompanyEmail, l.PersonalEmail, l.Phone })
+            .Select(l => new { l.Id, l.Name, l.Website, l.CompanyEmail, l.PersonalEmail, l.Phone, l.OrganizationId })
             .Take(Candidates).ToListAsync();
 
         foreach (var l in leads)
@@ -85,11 +87,11 @@ public class CrmSearchController : CrmControllerBase
 
             if (why != null)
                 matches.Add(new CrmMatchDto("leads", l.Id, l.Name, l.Website,
-                    string.IsNullOrWhiteSpace(l.PersonalEmail) ? l.CompanyEmail : l.PersonalEmail, l.Phone, why));
+                    string.IsNullOrWhiteSpace(l.PersonalEmail) ? l.CompanyEmail : l.PersonalEmail, l.Phone, why, l.OrganizationId));
         }
 
         var clients = await _db.Clients
-            .Where(c => c.CreatedByUserId == userId)
+            .Where(c => orgs == null && c.CreatedByUserId == userId)
             .Where(c => (email != null && c.PrimaryContactEmail != null && c.PrimaryContactEmail.ToLower() == email)
                         || (dom != null && c.Website != null && c.Website.ToLower().Contains(dom))
                         || (q != null && c.Name.ToLower().Contains(q)))
@@ -114,16 +116,19 @@ public class CrmSearchController : CrmControllerBase
         // the query, so another user's contacts with the same address can never crowd out the caller's.
         if (email != null)
         {
+            var hasOrgFilter = orgs != null;
+            var orgList = orgs ?? new List<Guid>();
             var contacts = await _db.Contacts
                 .Where(c => c.Email != null && c.Email.ToLower() == email)
-                .Where(c => _db.Leads.Any(l => l.Id == c.LeadId && l.ImportedByUserId == userId)
-                            || _db.Clients.Any(x => x.Id == c.ClientId && x.CreatedByUserId == userId))
+                .Where(c => _db.Leads.Any(l => l.Id == c.LeadId && (!hasOrgFilter || orgList.Contains(l.OrganizationId))
+                                               && _db.OrganizationMembers.Any(om => om.UserId == userId && om.OrganizationId == l.OrganizationId))
+                            || (!hasOrgFilter && _db.Clients.Any(x => x.Id == c.ClientId && x.CreatedByUserId == userId)))
                 .Take(MaxResults).ToListAsync();
 
             var leadIds = contacts.Where(c => c.LeadId.HasValue).Select(c => c.LeadId!.Value).Distinct().ToList();
             var clientIds = contacts.Where(c => c.ClientId.HasValue).Select(c => c.ClientId!.Value).Distinct().ToList();
             var leadRows = await _db.Leads.Where(l => leadIds.Contains(l.Id))
-                .Select(l => new { l.Id, l.Name, l.Website, l.Phone }).ToDictionaryAsync(l => l.Id);
+                .Select(l => new { l.Id, l.Name, l.Website, l.Phone, l.OrganizationId }).ToDictionaryAsync(l => l.Id);
             var clientRows = await _db.Clients.Where(c => clientIds.Contains(c.Id))
                 .Select(c => new { c.Id, c.Name, c.Website, c.PrimaryContactPhone }).ToDictionaryAsync(c => c.Id);
 
@@ -132,7 +137,7 @@ public class CrmSearchController : CrmControllerBase
                 if (contact.LeadId.HasValue && leadRows.TryGetValue(contact.LeadId.Value, out var l))
                 {
                     if (matches.Any(m => m.ParentId == l.Id)) continue;
-                    matches.Add(new CrmMatchDto("leads", l.Id, l.Name, l.Website, contact.Email, contact.Phone ?? l.Phone, "contact"));
+                    matches.Add(new CrmMatchDto("leads", l.Id, l.Name, l.Website, contact.Email, contact.Phone ?? l.Phone, "contact", l.OrganizationId));
                 }
                 else if (contact.ClientId.HasValue && clientRows.TryGetValue(contact.ClientId.Value, out var c))
                 {

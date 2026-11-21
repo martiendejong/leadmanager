@@ -1,0 +1,29 @@
+{
+  "_comment": "Seeded organisation memberships. Applied once per (organisation, e-mail) at start: a member removed in the app (Settings > Organisations) is not put back. Organisations by name or slug. Add a person here, deploy, and the membership attaches at their first login. role: admin or member.",
+  "members": [
+    {
+      "name": "Martien de Jong",
+      "email": "info@martiendejong.nl",
+      "role": "admin",
+      "orgs": ["Prospergenics", "Martien de Jong", "Port of Giethoorn", "Karibu Mara", "Rena Farm system", "MaaLink Ride"]
+    },
+    {
+      "name": "Frank",
+      "email": "frank@martiendejong.nl",
+      "role": "member",
+      "orgs": ["Prospergenics", "Karibu Mara", "Weerzien Mara"]
+    },
+    {
+      "name": "Sandra (Simitia Mpoe)",
+      "email": "mpoesimitia@gmail.com",
+      "role": "member",
+      "orgs": ["MaaLink Ride", "Karibu Mara", "Prospergenics"]
+    },
+    {
+      "name": "Lessy (Lesiamon Mpoe)",
+      "email": "mpoelessy839@gmail.com",
+      "role": "member",
+      "orgs": ["Karibu Mara", "Prospergenics", "Rena Farm system"]
+    }
+  ]
+}

@@ -55,7 +55,7 @@ export interface Dashboard {
   recentActivity: DashboardActivityRow[]
 }
 
-export async function getDashboard(): Promise<Dashboard> {
-  const res = await apiClient.get<Dashboard>('/api/dashboard')
+export async function getDashboard(organizationId?: string): Promise<Dashboard> {
+  const res = await apiClient.get<Dashboard>('/api/dashboard', { params: organizationId ? { organizationId } : undefined })
   return res.data
 }

@@ -6,6 +6,9 @@ import {
   CHANNELS, CHANNEL_LABELS, MAX_BODY, MAX_SUBJECT, deleteDraft, listMessages, markSent, updateDraft,
   type Channel, type LeadMessage,
 } from '../api/messages'
+import OrganizationFilter from '../components/organizations/OrganizationFilter'
+import OrganizationBadge from '../components/organizations/OrganizationBadge'
+import { useOrganizations } from '../contexts/OrganizationContext'
 
 function fmt(iso: string | null) {
   return iso ? new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''
@@ -14,6 +17,7 @@ function fmt(iso: string | null) {
 /** All messages over all leads. The app sends nothing: "Mark as sent" only records that you sent a message yourself. */
 export default function MessagesPage() {
   const { showToast } = useToast()
+  const { filterParam } = useOrganizations()
   const [status, setStatus] = useState('')
   const [channel, setChannel] = useState('')
   const [q, setQ] = useState('')
@@ -25,13 +29,13 @@ export default function MessagesPage() {
 
   const load = useCallback(async () => {
     try {
-      const d = await listMessages({ status: status || undefined, channel: channel || undefined, q: q || undefined, page, pageSize: 25 })
+      const d = await listMessages({ status: status || undefined, channel: channel || undefined, q: q || undefined, page, pageSize: 25, organizationId: filterParam })
       setData(d)
     } catch (err) {
       showToast(errorMessage(err, 'Could not load the messages'), 'error')
       setData({ items: [], total: 0, pageSize: 25 })
     }
-  }, [status, channel, q, page, showToast])
+  }, [status, channel, q, page, showToast, filterParam])
   useEffect(() => { void load() }, [load])
 
   const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1
@@ -69,6 +73,7 @@ export default function MessagesPage() {
       <h1 className="text-xl font-semibold text-gray-900 mb-1">Messages</h1>
       <p className="text-sm text-gray-500 mb-4">Drafts and sent messages for all your leads. This app sends nothing: you send a message yourself and then mark it as sent.</p>
 
+      <OrganizationFilter className="mb-3" />
       <div className="flex flex-wrap gap-2 mb-4">
         <select aria-label="Filter by status" className={input} value={status} onChange={(e) => { setStatus(e.target.value); setPage(1) }}>
           <option value="">All statuses</option>
@@ -90,6 +95,7 @@ export default function MessagesPage() {
           <li key={m.id} className="bg-white rounded-xl border border-gray-200 p-4">
             <div className="flex flex-wrap items-center gap-2 mb-1">
               <Link to={`/leads/${m.leadId}`} className="text-sm font-semibold text-gray-900 hover:text-indigo-600">{m.leadName}</Link>
+              <OrganizationBadge organizationId={m.organizationId} />
               <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{CHANNEL_LABELS[m.channel]}</span>
               <span className={`text-xs px-2 py-0.5 rounded-full ${m.status === 'Sent' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}>{m.status}</span>
               {m.leadPipelineStatus && <span className="text-xs text-gray-400">Lead: {m.leadPipelineStatus}</span>}

@@ -2,6 +2,7 @@ import React, { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import type { Lead } from '../../api/leads'
 import { ProductChips } from './ProductChips'
+import OrganizationBadge from '../organizations/OrganizationBadge'
 
 interface LeadsTableProps {
   leads: Lead[]
@@ -248,6 +249,7 @@ export default function LeadsTable({
                       </span>
                     )}
                   </span>
+                  <div className="mt-1"><OrganizationBadge organizationId={lead.organizationId} /></div>
                   {lead.whyLead && (
                     <div className="mt-0.5 text-xs font-normal text-gray-500 truncate" title={lead.whyLead}>{lead.whyLead}</div>
                   )}

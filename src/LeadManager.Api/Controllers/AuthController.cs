@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using LeadManager.Api.Data;
 using LeadManager.Api.DTOs;
 using LeadManager.Api.Models;
 using LeadManager.Api.Services;
@@ -16,13 +17,16 @@ public class AuthController : ControllerBase
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly JwtService _jwtService;
     private readonly IConfiguration _configuration;
+    private readonly LeadManagerDbContext _db;
 
     public AuthController(
         UserManager<ApplicationUser> userManager,
         SignInManager<ApplicationUser> signInManager,
         JwtService jwtService,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        LeadManagerDbContext db)
     {
+        _db = db;
         _userManager = userManager;
         _signInManager = signInManager;
         _jwtService = jwtService;
@@ -39,6 +43,8 @@ public class AuthController : ControllerBase
         var result = await _signInManager.CheckPasswordSignInAsync(user, request.Password, lockoutOnFailure: false);
         if (!result.Succeeded)
             return Unauthorized(new { message = "Onbekend e-mailadres of wachtwoord" });
+
+        await Organizations.AttachPendingAsync(_db, user.Id, user.Email);
 
         var roles = await _userManager.GetRolesAsync(user);
         var token = _jwtService.GenerateToken(user, roles);
@@ -72,6 +78,8 @@ public class AuthController : ControllerBase
         var user = await _userManager.FindByIdAsync(userId);
         if (user == null || !user.IsActive)
             return Unauthorized();
+
+        await Organizations.AttachPendingAsync(_db, user.Id, user.Email);
 
         var roles = await _userManager.GetRolesAsync(user);
 

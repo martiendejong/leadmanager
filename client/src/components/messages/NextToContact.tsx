@@ -4,19 +4,22 @@ import { useToast } from '../Toast'
 import { errorMessage } from '../../api/crm'
 import { getQueue, type QueueItem } from '../../api/messages'
 import { ProductChips } from '../leads/ProductChips'
+import OrganizationBadge from '../organizations/OrganizationBadge'
+import { useOrganizations } from '../../contexts/OrganizationContext'
 
 /** The best leads that are still New and have not been contacted. One click opens the lead with the message section. */
 export default function NextToContact() {
   const { showToast } = useToast()
+  const { filterParam } = useOrganizations()
   const [items, setItems] = useState<QueueItem[] | null>(null)
 
   useEffect(() => {
     let cancelled = false
-    getQueue(8, 6)
+    getQueue(8, 6, filterParam)
       .then((d) => { if (!cancelled) setItems(d) })
       .catch((err) => { if (!cancelled) { showToast(errorMessage(err, 'Could not load the leads to contact'), 'error'); setItems([]) } })
     return () => { cancelled = true }
-  }, [showToast])
+  }, [showToast, filterParam])
 
   return (
     <section aria-label="Next to contact" className="mb-6">
@@ -34,6 +37,7 @@ export default function NextToContact() {
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <Link to={`/leads/${l.id}`} className="text-sm font-semibold text-gray-900 hover:text-indigo-600 truncate">{l.name}</Link>
+                  <OrganizationBadge organizationId={l.organizationId} />
                   {l.score != null && <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-800 font-medium">{l.score}/10</span>}
                   {l.hasDraft && <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">Draft saved</span>}
                 </div>

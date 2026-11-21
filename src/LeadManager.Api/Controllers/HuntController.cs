@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace LeadManager.Api.Controllers;
 
-public record StartHuntRequest(string? Segment, string? Region, int? MinScore, int? TargetCount, int? MaxCandidates, bool? Ratchet);
+public record StartHuntRequest(string? Segment, string? Region, int? MinScore, int? TargetCount, int? MaxCandidates, bool? Ratchet, Guid? OrganizationId = null);
 public record VerifyLeadsRequest(Guid[]? Ids, bool? Confirm = null);
 public record ReviewLeadsRequest(Guid[]? Ids);
 
@@ -102,9 +102,12 @@ public class HuntController : ControllerBase
         if (target is < 1 or > 10) return BadRequest(new { error = "The number of leads to find is between 1 and 10." });
         if (maxCandidates is < 5 or > 40) return BadRequest(new { error = "Candidates to screen is between 5 and 40." });
 
+        var (orgId, orgError) = await Organizations.ResolveTargetAsync(_db, userId, request.OrganizationId);
+        if (orgId == null) return BadRequest(new { error = orgError });
+
         var job = new HuntJob
         {
-            UserId = userId, Kind = HuntKinds.Hunt, Segment = segment, Region = region, MinScore = min, TargetCount = target,
+            UserId = userId, OrganizationId = orgId.Value, Kind = HuntKinds.Hunt, Segment = segment, Region = region, MinScore = min, TargetCount = target,
             MaxCandidates = maxCandidates, Ratchet = request.Ratchet ?? true, Total = maxCandidates,
         };
         return await CreateAndDispatchAsync(job, HuntKinds.Hunt, MaxPerDay, ct);
@@ -168,12 +171,15 @@ public class HuntController : ControllerBase
         var ids = (request.Ids ?? Array.Empty<Guid>()).Distinct().ToArray();
         if (ids.Length == 0) return BadRequest(new { error = "No lead IDs provided." });
         if (ids.Length > MaxReviewIds) return BadRequest(new { error = $"Ask for a review of at most {MaxReviewIds} leads at a time." });
-        var own = await _db.Leads.Where(l => ids.Contains(l.Id) && l.ImportedByUserId == userId).Select(l => l.Id).ToListAsync(ct);
+        var ownRows = await _db.Leads.VisibleTo(_db, userId).Where(l => ids.Contains(l.Id)).Select(l => new { l.Id, l.OrganizationId }).ToListAsync(ct);
+        var own = ownRows.Select(l => l.Id).ToList();
         if (own.Count == 0) return NotFound(new { error = "None of these leads belong to your account." });
+        if (ownRows.Select(l => l.OrganizationId).Distinct().Count() > 1)
+            return BadRequest(new { error = "Select leads of one organisation at a time." });
 
         var job = new HuntJob
         {
-            UserId = userId, Kind = HuntKinds.Review, LeadIds = own, Segment = $"Review of {own.Count} lead(s)", Region = "", MinScore = 0,
+            UserId = userId, OrganizationId = ownRows[0].OrganizationId, Kind = HuntKinds.Review, LeadIds = own, Segment = $"Review of {own.Count} lead(s)", Region = "", MinScore = 0,
             TargetCount = own.Count, MaxCandidates = own.Count, Total = own.Count, Ratchet = false,
         };
         return await CreateAndDispatchAsync(job, HuntKinds.Review, MaxPerDay, ct);
@@ -227,7 +233,7 @@ public class HuntController : ControllerBase
         var userId = UserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
         if (_service == null) return StatusCode(503, new { error = "Verify is not available here." });
-        var lead = await _db.Leads.AsNoTracking().FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == userId, ct);
+        var lead = await _db.Leads.VisibleTo(_db, userId).AsNoTracking().FirstOrDefaultAsync(l => l.Id == id, ct);
         if (lead == null) return NotFound(new { error = "This lead does not belong to your account." });
         return Ok(await _service.PreviewAsync(lead, confirm, ct));
     }
@@ -242,10 +248,13 @@ public class HuntController : ControllerBase
         if (ids.Length == 0) return BadRequest(new { error = "No lead IDs provided." });
         if (ids.Length > MaxVerifyIds) return BadRequest(new { error = $"At most {MaxVerifyIds} leads per request." });
 
-        var own = await _db.Leads.Where(l => ids.Contains(l.Id) && l.ImportedByUserId == userId).Select(l => l.Id).ToListAsync(ct);
+        var ownRows = await _db.Leads.VisibleTo(_db, userId).Where(l => ids.Contains(l.Id)).Select(l => new { l.Id, l.OrganizationId }).ToListAsync(ct);
+        var own = ownRows.Select(l => l.Id).ToList();
         if (own.Count == 0) return NotFound(new { error = "None of these leads belong to your account." });
+        if (ownRows.Select(l => l.OrganizationId).Distinct().Count() > 1)
+            return BadRequest(new { error = "Select leads of one organisation at a time." });
 
-        var job = new HuntJob { UserId = userId, Kind = HuntKinds.Verify, LeadIds = own, Total = own.Count, ConfirmClear = confirm };
+        var job = new HuntJob { UserId = userId, OrganizationId = ownRows[0].OrganizationId, Kind = HuntKinds.Verify, LeadIds = own, Total = own.Count, ConfirmClear = confirm };
         var refused = await CreateJobAsync(job, HuntKinds.Verify, MaxVerifyPerDay, ct);
         if (refused != null) return refused;
         await _queue.Writer.WriteAsync(job.Id, ct);
@@ -255,10 +264,14 @@ public class HuntController : ControllerBase
     // GET /api/leads/hunt
     [AllowApiKey]
     [HttpGet("hunt")]
-    public async Task<IActionResult> Recent()
+    public async Task<IActionResult> Recent([FromQuery] string? organizationId = null)
     {
         var userId = UserId;
-        var jobs = await _db.HuntJobs.AsNoTracking().Where(j => j.UserId == userId).OrderByDescending(j => j.CreatedAt).Take(10).ToListAsync();
+        // The hunts of the organisations the person is a member of (their colleagues' hunts included).
+        var orgs = await Organizations.ParseFilterAsync(_db, userId, organizationId);
+        var query = _db.HuntJobs.AsNoTracking().Where(j => _db.OrganizationMembers.Any(m => m.UserId == userId && m.OrganizationId == j.OrganizationId));
+        if (orgs != null) query = query.Where(j => orgs.Contains(j.OrganizationId));
+        var jobs = await query.OrderByDescending(j => j.CreatedAt).Take(10).ToListAsync();
         return Ok(jobs.Select(ToDto));
     }
 
@@ -268,7 +281,7 @@ public class HuntController : ControllerBase
     public async Task<IActionResult> Get(Guid id)
     {
         var userId = UserId;
-        var job = await _db.HuntJobs.AsNoTracking().Include(j => j.Candidates).FirstOrDefaultAsync(j => j.Id == id && j.UserId == userId);
+        var job = await _db.HuntJobs.AsNoTracking().Include(j => j.Candidates).FirstOrDefaultAsync(j => j.Id == id && _db.OrganizationMembers.Any(m => m.UserId == userId && m.OrganizationId == j.OrganizationId));
         if (job == null) return NotFound();
         return Ok(new
         {
@@ -287,13 +300,13 @@ public class HuntController : ControllerBase
     public async Task<IActionResult> Cancel(Guid id)
     {
         var userId = UserId;
-        var job = await _db.HuntJobs.FirstOrDefaultAsync(j => j.Id == id && j.UserId == userId);
+        var job = await _db.HuntJobs.FirstOrDefaultAsync(j => j.Id == id && _db.OrganizationMembers.Any(m => m.UserId == userId && m.OrganizationId == j.OrganizationId));
         if (job == null) return NotFound();
         if (!HuntStatuses.IsActive(job.Status)) return Ok(ToDto(job));
         // One conditional update on the active statuses, like the agent paths: a hunt that completed while this request was being handled is left as it is.
         // An agent hunt or review ends now and its token is revoked: the agent's next call is refused and it stops. A verify job ends at its next lead.
         var endsNow = job.Status == HuntStatuses.Pending || job.Kind != HuntKinds.Verify;
-        var active = _db.HuntJobs.Where(j => j.Id == id && j.UserId == userId && (j.Status == HuntStatuses.Pending || j.Status == HuntStatuses.Running));
+        var active = _db.HuntJobs.Where(j => j.Id == id && _db.OrganizationMembers.Any(m => m.UserId == userId && m.OrganizationId == j.OrganizationId) && (j.Status == HuntStatuses.Pending || j.Status == HuntStatuses.Running));
         if (endsNow)
             await active.ExecuteUpdateAsync(s => s.SetProperty(j => j.CancelRequested, true).SetProperty(j => j.Status, HuntStatuses.Cancelled)
                 .SetProperty(j => j.CompletedAt, (DateTime?)DateTime.UtcNow).SetProperty(j => j.TokenHash, (string?)null).SetProperty(j => j.TokenExpiresAt, (DateTime?)null)
@@ -312,7 +325,7 @@ public class HuntController : ControllerBase
     public async Task<IActionResult> Evidence(Guid id)
     {
         var userId = UserId;
-        var owns = await _db.Leads.AsNoTracking().AnyAsync(l => l.Id == id && l.ImportedByUserId == userId);
+        var owns = await _db.Leads.VisibleTo(_db, userId).AsNoTracking().AnyAsync(l => l.Id == id);
         if (!owns) return NotFound();
         var cand = await _db.HuntCandidates.AsNoTracking().Where(c => c.LeadId == id).OrderByDescending(c => c.CreatedAt).FirstOrDefaultAsync();
         if (cand == null) return Ok(new { available = false });
@@ -327,6 +340,6 @@ public class HuntController : ControllerBase
         id = j.Id, kind = j.Kind, status = j.Status, segment = j.Segment, region = j.Region, minScore = j.MinScore, targetCount = j.TargetCount,
         maxCandidates = j.MaxCandidates, ratchet = j.Ratchet, total = j.Total, screened = j.Screened, qualified = j.Qualified, best = j.BestScore,
         current = j.CurrentCandidate, error = j.Error, taskId = j.TaskId, taskUrl = j.TaskUrl, summary = j.Summary, lastAgentCallAt = j.LastAgentCallAt,
-        createdAt = j.CreatedAt, startedAt = j.StartedAt, completedAt = j.CompletedAt,
+        createdAt = j.CreatedAt, startedAt = j.StartedAt, completedAt = j.CompletedAt, organizationId = j.OrganizationId,
     };
 }

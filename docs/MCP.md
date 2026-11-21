@@ -26,10 +26,11 @@ deactivated user is rejected. A JWT from the login page is not a valid MCP token
 
 | Tool | Does |
 |---|---|
-| `search_leads` | Search leads and clients by name, email address or domain |
+| `list_organizations` | The organisations you are a member of (id, name, slug, role). Leads belong to one organisation each and you only see those of your own; see [ORGANISATIONS.md](ORGANISATIONS.md) |
+| `search_leads` | Search leads and clients by name, email address or domain; optional `organization` (id, slug or name) narrows it to one organisation's leads |
 | `find_by_email_or_domain` | Who is this? Email address or domain to lead or client (also finds contacts) |
 | `get_lead` | Everything about one lead or client: details, contacts, open actions, links, recent history. A lead also carries `whyLead` (why it is a lead), `needs` (what the business needs, each with a quote from its own pages) and `productFit` (which of our products can help: product key, reason, evidence quote, source URL; an empty list means no clear fit, null means not assessed) |
-| `create_lead` | Create a lead, or return the existing one if the website domain is already known (safe to repeat) |
+| `create_lead` | Create a lead, or return the existing one if the website domain is already known within the organisation (safe to repeat). `organization` is required when you are a member of several |
 | `log_interaction` | Record an interaction (call, email, WhatsApp, meeting, note); `source_ref` makes it idempotent |
 | `add_next_action` | Plan a next step; appears on the Today list when it is due |
 | `complete_next_action` | Tick off an action |

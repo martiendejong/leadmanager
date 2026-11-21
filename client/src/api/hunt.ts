@@ -24,6 +24,8 @@ export interface HuntCriteria {
   targetCount: number
   maxCandidates: number
   ratchet: boolean
+  /** Required when the person is a member of several organisations */
+  organizationId?: string
 }
 
 export type HuntStatus = 'Pending' | 'Running' | 'Completed' | 'Failed' | 'Cancelled'

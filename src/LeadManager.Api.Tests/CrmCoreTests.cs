@@ -30,7 +30,7 @@ public class CrmCoreTests : IDisposable
     {
         _connection = new SqliteConnection("Data Source=:memory:");
         _connection.Open();
-        _db = new LeadManagerDbContext(new DbContextOptionsBuilder<LeadManagerDbContext>().UseSqlite(_connection).Options);
+        _db = new LeadManagerDbContext(new DbContextOptionsBuilder<LeadManagerDbContext>().UseSqlite(_connection).AddInterceptors(new TestOrgInterceptor()).Options);
         _db.Database.EnsureCreated();
         _access = new CrmParentAccess(_db);
     }
@@ -95,7 +95,7 @@ public class CrmCoreTests : IDisposable
         // The other tests use EnsureCreated (the model), which would hide a broken migration.
         using var conn = new SqliteConnection("Data Source=:memory:");
         conn.Open();
-        using var db = new LeadManagerDbContext(new DbContextOptionsBuilder<LeadManagerDbContext>().UseSqlite(conn).Options);
+        using var db = new LeadManagerDbContext(new DbContextOptionsBuilder<LeadManagerDbContext>().UseSqlite(conn).AddInterceptors(new TestOrgInterceptor()).Options);
 
         db.Database.Migrate();
 

@@ -357,6 +357,10 @@ using (var scope = app.Services.CreateScope())
     // Admin accounts come from configuration only (Seed:Admins). No password lives in the code.
     await AdminSeeder.SeedAsync(userManager, builder.Configuration,
         scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("AdminSeeder"));
+
+    // Organisation memberships (deploy/org_members.json), by e-mail so they resolve at first login.
+    await OrganizationSeeder.SeedAsync(db, OrganizationSeeder.ReadSource(builder.Configuration),
+        scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("OrganizationSeeder"));
 }
 
 // Dev middleware

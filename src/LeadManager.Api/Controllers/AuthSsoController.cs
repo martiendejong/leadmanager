@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using LeadManager.Api.Data;
 using LeadManager.Api.Models;
 using LeadManager.Api.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -22,6 +23,7 @@ public class AuthSsoController : ControllerBase
     private readonly IConfiguration _configuration;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<AuthSsoController> _logger;
+    private readonly LeadManagerDbContext _db;
 
     // Production IAM by default; test and acc can point to their own IAM through Sso:Issuer / Sso:ClientId.
     private const string DefaultIamIssuer = "https://maendeleo.martiendejong.nl";
@@ -36,8 +38,10 @@ public class AuthSsoController : ControllerBase
         JwtService jwtService,
         IConfiguration configuration,
         IHttpClientFactory httpClientFactory,
-        ILogger<AuthSsoController> logger)
+        ILogger<AuthSsoController> logger,
+        LeadManagerDbContext db)
     {
+        _db = db;
         _userManager = userManager;
         _jwtService = jwtService;
         _configuration = configuration;
@@ -126,6 +130,9 @@ public class AuthSsoController : ControllerBase
 
         if (!localUser.IsActive)
             return Redirect("/#sso_error=account_disabled");
+
+        // Memberships added by e-mail before this person had an account belong to them from now on.
+        await Organizations.AttachPendingAsync(_db, localUser.Id, localUser.Email);
 
         var roles = await _userManager.GetRolesAsync(localUser);
         var jwt = _jwtService.GenerateToken(localUser, roles);

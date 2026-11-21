@@ -58,14 +58,16 @@ public class DashboardController : ControllerBase
 
     // GET /api/dashboard
     [HttpGet("api/dashboard")]
-    public Task<IActionResult> Get() => BuildAsync(DateTime.UtcNow);
+    public Task<IActionResult> Get([FromQuery] string? organizationId = null) => BuildAsync(DateTime.UtcNow, organizationId);
 
     /// <summary>The reference time is not a request parameter: a caller must not be able to move "now".</summary>
     [NonAction]
-    public async Task<IActionResult> BuildAsync(DateTime utcNow)
+    public async Task<IActionResult> BuildAsync(DateTime utcNow, string? organizationId = null)
     {
         var userId = UserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
+        // The organisation filter narrows the lead figures; clients have no organisation and stay as they are.
+        var orgs = await Organizations.ParseFilterAsync(_db, userId, organizationId);
         utcNow = UtcDateTimeConverter.Normalize(utcNow);
         var endOfToday = NextActionsController.EndOfDayNl(utcNow);
         var startOfToday = endOfToday.AddDays(-1); // same day boundary as the Today list: Dutch midnight
@@ -109,13 +111,13 @@ public class DashboardController : ControllerBase
 
         var projects = await _db.Projects.AsNoTracking().Where(p => clientIds.Contains(p.ClientId)).ToListAsync();
 
-        var leads = await _db.Leads.AsNoTracking().Where(l => l.ImportedByUserId == userId)
+        var leads = await _db.Leads.AsNoTracking().VisibleTo(_db, userId).InOrganizations(orgs)
             .GroupBy(l => l.PipelineStatus).Select(g => new { g.Key, N = g.Count() }).ToListAsync();
 
-        var leadNames = await _db.Leads.AsNoTracking().Where(l => l.ImportedByUserId == userId).ToDictionaryAsync(l => l.Id, l => l.Name);
-        var ownLeadIds = _db.Leads.Where(l => l.ImportedByUserId == userId).Select(l => l.Id);
+        var leadNames = await _db.Leads.AsNoTracking().VisibleTo(_db, userId).InOrganizations(orgs).ToDictionaryAsync(l => l.Id, l => l.Name);
+        var ownLeadIds = _db.Leads.VisibleTo(_db, userId).InOrganizations(orgs).Select(l => l.Id);
         var recent = await _db.Interactions.AsNoTracking()
-            .Where(i => (i.ClientId != null && clientIds.Contains(i.ClientId.Value)) || (i.LeadId != null && ownLeadIds.Contains(i.LeadId.Value)))
+            .Where(i => (orgs == null && i.ClientId != null && clientIds.Contains(i.ClientId.Value)) || (i.LeadId != null && ownLeadIds.Contains(i.LeadId.Value)))
             .OrderByDescending(i => i.OccurredAt).Take(8).ToListAsync();
 
         var counts = new DashboardCounts(

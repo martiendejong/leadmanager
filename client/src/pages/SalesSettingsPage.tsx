@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { SalesSettings } from '../api/salesSettings';
 import { salesSettingsApi } from '../api/salesSettings';
 import MessageTemplatesPanel from '../components/messages/MessageTemplatesPanel';
+import { Link } from 'react-router-dom';
 
 type Tab = 'company' | 'pricing' | 'quote' | 'script' | 'email' | 'messages' | 'rules' | 'fedha';
 
@@ -113,6 +114,12 @@ export default function SalesSettingsPage() {
             {tab.label}
           </button>
         ))}
+        <Link
+          to="/settings/organizations"
+          className="px-4 py-2 text-sm font-medium rounded-t-lg transition-colors text-gray-600 hover:text-indigo-600 hover:bg-indigo-50"
+        >
+          Organisations
+        </Link>
       </div>
 
       {/* Panel */}

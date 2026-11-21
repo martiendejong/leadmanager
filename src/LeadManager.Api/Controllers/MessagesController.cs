@@ -29,18 +29,18 @@ public class MessagesController : ControllerBase
 
     private string? UserId => User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
 
-    private static LeadMessageDto ToDto(LeadMessage m, string leadName, PipelineStatus? pipeline, int? score) =>
-        new(m.Id, m.LeadId, leadName, m.Channel, m.Subject, m.Body, m.Status, m.CreatedAt, m.UpdatedAt, m.SentAt, pipeline?.ToString(), score);
+    private static LeadMessageDto ToDto(LeadMessage m, string leadName, PipelineStatus? pipeline, int? score, Guid organizationId) =>
+        new(m.Id, m.LeadId, leadName, m.Channel, m.Subject, m.Body, m.Status, m.CreatedAt, m.UpdatedAt, m.SentAt, pipeline?.ToString(), score, organizationId);
 
     private async Task<Lead?> OwnLeadAsync(Guid leadId) =>
-        await _db.Leads.FirstOrDefaultAsync(l => l.Id == leadId && l.ImportedByUserId == UserId);
+        await _db.Leads.VisibleTo(_db, UserId).FirstOrDefaultAsync(l => l.Id == leadId);
 
     private async Task<(LeadMessage? Message, Lead? Lead)> OwnMessageAsync(Guid id)
     {
         var userId = UserId;
-        var m = await _db.LeadMessages.FirstOrDefaultAsync(x => x.Id == id && x.UserId == userId);
+        var m = await _db.LeadMessages.FirstOrDefaultAsync(x => x.Id == id);
         if (m == null) return (null, null);
-        var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == m.LeadId && l.ImportedByUserId == userId);
+        var lead = await _db.Leads.VisibleTo(_db, userId).FirstOrDefaultAsync(l => l.Id == m.LeadId);
         return lead == null ? (null, null) : (m, lead);
     }
 
@@ -49,7 +49,7 @@ public class MessagesController : ControllerBase
     // GET /api/messages?status=Draft|Sent&channel=Email&leadId=...&q=name&page=1&pageSize=50
     [HttpGet("messages")]
     public async Task<IActionResult> List([FromQuery] string? status, [FromQuery] string? channel, [FromQuery] Guid? leadId, [FromQuery] string? q,
-        [FromQuery] int page = 1, [FromQuery] int pageSize = 50)
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 50, [FromQuery] string? organizationId = null)
     {
         var userId = UserId;
         if (status != null && status != MessageStatuses.Draft && status != MessageStatuses.Sent) return BadRequest(new { error = "Status is Draft or Sent." });
@@ -60,16 +60,18 @@ public class MessagesController : ControllerBase
 
         var query = from m in _db.LeadMessages.AsNoTracking()
                     join l in _db.Leads.AsNoTracking() on m.LeadId equals l.Id
-                    where m.UserId == userId && l.ImportedByUserId == userId
-                    select new { m, l.Name, l.PipelineStatus, l.SalesPriorityScore };
+                    where _db.OrganizationMembers.Any(om => om.UserId == userId && om.OrganizationId == l.OrganizationId)
+                    select new { m, l.Name, l.PipelineStatus, l.SalesPriorityScore, l.OrganizationId };
         if (status != null) query = query.Where(x => x.m.Status == status);
         if (ch != null) query = query.Where(x => x.m.Channel == ch);
         if (leadId.HasValue) query = query.Where(x => x.m.LeadId == leadId.Value);
+        var orgs = await Organizations.ParseFilterAsync(_db, userId, organizationId);
+        if (orgs != null) query = query.Where(x => orgs.Contains(x.OrganizationId));
         if (!string.IsNullOrWhiteSpace(q)) { var term = q.Trim(); query = query.Where(x => x.Name.Contains(term)); }
 
         var total = await query.CountAsync();
         var rows = await query.OrderByDescending(x => x.m.UpdatedAt).ThenBy(x => x.m.Id).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
-        return Ok(new { items = rows.Select(r => ToDto(r.m, r.Name, r.PipelineStatus, r.SalesPriorityScore)), total, page, pageSize });
+        return Ok(new { items = rows.Select(r => ToDto(r.m, r.Name, r.PipelineStatus, r.SalesPriorityScore, r.OrganizationId)), total, page, pageSize });
     }
 
     // GET /api/leads/{leadId}/messages
@@ -78,9 +80,9 @@ public class MessagesController : ControllerBase
     {
         var lead = await OwnLeadAsync(leadId);
         if (lead == null) return NotFound();
-        var items = await _db.LeadMessages.AsNoTracking().Where(m => m.LeadId == leadId && m.UserId == UserId)
+        var items = await _db.LeadMessages.AsNoTracking().Where(m => m.LeadId == leadId)
             .OrderByDescending(m => m.UpdatedAt).ToListAsync();
-        return Ok(items.Select(m => ToDto(m, lead.Name, lead.PipelineStatus, lead.SalesPriorityScore)));
+        return Ok(items.Select(m => ToDto(m, lead.Name, lead.PipelineStatus, lead.SalesPriorityScore, lead.OrganizationId)));
     }
 
     // ---- the prefill ---------------------------------------------------------------------------------------------------------
@@ -156,7 +158,7 @@ public class MessagesController : ControllerBase
         var m = new LeadMessage { LeadId = leadId, UserId = UserId!, Channel = ch, Subject = subject, Body = body };
         _db.LeadMessages.Add(m);
         await _db.SaveChangesAsync();
-        return Created($"api/messages/{m.Id}", ToDto(m, lead.Name, lead.PipelineStatus, lead.SalesPriorityScore));
+        return Created($"api/messages/{m.Id}", ToDto(m, lead.Name, lead.PipelineStatus, lead.SalesPriorityScore, lead.OrganizationId));
     }
 
     // PUT /api/messages/{id} : only a draft can be edited
@@ -170,7 +172,7 @@ public class MessagesController : ControllerBase
         if (invalid != null) return invalid;
         m.Channel = ch; m.Subject = subject; m.Body = body; m.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
-        return Ok(ToDto(m, lead.Name, lead.PipelineStatus, lead.SalesPriorityScore));
+        return Ok(ToDto(m, lead.Name, lead.PipelineStatus, lead.SalesPriorityScore, lead.OrganizationId));
     }
 
     // DELETE /api/messages/{id} : only a draft; the history of sent messages stays
@@ -219,7 +221,7 @@ public class MessagesController : ControllerBase
             _db.Activities.Add(new LeadActivity { LeadId = lead.Id, UserId = UserId, ActivityType = ActivityType.StatusChanged, Note = "Pipeline status New -> Contacted (a message was marked as sent)." });
 
         await _db.SaveChangesAsync();
-        return Ok(new { message = ToDto(m, lead.Name, lead.PipelineStatus, lead.SalesPriorityScore), pipelineStatus = lead.PipelineStatus.ToString(), statusChanged = changed, lastContactedAt = lead.LastContactedAt });
+        return Ok(new { message = ToDto(m, lead.Name, lead.PipelineStatus, lead.SalesPriorityScore, lead.OrganizationId), pipelineStatus = lead.PipelineStatus.ToString(), statusChanged = changed, lastContactedAt = lead.LastContactedAt });
     }
 
     // GET /api/messages/{id}/mailto : the mailto link, only for a valid published address
@@ -251,8 +253,8 @@ public class MessagesController : ControllerBase
         if (!string.IsNullOrWhiteSpace(dto.Product) && ProductCatalog.Canonical(dto.Product) == null)
             return BadRequest(new { error = $"'{dto.Product}' is not one of our products. Known: {string.Join(", ", ProductCatalog.Keys)}." });
 
-        var leads = await _db.Leads.Where(l => ids.Contains(l.Id) && l.ImportedByUserId == userId).ToListAsync();
-        var haveDraft = (await _db.LeadMessages.AsNoTracking().Where(m => m.UserId == userId && m.Status == MessageStatuses.Draft && m.Channel == ch && ids.Contains(m.LeadId))
+        var leads = await _db.Leads.VisibleTo(_db, userId).Where(l => ids.Contains(l.Id)).ToListAsync();
+        var haveDraft = (await _db.LeadMessages.AsNoTracking().Where(m => m.Status == MessageStatuses.Draft && m.Channel == ch && ids.Contains(m.LeadId))
             .Select(m => m.LeadId).ToListAsync()).ToHashSet();
 
         var created = new List<object>();
@@ -275,18 +277,18 @@ public class MessagesController : ControllerBase
 
     // GET /api/messages/queue?take=20&minScore=6 : leads that are still New with a high score, best first
     [HttpGet("messages/queue")]
-    public async Task<IActionResult> Queue([FromQuery] int take = 20, [FromQuery] int minScore = 6)
+    public async Task<IActionResult> Queue([FromQuery] int take = 20, [FromQuery] int minScore = 6, [FromQuery] string? organizationId = null)
     {
         var userId = UserId;
         take = Math.Clamp(take, 1, 100);
         minScore = Math.Clamp(minScore, 0, 9);
         var leads = await _db.Leads.AsNoTracking()
-            .Where(l => l.ImportedByUserId == userId && l.PipelineStatus == PipelineStatus.New && l.LastContactedAt == null && l.SalesPriorityScore >= minScore)
+            .VisibleTo(_db, userId).InOrganizations(await Organizations.ParseFilterAsync(_db, userId, organizationId)).Where(l => l.PipelineStatus == PipelineStatus.New && l.LastContactedAt == null && l.SalesPriorityScore >= minScore)
             .OrderByDescending(l => l.SalesPriorityScore).ThenByDescending(l => l.WhyLead != null).ThenBy(l => l.Name).ThenBy(l => l.Id)
             .Take(take).ToListAsync();
         var ids = leads.Select(l => l.Id).ToList();
-        var drafts = (await _db.LeadMessages.AsNoTracking().Where(m => m.UserId == userId && m.Status == MessageStatuses.Draft && ids.Contains(m.LeadId)).Select(m => m.LeadId).ToListAsync()).ToHashSet();
+        var drafts = (await _db.LeadMessages.AsNoTracking().Where(m => m.Status == MessageStatuses.Draft && ids.Contains(m.LeadId)).Select(m => m.LeadId).ToListAsync()).ToHashSet();
         return Ok(leads.Select(l => new QueueItemDto(l.Id, l.Name, l.SalesPriorityScore, l.SalesPriorityLabel, l.Sector, l.City, l.OwnerName, l.WhyLead, l.Needs,
-            LeadInsight.ParseFit(l.ProductFitJson)?.Select(e => new ProductFitDto(e.Product, e.Reason, e.EvidenceQuote, e.SourceUrl)).ToList(), drafts.Contains(l.Id), l.LastContactedAt)));
+            LeadInsight.ParseFit(l.ProductFitJson)?.Select(e => new ProductFitDto(e.Product, e.Reason, e.EvidenceQuote, e.SourceUrl)).ToList(), drafts.Contains(l.Id), l.LastContactedAt, l.OrganizationId)));
     }
 }

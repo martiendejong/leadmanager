@@ -1,3 +1,4 @@
+using LeadManager.Api.Services;
 using System.Security.Cryptography;
 using System.Text;
 using LeadManager.Api.Data;
@@ -93,7 +94,7 @@ public class CalendarFeedController : ControllerBase
             .OrderBy(a => a.DueAt).Take(2000).ToListAsync();
         var leadIds = actions.Where(a => a.LeadId.HasValue).Select(a => a.LeadId!.Value).Distinct().ToList();
         var clientIds = actions.Where(a => a.ClientId.HasValue).Select(a => a.ClientId!.Value).Distinct().ToList();
-        var leads = await _db.Leads.Where(l => leadIds.Contains(l.Id) && l.ImportedByUserId == userId)
+        var leads = await _db.Leads.VisibleTo(_db, userId).Where(l => leadIds.Contains(l.Id))
             .ToDictionaryAsync(l => l.Id, l => l.Name);
         var clients = await _db.Clients.Where(c => clientIds.Contains(c.Id) && c.CreatedByUserId == userId)
             .ToDictionaryAsync(c => c.Id, c => c.Name);

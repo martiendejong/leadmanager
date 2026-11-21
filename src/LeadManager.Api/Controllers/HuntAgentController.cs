@@ -1,3 +1,4 @@
+using LeadManager.Api.Services;
 using System.Text.Json;
 using LeadManager.Api.Data;
 using LeadManager.Api.Models;
@@ -121,7 +122,7 @@ public class HuntAgentController : ControllerBase
         if (job!.Kind == HuntKinds.Review)
         {
             var ids = job.LeadIds;
-            var rows = await _db.Leads.AsNoTracking().Where(l => ids.Contains(l.Id) && l.ImportedByUserId == job.UserId)
+            var rows = await _db.Leads.AsNoTracking().VisibleTo(_db, job.UserId).Where(l => ids.Contains(l.Id))
                 .Select(l => new { l.Id, l.Name, l.Website, l.SalesPriorityScore }).ToListAsync();
             var done = await _db.HuntCandidates.AsNoTracking().Where(c => c.JobId == job.Id && c.LeadId != null).Select(c => c.LeadId!.Value).ToListAsync();
             leads = rows.Select(l => new { leadId = l.Id, name = l.Name, website = l.Website, currentScore = l.SalesPriorityScore, reviewed = done.Contains(l.Id) }).ToList();
@@ -171,7 +172,7 @@ public class HuntAgentController : ControllerBase
         if (!HuntStatuses.IsActive(job!.Status)) return Conflict(new { error = $"This hunt is {job.Status.ToLowerInvariant()}.", stop = true });
         if (job.Kind != HuntKinds.Hunt) return Ok(new { known = Array.Empty<string>() });
         var wanted = asked.Where(d => d != null && d.Length <= 200).Select(UrlGuard.DomainOf).Where(d => d != "").Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-        return Ok(new { known = await _hunts.KnownAmongAsync(job.UserId, wanted) });
+        return Ok(new { known = await _hunts.KnownAmongAsync(job.UserId, wanted, job.OrganizationId) });
     }
 
     // POST /api/hunt-agent/{id}/progress

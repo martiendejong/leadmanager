@@ -16,6 +16,8 @@ import LeadDetailPanel from '../components/leads/LeadDetailPanel'
 import CreateLeadForm from '../components/leads/CreateLeadForm'
 import CsvImportDropzone from '../components/leads/CsvImportDropzone'
 import BulkDraftDialog from '../components/messages/BulkDraftDialog'
+import OrganizationFilter from '../components/organizations/OrganizationFilter'
+import { useOrganizations } from '../contexts/OrganizationContext'
 
 const DESC_FIRST = new Set(['createdAt', 'updatedAt', 'importedAt', 'enrichedAt', 'salesPriorityScore'])
 
@@ -46,7 +48,17 @@ function buildInitialFilter(searchParams: URLSearchParams): LeadFilter {
   return filter
 }
 
+/**
+ * The leads list. Changing the organisation filter starts it afresh (page 1, no selection): the list shown is always the one the
+ * filter asks for.
+ */
 export default function LeadsPage() {
+  const { filterParam } = useOrganizations()
+  return <LeadsPageContent key={filterParam ?? 'all'} />
+}
+
+function LeadsPageContent() {
+  const { filterParam, defaultOrgId, rememberOrg } = useOrganizations()
   const [searchParams] = useSearchParams()
   const { showToast } = useToast()
   const navigate = useNavigate()
@@ -88,7 +100,7 @@ export default function LeadsPage() {
   const loadLeads = useCallback(async (f: LeadFilter) => {
     setIsLoading(true)
     try {
-      const data = await fetchLeads(f)
+      const data = await fetchLeads({ ...f, organizationId: filterParam })
       setLeads(data.items)
       setTotal(data.total)
     } catch (err) {
@@ -96,17 +108,17 @@ export default function LeadsPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [showToast])
+  }, [showToast, filterParam])
 
   // Load stats
   const loadStats = useCallback(async () => {
     try {
-      const data = await fetchLeadStats()
+      const data = await fetchLeadStats(filterParam)
       setStats(data)
     } catch {
       // Stats are non-critical
     }
-  }, [])
+  }, [filterParam])
 
   useEffect(() => {
     loadLeads(filter)
@@ -168,16 +180,21 @@ export default function LeadsPage() {
   }, [clearSelection])
 
   const handleImport = useCallback(async (file: File) => {
+    if (!defaultOrgId) {
+      showToast('Choose an organisation first: pick one in the organisation filter above the list.', 'error')
+      return
+    }
     try {
       showToast('Importing…', 'info')
-      await importLeads(file)
+      await importLeads(file, defaultOrgId)
+      rememberOrg(defaultOrgId)
       showToast('Import successful!', 'success')
       await loadLeads(filter)
       await loadStats()
-    } catch {
-      showToast('Could not import', 'error')
+    } catch (err) {
+      showToast(errorMessage(err, 'Could not import'), 'error')
     }
-  }, [filter, loadLeads, loadStats, showToast])
+  }, [filter, loadLeads, loadStats, showToast, defaultOrgId, rememberOrg])
 
   const handleOpenFilePicker = useCallback(() => {
     fileInputRef.current?.click()
@@ -284,21 +301,21 @@ export default function LeadsPage() {
 
   const handleExportCsv = useCallback(async () => {
     try {
-      await exportLeads('csv', filter)
+      await exportLeads('csv', { ...filter, organizationId: filterParam })
       showToast('CSV export downloaded', 'success')
     } catch {
       showToast('Could not export CSV', 'error')
     }
-  }, [filter, showToast])
+  }, [filter, showToast, filterParam])
 
   const handleExportExcel = useCallback(async () => {
     try {
-      await exportLeads('xlsx', filter)
+      await exportLeads('xlsx', { ...filter, organizationId: filterParam })
       showToast('Excel export downloaded', 'success')
     } catch {
       showToast('Could not export Excel', 'error')
     }
-  }, [filter, showToast])
+  }, [filter, showToast, filterParam])
 
   const handleCsvImportSuccess = useCallback(async (result: CsvImportResult) => {
     const enrichMsg = result.enrichmentJobId ? ' Enrichment started.' : ''
@@ -380,6 +397,8 @@ export default function LeadsPage() {
           </div>
         </div>
       )}
+
+      <OrganizationFilter />
 
       {/* Page header */}
       <div className="flex flex-wrap items-center justify-between gap-2">

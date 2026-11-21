@@ -28,6 +28,7 @@ export interface LeadMessage {
   sentAt: string | null
   leadPipelineStatus: string | null
   leadScore: number | null
+  organizationId: string
 }
 
 export interface Prefill {
@@ -68,6 +69,7 @@ export interface QueueItem {
   productFit: ProductFit[] | null
   hasDraft: boolean
   lastContactedAt: string | null
+  organizationId: string
 }
 
 export interface MessageTemplate {
@@ -107,7 +109,7 @@ export async function getLeadMessages(leadId: string): Promise<LeadMessage[]> {
   return res.data
 }
 
-export async function listMessages(params: { status?: string; channel?: string; q?: string; page?: number; pageSize?: number }): Promise<MessagePage> {
+export async function listMessages(params: { status?: string; channel?: string; q?: string; page?: number; pageSize?: number; organizationId?: string }): Promise<MessagePage> {
   const res = await apiClient.get<MessagePage>('/api/messages', { params })
   return res.data
 }
@@ -141,8 +143,8 @@ export async function bulkDrafts(leadIds: string[], channel: Channel, product?: 
   return res.data
 }
 
-export async function getQueue(take = 20, minScore = 6): Promise<QueueItem[]> {
-  const res = await apiClient.get<QueueItem[]>('/api/messages/queue', { params: { take, minScore } })
+export async function getQueue(take = 20, minScore = 6, organizationId?: string): Promise<QueueItem[]> {
+  const res = await apiClient.get<QueueItem[]>('/api/messages/queue', { params: { take, minScore, organizationId } })
   return res.data
 }
 

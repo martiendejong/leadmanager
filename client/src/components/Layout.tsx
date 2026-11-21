@@ -2,9 +2,11 @@ import { useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import NotificationBell from './NotificationBell'
+import { useOrganizations } from '../contexts/OrganizationContext'
 
 export default function Layout() {
   const { user, logout } = useAuth()
+  const { organizations, loaded } = useOrganizations()
   const location = useLocation()
   const [menuOpen, setMenuOpen] = useState(false)
 
@@ -129,6 +131,15 @@ export default function Layout() {
 
       {/* Page content */}
       <main className="flex-1 min-w-0 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {loaded && organizations.length === 0 && (
+          <div role="alert" className="mb-6 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+            <p className="font-semibold">You are not a member of any organisation yet.</p>
+            <p className="mt-0.5">
+              Leads belong to an organisation and you only see the leads of your own organisations, so there is nothing to show you yet.
+              Ask an organisation admin to add you with your e-mail address{user?.email ? <> (<span className="break-all font-medium">{user.email}</span>)</> : null}.
+            </p>
+          </div>
+        )}
         <Outlet />
       </main>
     </div>
