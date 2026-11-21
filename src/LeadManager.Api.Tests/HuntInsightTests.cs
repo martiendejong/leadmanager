@@ -100,7 +100,7 @@ public class HuntInsightTests : IDisposable
     [Fact]
     public void The_catalog_file_and_the_list_of_keys_are_the_same_and_unknown_keys_are_refused()
     {
-        Assert.Equal(new[] { "coachos", "siteaudit", "visit", "werkteam", "cloudws", "custom", "mail", "meet" }, ProductCatalog.Keys);
+        Assert.Equal(new[] { "coachos", "siteaudit", "visit", "werkteam", "cloudws", "custom", "mail", "meet", "karibumara", "farmmgmt", "maaride" }, ProductCatalog.Keys);
         Assert.Equal(ProductCatalog.Keys.OrderBy(k => k), ProductCatalog.All.Select(p => p.Key).OrderBy(k => k));
         Assert.All(ProductCatalog.All, p => { Assert.NotEmpty(p.Name); Assert.NotEmpty(p.WhatItIs); Assert.NotEmpty(p.FitsWhen); });
         Assert.Equal("coachos", ProductCatalog.Canonical(" CoachOS "));
@@ -424,7 +424,7 @@ public class HuntInsightTests : IDisposable
         Assert.Null(stored.WhyLead);
         Assert.Null(stored.ProductFitJson);
         var message = JsonSerializer.Serialize(((BadRequestObjectResult)await Leads().PatchProfile(lead.Id, bad[0].Dto)).Value);
-        Assert.Contains("Known: coachos, siteaudit, visit, werkteam, cloudws, custom, mail, meet", message);
+        Assert.Contains("Known: coachos, siteaudit, visit, werkteam, cloudws, custom, mail, meet, karibumara, farmmgmt, maaride", message);
     }
 
     [Fact]

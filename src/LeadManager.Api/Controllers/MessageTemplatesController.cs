@@ -50,6 +50,8 @@ public class MessageTemplatesController : ControllerBase
             products = ProductCatalog.All.Select(p => new { key = p.Key, name = p.Name }),
             templates = mine.Select(ToDto),
             builtIn = MessageTemplates.All.Select(b => new { channel = b.Channel, language = b.Language, subject = b.Subject, body = b.Body }),
+            // the English-first templates of the Kenya products (karibumara, farmmgmt, maaride)
+            builtInEnglishFirst = new { products = ProductCatalog.EnglishFirst, templates = MessageTemplates.KenyaTemplates.Select(b => new { channel = b.Channel, language = b.Language, subject = b.Subject, body = b.Body }) },
         });
     }
 

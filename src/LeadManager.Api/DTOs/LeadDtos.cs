@@ -96,7 +96,7 @@ public record LeadDto(
     // When a message to this lead was last marked as sent by the user
     DateTime? LastContactedAt = null);
 
-/// <summary>One of our products that can help a lead, with the observed trigger. Product is a key of the catalog (coachos, siteaudit, visit, werkteam, cloudws, custom, mail, meet).</summary>
+/// <summary>One of our products that can help a lead, with the observed trigger. Product is a key of the catalog (coachos, siteaudit, visit, werkteam, cloudws, custom, mail, meet, karibumara, farmmgmt, maaride).</summary>
 public record ProductFitDto(string Product, string Reason, string? EvidenceQuote, string? SourceUrl);
 
 public record CreateLeadDto(

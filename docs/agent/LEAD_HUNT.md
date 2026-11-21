@@ -152,7 +152,7 @@ each product once; at most 5 needs and 4 fits. The agent's `need` and `reason` t
 and clamped like all agent text.
 
 - **The product catalog** is one file: `src/LeadManager.Api/Agent/PRODUCTS.md` (an embedded resource that is also pasted into the agent prompt). The catalog is the one of Jengo Products (v2); the keys are `coachos`, `siteaudit`, `visit`,
-  `werkteam`, `cloudws`, `custom`, `mail` and `meet` (`seogod` and `calendar` are in build and may not be proposed). Internal prices never appear: amounts are stripped from what the API and the agent prompt show; `ProductCatalog.Keys` lists them for validation and a test keeps the list and the file identical. Edit the file to change the catalog
+  `werkteam`, `cloudws`, `custom`, `mail`, `meet`, and the Kenya products `karibumara`, `farmmgmt` and `maaride` (English-first: messages and AI compose for them, or for a +254/.ke lead, are written in English) (`seogod` and `calendar` are in build and may not be proposed). Internal prices never appear: amounts are stripped from what the API and the agent prompt show; `ProductCatalog.Keys` lists them for validation and a test keeps the list and the file identical. Edit the file to change the catalog
   (and the list of keys with it). `GET /api/leads/products` returns the catalog to the app.
 - **"No clear fit" is a valid answer**: `productFit: []` with `noClearFit: true` is stored as `[]` and shown as "No clear fit with our products". Not saying anything stores nothing and
   shows "Not assessed yet". A verified fit wins over the flag.
