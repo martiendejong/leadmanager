@@ -81,7 +81,7 @@ public class SalesSettingsController : ControllerBase
     public async Task<ActionResult<GenerateScriptResponse>> GenerateScript([FromBody] GenerateScriptRequest req)
     {
         var userId = GetUserId();
-        var lead = await _db.Leads.FindAsync(req.LeadId);
+        var lead = await _db.Leads.VisibleTo(_db, userId).FirstOrDefaultAsync(l => l.Id == req.LeadId);
         if (lead == null) return NotFound("Lead not found");
 
         var settings = await GetOrCreateSettings(userId);

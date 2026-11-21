@@ -27,7 +27,7 @@ public class OfferteController : ControllerBase
     {
         var userId = GetUserId();
 
-        var lead = await _db.Leads.FindAsync(req.LeadId);
+        var lead = await _db.Leads.VisibleTo(_db, userId).FirstOrDefaultAsync(l => l.Id == req.LeadId);
         if (lead == null) return NotFound("Lead not found");
 
         var client = await _db.Clients.FirstOrDefaultAsync(c => c.SourceLeadId == req.LeadId)
