@@ -341,6 +341,70 @@ public class MessageTests : IDisposable
         }
     }
 
+    private static string KenyaFit(string key) =>
+        "[{\"product\":\"" + key + "\",\"reason\":\"Bookings only by phone.\",\"evidenceQuote\":\"Call or WhatsApp us to book\",\"sourceUrl\":\"https://mara-camp.example.ke/\"}]";
+
+    [Theory]
+    [InlineData("karibumara")]
+    [InlineData("farmmgmt")]
+    [InlineData("maaride")]
+    public async Task Prefill_KenyaProducts_AreEnglish_EvenForADutchLookingLead_NoPriceNoDutch(string key)
+    {
+        var lead = SeedLead();   // .nl site, Dutch needs: language would be nl for any other product
+        lead.ProductFitJson = KenyaFit(key);
+        lead.Needs = "Booking: \"Call or WhatsApp us to book\"";
+        await _db.SaveChangesAsync();
+        EnsureUser(Me);
+        var user = _db.Users.Single(u => u.Id == Me); user.FirstName = "Frank"; user.LastName = "Tester"; await _db.SaveChangesAsync();
+
+        foreach (var channel in new[] { "Email", "LinkedIn", "WhatsApp", "Phone" })
+        {
+            var p = Value<PrefillDto>(await Messages().Prefill(lead.Id, channel, key));
+            Assert.Equal("en", p.Language);
+            Assert.DoesNotContain("{", p.Body);
+            Assert.DoesNotContain("Hoi", p.Body);
+            Assert.DoesNotContain("EUR", p.Body);
+            Assert.Contains("Call or WhatsApp us to book", p.Body);
+            Assert.Contains(MessageTemplates.Benefit(key, "en"), channel == "Phone" ? MessageTemplates.Benefit(key, "en") : p.Body);
+        }
+        var mail = Value<PrefillDto>(await Messages().Prefill(lead.Id, "Email", key));
+        Assert.StartsWith("Hello Tine", mail.Body);
+        Assert.EndsWith("Kind regards,\nFrank Tester", mail.Body);
+        // the product comes from the stored fit when none is chosen
+        var fromFit = Value<PrefillDto>(await Messages().Prefill(lead.Id, "Email", null));
+        Assert.Equal("en", fromFit.Language);
+        Assert.StartsWith("Hello Tine", fromFit.Body);
+    }
+
+    [Fact]
+    public void LanguageOf_KenyanLead_IsEnglish_AndOldKeysStayDutchForADutchLead()
+    {
+        var local = new Lead { Name = "Mara Camp", Website = "https://mara-camp.co.ke", Phone = "0712 345 678" };   // 07.. would look Dutch
+        Assert.Equal("en", MessageTemplates.LanguageOf(local));
+        var intl = new Lead { Name = "Rena", Website = "https://rena.example.com", Phone = "+254 712 345 678" };
+        Assert.Equal("en", MessageTemplates.LanguageOf(intl));
+        var dutch = new Lead { Name = "Bakker", Website = "https://bakker.nl", Phone = "06 12345678" };
+        Assert.Equal("nl", MessageTemplates.LanguageOf(dutch));
+        Assert.Equal("nl", MessageTemplates.LanguageOf(dutch, "siteaudit"));
+        Assert.Equal("en", MessageTemplates.LanguageOf(dutch, "karibumara"));
+        Assert.Equal("en", MessageTemplates.LanguageOf(dutch, " MaaRide "));
+        Assert.Equal("nl", MessageTemplates.LanguageOf(dutch, "unknown"));
+    }
+
+    [Fact]
+    public void KenyaProducts_HaveEnglishTemplatesForEveryChannel_AndOtherProductsKeepTheirTemplates()
+    {
+        Assert.Equal(new[] { "karibumara", "farmmgmt", "maaride" }, LeadManager.Api.Services.Hunt.ProductCatalog.EnglishFirst);
+        Assert.All(LeadManager.Api.Services.Hunt.ProductCatalog.EnglishFirst, k => Assert.Contains(k, LeadManager.Api.Services.Hunt.ProductCatalog.Keys));
+        foreach (var ch in new[] { "Email", "LinkedIn", "WhatsApp", "Phone" })
+        {
+            Assert.Equal("en", MessageTemplates.Get(ch, "nl", "maaride").Language);
+            Assert.Equal("nl", MessageTemplates.Get(ch, "nl", "siteaudit").Language);
+            Assert.Equal("nl", MessageTemplates.Get(ch, "nl", null).Language);
+        }
+        Assert.Equal(4, MessageTemplates.KenyaTemplates.Count);
+    }
+
     [Fact]
     public async Task Prefill_IsEnglishForAnEnglishLead()
     {

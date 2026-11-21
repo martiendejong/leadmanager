@@ -81,6 +81,8 @@ Strict rules, checked by the server:
 
 {{PRODUCTS}}
 
+The last three products (karibumara, farmmgmt, maaride) are for Kenyan prospects (lodges, camps, tour operators, farms, ranches, taxi/boda boda businesses, SACCOs). Propose them only with an observed trigger on the business's own pages, in English quotes as found.
+
 ## The score (the app uses exactly this)
 
 | Points | Item | What counts |

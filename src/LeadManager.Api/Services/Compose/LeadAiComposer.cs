@@ -116,7 +116,7 @@ public class LeadAiComposer
         string startSubject, string startBody, CancellationToken ct)
     {
         if (!_ai.IsConfigured) throw new AiNotConfiguredException();
-        var language = MessageTemplates.LanguageOf(lead);
+        var language = MessageTemplates.LanguageOf(lead, productKey);
         var facts = BuildFacts(lead, language, sender, productKey, forMessage: true);
 
         var system = "You write a short first-contact message from a small software company to a business. It is only a DRAFT: a person reads, edits and sends it themselves; you send nothing.\n"

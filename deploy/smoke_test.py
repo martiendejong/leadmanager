@@ -237,7 +237,7 @@ def main() -> int:
         # Why this lead, what it needs, which of our products can help: the catalog, the patch, the lead dto and the clear
         r = s.get(base + "/api/leads/products", headers=jwt, timeout=30)
         keys = sorted(p.get("key") for p in r.json()) if r.status_code == 200 else []
-        check(keys == sorted(["coachos", "siteaudit", "visit", "werkteam", "cloudws", "custom", "mail", "meet"]), "the product catalog lists our 8 products (Jengo Products)")
+        check(keys == sorted(["coachos", "siteaudit", "visit", "werkteam", "cloudws", "custom", "mail", "meet", "karibumara", "farmmgmt", "maaride"]), "the product catalog lists our 11 products (Jengo Products + 3 Kenya products)")
         if lead_id:
             patch = f"{base}/api/leads/{lead_id}/profile"
             fit = [{"product": "SiteAudit", "reason": "Booking only by phone, a new site with online booking helps", "evidenceQuote": "Afspraken alleen per telefoon", "sourceUrl": "https://example.nl/contact"}]

@@ -99,7 +99,7 @@ public class MessagesController : ControllerBase
         var chosen = (productKey != null ? mine.FirstOrDefault(t => t.ProductKey == productKey) : null) ?? mine.FirstOrDefault(t => t.ProductKey == "");
         string subjectTemplate, bodyTemplate, source;
         if (chosen != null) { subjectTemplate = chosen.Subject; bodyTemplate = chosen.Body; source = chosen.ProductKey == "" ? "your default template" : $"your template for {chosen.ProductKey}"; }
-        else { var b = MessageTemplates.Get(channel, values.Language); subjectTemplate = b.Subject; bodyTemplate = b.Body; source = "built-in template"; }
+        else { var b = MessageTemplates.Get(channel, values.Language, productKey); subjectTemplate = b.Subject; bodyTemplate = b.Body; source = "built-in template"; }
 
         var (subject, body) = MessageTemplates.Render(subjectTemplate, bodyTemplate, values);
         if (channel != MessageChannels.Email) subject = "";

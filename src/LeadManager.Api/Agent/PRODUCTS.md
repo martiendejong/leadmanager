@@ -13,7 +13,12 @@ Never show internal prices (hourly rate). Price per outcome, never per hour.
 | custom | Custom software and consultancy | bespoke software by a senior architect (registers, provenance, portals, integrations; reference: Bugatti Insights register, Visum assistant, Legal platform) | a concrete process, register, portal or integration need that no standard product covers; value depends on documented history (dealers, galleries, appraisers) |
 | mail | JengoMail | webmail where AI proposes and you approve | heavy mail handling by the owner |
 | meet | Jengo Meet | live note taker that also creates tasks | many meetings, minutes by hand |
+| karibumara | Karibu Mara visit platform | destination platform for the Maasai Mara area (same codebase as the Port of Giethoorn platform): multilingual, local entrepreneurs, trip planner, AI guide chat; live at karibumara.com | a Kenyan lodge, camp, tour operator, guide or cultural/conservancy business with no online booking or only enquiry by phone/WhatsApp, a thin or single-language site, or no way for guests to plan a trip |
+| farmmgmt | Farm management dashboard | built for Rena Farm (Kajiado, Kenya; Next.js + Supabase): livestock, fodder and product records, daily reports by e-mail, dashboard for the owner and staff, public website with enquiry form and client portal | a Kenyan farm, ranch, livestock or fodder trader whose pages show records kept on paper, WhatsApp or spreadsheets, several animals/batches/outlets, or buyers enquiring by phone |
+| maaride | MaaLink Ride | ride-hailing platform for a town (built for Narok Town): rider and driver app, fare engine, driver onboarding with document verification, admin dashboard, geofenced service area | a Kenyan taxi, boda boda or transport business, a SACCO, or a hotel, lodge or tour operator that coordinates rides or transfers by phone/WhatsApp |
 
 Not for sale yet: seogod (in build), calendar (in build). Do not propose them.
+
+The last three (karibumara, farmmgmt, maaride) are for Kenyan prospects and are English-first: messages for them are written in English. Same rule as all products: price per outcome, never per hour, no internal prices.
 
 Rules for fit statements: a fit needs an observed trigger on the business's own pages (quote it). If nothing observable supports a product, write no fit; "no clear fit" is a valid answer.

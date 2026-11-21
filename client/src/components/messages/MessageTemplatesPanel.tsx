@@ -22,10 +22,13 @@ export default function MessageTemplatesPanel() {
   useEffect(() => { void load() }, [load])
 
   const mine = info?.templates.find((t) => t.channel === channel && t.productKey === productKey)
-  // The text shown: the saved template, else the built-in Dutch one (the starting point to edit)
+  // The text shown: the saved template, else the built-in one (Dutch, or English for the Kenya products; the starting point to edit)
   useEffect(() => {
     if (!info) return
-    const builtIn = info.builtIn.find((b) => b.channel === channel && b.language === 'nl')
+    const english = info.builtInEnglishFirst
+    const builtIn = english?.products.includes(productKey)
+      ? english.templates.find((b) => b.channel === channel)
+      : info.builtIn.find((b) => b.channel === channel && b.language === 'nl')
     setSubject(mine?.subject ?? builtIn?.subject ?? '')
     setBody(mine?.body ?? builtIn?.body ?? '')
   }, [info, channel, productKey, mine])

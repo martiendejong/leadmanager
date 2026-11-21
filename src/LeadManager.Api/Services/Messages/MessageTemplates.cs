@@ -46,6 +46,25 @@ public static class MessageTemplates
             "Call note {name}\nContact: {owner}\nReason: \"{why}\"\nNeed: \"{need}\"\nProposal: {product}\nQuestion: would a short introduction this week or next suit?"),
     };
 
+    // English-first templates for the Kenya products (karibumara, farmmgmt, maaride): used instead of the language templates above.
+    private static readonly List<BuiltInTemplate> KenyaBuiltIn = new()
+    {
+        new(MessageChannels.Email, "en", "An idea for {name}",
+            "Hello {owner},\n\nI came across {name} and wanted to reach out briefly.\nOn your website I read: \"{need}\"\nI also noticed: \"{why}\"\n{benefit}\n\nWould you be open to a short call or a WhatsApp chat this week or next to see whether this is useful for you?\n\nKind regards,\n{sender}"),
+        new(MessageChannels.LinkedIn, "en", "",
+            "Hello {owner},\nI came across {name}.\nI read on your website: \"{need}\"\n{benefit}\nWould you be open to a short chat?\n{sender}"),
+        new(MessageChannels.WhatsApp, "en", "",
+            "Hello {owner}! I came across {name}.\nYour site says: \"{need}\"\n{benefit}\nDo you have a few minutes this week for a short chat?\n{sender}"),
+        new(MessageChannels.Phone, "en", "",
+            "Call note {name}\nContact: {owner}\nReason: \"{why}\"\nNeed: \"{need}\"\nProposal: {product}\nQuestion: would a short introduction this week or next suit? (offer a WhatsApp chat if a call is hard)"),
+    };
+
+    /// <summary>The built-in template for a channel and language; a Kenya product gets its own English template.</summary>
+    public static BuiltInTemplate Get(string channel, string language, string? productKey) =>
+        ProductCatalog.EnglishFirst.Contains(ProductCatalog.Canonical(productKey) ?? "") ? KenyaBuiltIn.First(t => t.Channel == channel) : Get(channel, language);
+
+    public static IReadOnlyList<BuiltInTemplate> KenyaTemplates => KenyaBuiltIn;
+
     public static IReadOnlyList<BuiltInTemplate> All => BuiltIn;
 
     public static BuiltInTemplate Get(string channel, string language) =>
@@ -71,6 +90,12 @@ public static class MessageTemplates
                     "JengoMail lets AI prepare your e-mail, so you only have to approve."),
         ["meet"] = ("Jengo Meet maakt live aantekeningen van uw gesprekken en zet afspraken om in taken.",
                     "Jengo Meet takes live notes of your meetings and turns agreements into tasks."),
+        ["karibumara"] = ("Het Karibu Mara-platform maakt uw aanbod meertalig vindbaar voor bezoekers van de Maasai Mara, met een reisplanner en een AI-gids waarmee gasten zelf hun reis plannen.",
+                          "The Karibu Mara visit platform makes your offer findable in several languages for visitors to the Maasai Mara, with a trip planner and an AI guide chat so guests can plan their own trip."),
+        ["farmmgmt"] = ("Het farm management dashboard houdt vee, voer en producten bij op een plek, met dagelijkse rapporten per e-mail en een website met aanvraagformulier voor kopers.",
+                        "The farm management dashboard keeps your livestock, fodder and product records in one place, with daily reports by e-mail and a website with an enquiry form for buyers."),
+        ["maaride"] = ("MaaLink Ride is een ritplatform voor een stad: app voor passagiers en chauffeurs, tariefberekening, controle van chauffeursdocumenten en een beheerdashboard.",
+                       "MaaLink Ride is a ride-hailing platform for a town: rider and driver apps, a fare engine, driver document verification and an admin dashboard, so rides stop depending on phone calls and WhatsApp."),
     };
 
     public static string Benefit(string productKey, string language) =>
@@ -78,9 +103,18 @@ public static class MessageTemplates
 
     // ---- language and values -------------------------------------------------------------------------------------------
 
-    /// <summary>"nl" for a Dutch business (a .nl site or a Dutch phone number), otherwise "en".</summary>
-    public static string LanguageOf(Lead lead)
+    /// <summary>
+    /// "nl" for a Dutch business (a .nl site or a Dutch phone number), otherwise "en". Always "en" when the product is one of the English-first
+    /// Kenya products (the chosen <paramref name="productKey"/>, or else the first stored fit), or when the lead is Kenyan (+254 phone or a .ke site).
+    /// </summary>
+    public static string LanguageOf(Lead lead, string? productKey = null)
     {
+        var key = ProductCatalog.Canonical(productKey)
+            ?? LeadInsight.ParseFit(lead.ProductFitJson)?.Select(f => ProductCatalog.Canonical(f.Product)).FirstOrDefault(k => k != null);
+        if (key != null && ProductCatalog.EnglishFirst.Contains(key)) return "en";
+        if (HuntRegex.IsMatch(lead.Website ?? "", @"^(?:https?://)?[^/]*\.ke(?:[/:]|$)", RegexOptions.IgnoreCase)) return "en";
+        foreach (var number in new[] { lead.Phone, lead.OwnerMobile })
+            if (!string.IsNullOrWhiteSpace(number) && HuntRegex.IsMatch(number.Trim(), @"^(?:\+|00)[\s\-]*254")) return "en";
         if (Uri.TryCreate(lead.Website ?? "", UriKind.Absolute, out var u) && u.Host.EndsWith(".nl", StringComparison.OrdinalIgnoreCase)) return "nl";
         if (HuntRegex.IsMatch(lead.Website ?? "", @"^(?:https?://)?[^/]*\.nl(?:[/:]|$)", RegexOptions.IgnoreCase)) return "nl";
         foreach (var number in new[] { lead.Phone, lead.OwnerMobile })
@@ -113,7 +147,7 @@ public static class MessageTemplates
     /// </summary>
     public static TemplateValues ValuesFor(Lead lead, string? productKey, string? sender = null)
     {
-        var language = LanguageOf(lead);
+        var language = LanguageOf(lead, productKey);
         var owner = !string.IsNullOrWhiteSpace(lead.OwnerFirstName) ? lead.OwnerFirstName.Trim()
             : (lead.OwnerName ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
 

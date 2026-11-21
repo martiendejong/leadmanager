@@ -179,6 +179,38 @@ public class AiComposeTests : IDisposable
     // ---- the message -------------------------------------------------------------------------------------------------------------
 
     [Fact]
+    public async Task Message_ForAKenyaProduct_IsWrittenInEnglish_EvenForADutchLookingLead()
+    {
+        var lead = SeedLead();   // .nl site: Dutch for any other product
+        _ai.Answer = Msg("An idea", "Hello Tine,\n\nShort note.\n\nKind regards,\nMia Sender");
+        var r = await Api().Message(lead.Id, new AiMessageRequest("Email", "karibumara", null, null, null), default);
+        Assert.IsType<OkObjectResult>(r);
+        Assert.Contains("recipient_language: English", _ai.User);
+        Assert.Contains("Write in English", _ai.System);
+        Assert.DoesNotContain("Write in Dutch", _ai.System);
+        Assert.Contains("Hello", _ai.User);   // the English Kenya template was the starting text
+
+        // a Kenyan lead (+254) with an old product key: English too
+        var ke = SeedLead(website: "https://rena.example.com", name: "Rena Farm");
+        ke.Phone = "+254 712 345 678"; await _db.SaveChangesAsync();
+        await Api().Message(ke.Id, new AiMessageRequest("Email", "siteaudit", null, null, null), default);
+        Assert.Contains("recipient_language: English", _ai.User);
+
+        // and a Dutch lead with an old key stays Dutch
+        var nl = SeedLead(name: "Dutch BV");
+        await Api().Message(nl.Id, new AiMessageRequest("Email", "siteaudit", null, null, null), default);
+        Assert.Contains("recipient_language: Dutch", _ai.User);
+    }
+
+    [Fact]
+    public async Task Message_UnknownProductKey_IsStillRefused()
+    {
+        var lead = SeedLead();
+        var r = await Api().Message(lead.Id, new AiMessageRequest("Email", "karibu", null, null, null), default);
+        Assert.IsType<BadRequestObjectResult>(r);
+    }
+
+    [Fact]
     public async Task Message_FromTheTemplate_UsesInstructionAndFactsInsideDataTags_AndSavesNothing()
     {
         var lead = SeedLead();

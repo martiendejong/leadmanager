@@ -86,6 +86,8 @@ export interface TemplateInfo {
   products: { key: string; name: string }[]
   templates: MessageTemplate[]
   builtIn: { channel: Channel; language: string; subject: string; body: string }[]
+  /** English-first templates used for the Kenya products (karibumara, farmmgmt, maaride) */
+  builtInEnglishFirst?: { products: string[]; templates: { channel: Channel; language: string; subject: string; body: string }[] }
 }
 
 export interface BulkResult {

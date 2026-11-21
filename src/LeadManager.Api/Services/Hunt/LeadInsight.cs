@@ -14,7 +14,10 @@ public record Product(string Key, string Name, string WhatItIs, string FitsWhen)
 /// </summary>
 public static class ProductCatalog
 {
-    public static readonly IReadOnlyList<string> Keys = new[] { "coachos", "siteaudit", "visit", "werkteam", "cloudws", "custom", "mail", "meet" };
+    public static readonly IReadOnlyList<string> Keys = new[] { "coachos", "siteaudit", "visit", "werkteam", "cloudws", "custom", "mail", "meet", "karibumara", "farmmgmt", "maaride" };
+
+    /// <summary>Products for Kenyan prospects: English-first, so a message about them is written in English whatever the lead's phone or site suggests.</summary>
+    public static readonly IReadOnlyList<string> EnglishFirst = new[] { "karibumara", "farmmgmt", "maaride" };
 
     /// <summary>Products that are in build, not for sale: a lead may not name them.</summary>
     public static readonly IReadOnlyList<string> NotForSale = new[] { "seogod", "calendar" };
