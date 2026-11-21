@@ -112,6 +112,12 @@ cp backups/<timestamp>/db/leadmanager.db data/leadmanager.db
 docker compose up -d
 ```
 
+## Organisations and who sees which leads
+
+Leads belong to an organisation and are visible to its members only: see `docs/ORGANISATIONS.md`. The people of each organisation are
+seeded from `deploy/org_members.json` (embedded in the image: edit, commit, deploy) and managed in the app under Settings > Organisations. A
+person who logs in and is in no organisation sees nothing, so a new user needs a line in that file or an organisation admin to add them.
+
 ## Signing in with Jengo IAM
 
 The login page has "Sign in with IAM". The app redirects to the IAM (authorization code with PKCE), gets the

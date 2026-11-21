@@ -105,19 +105,90 @@ def main() -> int:
     check(s.post(base + "/api/auth/login", json={"email": args.admin_email, "password": "definitely-wrong"}, timeout=30).status_code in (400, 401),
           "wrong password is refused")
 
+    # --- organisations: every lead belongs to one; the admin must be a member of at least one ------
+    r = s.get(base + "/api/organizations", headers=jwt, timeout=30)
+    my_orgs = r.json() if r.status_code == 200 else []
+    check(r.status_code == 200 and len(my_orgs) >= 1, f"the admin is a member of at least one organisation ({len(my_orgs)})")
+    if not my_orgs:
+        print("Cannot continue: add the admin to an organisation (deploy/org_members.json) first.")
+        return 1
+    wanted = os.environ.get("LM_SMOKE_ORG")
+    org = next((o for o in my_orgs if wanted and o["slug"] == wanted), my_orgs[0])
+    org2 = next((o for o in my_orgs if o["id"] != org["id"]), None)
+    org_id = org["id"]
+
     # --- CRM end to end, then clean up ------------------------------------------------------
     stamp = str(int(time.time()))
     lead_id = key_id = client_id = None
+    scoped_lead = scoped_org = scoped_user = None
     try:
+        if len(my_orgs) > 1:
+            r = s.post(base + "/api/leads", headers=jwt, timeout=30, json={
+                "name": f"Smoke noorg {stamp}", "website": f"https://smoke-noorg-{stamp}.example", "sector": "test",
+                "city": "test", "phone": "0000", "companyEmail": "", "source": "smoke-test"})
+            check(r.status_code == 400 and "organisation" in r.text.lower(), "a lead without an organisation is refused when the admin is in several")
         r = s.post(base + "/api/leads", headers=jwt, timeout=30, json={
             "name": f"Smoke test {stamp}", "website": f"https://smoke-{stamp}.example", "sector": "test",
-            "city": "test", "phone": "0000", "companyEmail": f"smoke@smoke-{stamp}.example", "source": "smoke-test"})
+            "city": "test", "phone": "0000", "companyEmail": f"smoke@smoke-{stamp}.example", "source": "smoke-test",
+            "organizationId": org_id})
         check(r.status_code == 201, "create a lead")
         # The id comes from the create response: the list is paged (50), so on a real database the new lead
         # is not necessarily on the first page.
         lead_id = r.json().get("id") if r.status_code == 201 else None
         check(lead_id is not None and s.get(f"{base}/api/leads/{lead_id}", headers=jwt, timeout=30).status_code == 200,
               "the new lead can be read back")
+        r = s.get(f"{base}/api/leads/{lead_id}", headers=jwt, timeout=30)
+        check(r.status_code == 200 and r.json().get("organizationId") == org_id, "the lead carries its organisation")
+        r = s.get(base + "/api/leads", headers=jwt, params={"organizationId": org_id, "pageSize": 500}, timeout=30)
+        check(r.status_code == 200 and any(i.get("id") == lead_id for i in r.json().get("items", [])), "the list filtered on its organisation shows the lead")
+        r = s.get(base + "/api/leads", headers=jwt, params={"organizationId": str(uuid.uuid4()), "pageSize": 500}, timeout=30)
+        check(r.status_code == 200 and r.json().get("total") == 0, "a filter on an organisation the admin is not in gives nothing, not everything")
+        if org2:
+            r = s.put(f"{base}/api/leads/{lead_id}/organization", headers=jwt, json={"organizationId": org2["id"]}, timeout=30)
+            check(r.status_code == 200 and r.json().get("organizationId") == org2["id"], "move the lead to another organisation")
+            r = s.put(f"{base}/api/leads/{lead_id}/organization", headers=jwt, json={"organizationId": org_id}, timeout=30)
+            check(r.status_code == 200 and r.json().get("organizationId") == org_id, "move it back")
+
+        # Scoping with a second person: an organisation made for this run, a lead in it, a user who is not a member.
+        outsider_email = f"smoke-outsider-{stamp}@example.invalid"
+        outsider_pw = f"Sm0ke!{uuid.uuid4().hex[:12]}"
+        r = s.post(base + "/api/organizations", headers=jwt, json={"name": f"Smoke org {stamp}"}, timeout=30)
+        check(r.status_code == 201, "create a throwaway organisation")
+        scoped_org = r.json().get("id") if r.status_code == 201 else None
+        r = s.post(base + "/api/admin/users", headers=jwt, timeout=30, json={
+            "email": outsider_email, "firstName": "Smoke", "lastName": "Outsider", "password": outsider_pw, "role": "User"})
+        check(r.status_code == 200, "create a throwaway user without organisations")
+        scoped_user = r.json().get("id") if r.status_code == 200 else None
+        if scoped_org and scoped_user:
+            r = s.post(base + "/api/leads", headers=jwt, timeout=30, json={
+                "name": f"Smoke scoped {stamp}", "website": f"https://smoke-scoped-{stamp}.example", "sector": "test",
+                "city": "test", "phone": "0000", "companyEmail": "", "source": "smoke-test", "organizationId": scoped_org})
+            scoped_lead = r.json().get("id") if r.status_code == 201 else None
+            check(scoped_lead is not None, "create a lead in the throwaway organisation")
+            r = s.post(base + "/api/auth/login", json={"email": outsider_email, "password": outsider_pw}, timeout=30)
+            check(r.status_code == 200, "the outsider can log in")
+            ow = {"Authorization": f"Bearer {r.json().get('token')}"} if r.status_code == 200 else {}
+            if ow and scoped_lead:
+                check(s.get(base + "/api/organizations", headers=ow, timeout=30).json() == [], "the outsider is in no organisation")
+                check(s.get(f"{base}/api/leads/{scoped_lead}", headers=ow, timeout=30).status_code == 404, "the outsider gets 404 for the lead")
+                r = s.get(base + "/api/leads", headers=ow, timeout=30)
+                check(r.status_code == 200 and r.json().get("total") == 0 and r.json().get("items") == [], "the outsider lead list is empty")
+                check(s.get(f"{base}/api/leads/{scoped_lead}/notes", headers=ow, timeout=30).status_code == 404, "the outsider gets 404 for the notes of the lead")
+                check(s.get(f"{base}/api/organizations/{scoped_org}/members", headers=ow, timeout=30).status_code == 404, "the outsider gets 404 for the members of the organisation")
+                check(s.post(f"{base}/api/leads", headers=ow, timeout=30, json={"name": "x", "website": "https://x.example", "sector": "", "city": "", "phone": "", "companyEmail": "", "source": ""}).status_code == 400,
+                      "the outsider cannot create a lead (no organisation)")
+                # the admin adds the outsider by e-mail: access, then removes them again
+                r = s.post(f"{base}/api/organizations/{scoped_org}/members", headers=jwt, json={"email": outsider_email.upper(), "role": "member"}, timeout=30)
+                check(r.status_code == 201 and r.json().get("pending") is False, "add the user by e-mail (resolved at once, case insensitive)")
+                member_id = r.json().get("id") if r.status_code == 201 else None
+                check(s.get(f"{base}/api/leads/{scoped_lead}", headers=ow, timeout=30).status_code == 200, "the new member sees the lead")
+                check(s.post(f"{base}/api/organizations/{scoped_org}/members", headers=ow, json={"email": "x@example.invalid"}, timeout=30).status_code == 403,
+                      "a member who is not an admin cannot add members")
+                if member_id:
+                    check(s.delete(f"{base}/api/organizations/{scoped_org}/members/{member_id}", headers=jwt, timeout=30).status_code == 204, "remove the member")
+                check(s.get(f"{base}/api/leads/{scoped_lead}", headers=ow, timeout=30).status_code == 404, "after removal the lead is a 404 again")
+                r = s.post(f"{base}/api/organizations/{scoped_org}/members", headers=jwt, json={"email": f"pending-{stamp}@example.invalid"}, timeout=30)
+                check(r.status_code == 201 and r.json().get("pending") is True, "a person without an account becomes a pending member")
 
         r = s.post(base + "/api/api-keys", headers=jwt, json={"name": f"smoke {stamp}"}, timeout=30)
         check(r.status_code == 200 and r.json().get("key", "").startswith("lm_"), "mint an API key")
@@ -151,8 +222,8 @@ def main() -> int:
         names = [t["name"] for t in r.json().get("result", {}).get("tools", [])] if r.status_code == 200 else []
         check({"search_leads", "get_lead", "create_lead", "log_interaction", "add_next_action", "next_actions_today",
                "link_item", "find_by_email_or_domain", "list_clients", "create_client", "set_client_priority",
-               "create_project", "list_actions", "list_documents", "add_document"} <= set(names), f"MCP lists the planned tools ({len(names)})")
-        r = rpc("tools/call", {"name": "create_lead", "arguments": {"name": f"Smoke MCP {stamp}", "website": f"https://smoke-mcp-{stamp}.example"}}, 2)
+               "create_project", "list_actions", "list_documents", "add_document", "list_organizations"} <= set(names), f"MCP lists the planned tools ({len(names)})")
+        r = rpc("tools/call", {"name": "create_lead", "arguments": {"name": f"Smoke MCP {stamp}", "website": f"https://smoke-mcp-{stamp}.example", "organization": org["slug"]}}, 2)
         mcp_text = r.json()["result"]["content"][0]["text"] if r.status_code == 200 else ""
         mcp_lead = None
         try:
@@ -252,7 +323,7 @@ def main() -> int:
             r = s.patch(patch, headers=jwt, timeout=30, json={"clearFields": ["whyLead", "needs", "productFit"]})
             check(r.status_code == 200 and r.json().get("whyLead") is None and r.json().get("productFit") is None, "clearFields resets why, needs and product fit")
         # Messages: the app never sends; a draft changes nothing; "Mark as sent" needs a confirmation and moves New to Contacted only
-        r = s.post(base + "/api/leads", headers=jwt, timeout=30, json={"name": f"Smoke msg {stamp}", "website": f"https://smoke-msg-{stamp}.example", "sector": "test", "city": "test", "phone": "0000", "companyEmail": f"smoke@smoke-msg-{stamp}.example", "source": "smoke-test"})
+        r = s.post(base + "/api/leads", headers=jwt, timeout=30, json={"name": f"Smoke msg {stamp}", "website": f"https://smoke-msg-{stamp}.example", "sector": "test", "city": "test", "phone": "0000", "companyEmail": f"smoke@smoke-msg-{stamp}.example", "source": "smoke-test", "organizationId": org_id})
         msg_lead = r.json().get("id") if r.status_code == 201 else None
         if msg_lead:
             r = s.get(f"{base}/api/leads/{msg_lead}/messages/prefill?channel=Email", headers=jwt, timeout=30)
@@ -279,6 +350,10 @@ def main() -> int:
             r = s.post(base + "/api/messages/bulk-drafts", headers=jwt, timeout=30, json={"leadIds": [msg_lead], "channel": "WhatsApp"})
             check(r.status_code == 200 and r.json().get("created") == 1, "bulk drafts create a draft")
             check(s.get(base + "/api/messages/queue", headers=jwt, timeout=30).status_code == 200, "the next to contact queue answers")
+            check(s.get(base + "/api/messages/queue", headers=jwt, params={"organizationId": org_id}, timeout=30).status_code == 200, "the queue takes an organisation filter")
+            check(s.get(base + "/api/messages", headers=jwt, params={"organizationId": org_id}, timeout=30).status_code == 200, "the messages overview takes an organisation filter")
+            check(s.get(base + "/api/next-actions/today", headers=jwt, params={"organizationId": org_id}, timeout=30).status_code == 200, "the Today list takes an organisation filter")
+            check(s.get(base + "/api/dashboard", headers=jwt, params={"organizationId": org_id}, timeout=30).status_code == 200, "the dashboard takes an organisation filter")
             # AI compose (regenerate with an instruction, demo ideas). No key is needed here: without one the endpoints must answer a clean 503, and a real call is never made.
             r = s.get(base + "/api/ai/status", headers=jwt, timeout=30)
             ai_on = r.status_code == 200 and r.json().get("configured") is True
@@ -330,6 +405,13 @@ def main() -> int:
         check(s.get(base + "/api/leads", headers=k, timeout=30).status_code == 403, "API key is refused outside the CRM")
         check(s.post(base + "/api/api-keys", headers=k, json={"name": "x"}, timeout=30).status_code == 401, "API key cannot create keys")
     finally:
+        if scoped_lead:
+            check(s.delete(f"{base}/api/leads/{scoped_lead}", headers=jwt, timeout=30).status_code in (200, 204), "clean up: delete the scoped test lead")
+        if scoped_org:
+            check(s.delete(f"{base}/api/organizations/{scoped_org}", headers=jwt, timeout=30).status_code == 204, "clean up: delete the throwaway organisation")
+        if scoped_user:
+            # users are deactivated, not deleted (a known limit of the admin API): the throwaway account stays, inactive
+            check(s.delete(f"{base}/api/admin/users/{scoped_user}", headers=jwt, timeout=30).status_code == 204, "clean up: deactivate the throwaway user")
         if lead_id:
             check(s.delete(f"{base}/api/leads/{lead_id}", headers=jwt, timeout=30).status_code in (200, 204), "clean up: delete the test lead")
         if client_id:
