@@ -16,6 +16,12 @@ public class ClientDocument
     public Guid? ProjectId { get; set; }
     /// <summary>The document this one follows from (quote -> order -> agreement).</summary>
     public Guid? PredecessorId { get; set; }
+    /// <summary>The service this document is about (for example website management).</summary>
+    public Guid? ServiceId { get; set; }
+    /// <summary>Version number within a chain of revisions of the same document (concepts get revised).</summary>
+    public int Version { get; set; } = 1;
+    /// <summary>Stable id from the system that reported it (JengoMail, JengoWork, Knowledge). Makes imports idempotent.</summary>
+    public string? SourceRef { get; set; }
     public DocumentKind Kind { get; set; } = DocumentKind.Other;
     public DocumentStatus Status { get; set; } = DocumentStatus.Draft;
     public string Title { get; set; } = "";
