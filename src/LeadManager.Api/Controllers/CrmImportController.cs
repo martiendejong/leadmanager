@@ -69,7 +69,10 @@ public class CrmImportController : CrmControllerBase
         var children = request.Leads.Sum(l => (l.Contacts?.Count ?? 0) + (l.Interactions?.Count ?? 0) + (l.NextActions?.Count ?? 0));
         if (children > MaxChildrenInTotal) return BadRequest($"At most {MaxChildrenInTotal} contacts, interactions and actions per import");
 
-        var existingLeads = await _db.Leads.Where(l => l.ImportedByUserId == userId).ToListAsync();
+        var (orgId, orgError) = await Organizations.ResolveTargetAsync(_db, userId, request.OrganizationId);
+        if (orgId == null) return BadRequest(orgError);
+        // Matching is within the organisation: the same business in another organisation is a separate lead.
+        var existingLeads = await _db.Leads.Where(l => l.OrganizationId == orgId.Value).ToListAsync();
         var states = new Dictionary<Guid, LeadState>();
         var order = new List<object>(); // either a LeadState or an invalid-row result, in payload order
 
@@ -118,6 +121,7 @@ public class CrmImportController : CrmControllerBase
                     CompanyEmail = Clean(item.Email) ?? "",
                     Source = Clean(item.Source) ?? "import",
                     ImportedByUserId = userId,
+                    OrganizationId = orgId.Value,
                 };
                 _db.Leads.Add(lead);
                 existingLeads.Add(lead);

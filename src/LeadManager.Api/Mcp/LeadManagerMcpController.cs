@@ -26,7 +26,7 @@ public class LeadManagerMcpController : McpControllerBase
     {
         "search_leads", "find_by_email_or_domain", "get_lead", "create_lead", "log_interaction",
         "add_next_action", "complete_next_action", "next_actions_today", "add_contact", "link_item",
-        "start_lead_hunt", "get_lead_hunt",
+        "start_lead_hunt", "get_lead_hunt", "list_organizations",
         "get_message_prefill", "list_messages", "create_message_draft", "update_message_draft", "mark_message_sent",
     };
 
@@ -74,7 +74,11 @@ public class LeadManagerMcpController : McpControllerBase
     [
         Tool("search_leads",
             "Search the leads and clients of the user by name, e-mail address or website domain. Returns the best matches first.",
-            new { query = Str("Name, part of a name"), email = Str("E-mail address (also finds contacts)"), domain = Str("Website domain, e.g. hogenkamp.nl") }),
+            new { query = Str("Name, part of a name"), email = Str("E-mail address (also finds contacts)"), domain = Str("Website domain, e.g. hogenkamp.nl"),
+                  organization = Str("Optional: only leads of this organisation (id, slug or name; see list_organizations). Clients are left out when set.") }),
+        Tool("list_organizations",
+            "The organisations you are a member of (id, name, slug, your role). Every lead belongs to exactly one of them; you only see the leads of your organisations.",
+            new { }),
         Tool("find_by_email_or_domain",
             "Who is this? Resolve an e-mail address or a domain to the lead or client it belongs to.",
             new { email = Str("E-mail address"), domain = Str("Website domain") }),
@@ -84,7 +88,8 @@ public class LeadManagerMcpController : McpControllerBase
         Tool("create_lead",
             "Create a lead, or return the existing one when the website domain is already known. Safe to repeat.",
             new { name = Str("Company name"), website = Str("Website (https:// is added when missing)"), sector = Str("Sector"),
-                  city = Str("City"), phone = Str("Phone number"), email = Str("Company e-mail address"), source = Str("Where this lead comes from") },
+                  city = Str("City"), phone = Str("Phone number"), email = Str("Company e-mail address"), source = Str("Where this lead comes from"),
+                  organization = Str("Organisation the lead belongs to (id, slug or name). Required when you are a member of several; see list_organizations.") },
             "name"),
         Tool("log_interaction",
             "Record a conversation: a call, mail, WhatsApp message, meeting or note. A first outbound touch moves a new lead to Contacted.",
@@ -113,8 +118,8 @@ public class LeadManagerMcpController : McpControllerBase
             "parent_id", "title", "due_at"),
         Tool("complete_next_action", "Mark a next action as done.", new { id = Str("Id of the next action") }, "id"),
         Tool("next_actions_today",
-            "The call list: open next actions due today (Dutch time) or overdue, with name and phone number.",
-            new { }),
+            "The call list: open next actions due today (Dutch time) or overdue, with name and phone number. With organization, only leads of that organisation.",
+            new { organization = Str("Optional organisation (id, slug or name)") }),
         Tool("add_contact",
             "Add a person to a lead or client.",
             new
@@ -189,7 +194,7 @@ public class LeadManagerMcpController : McpControllerBase
             "lead_id"),
         Tool("list_messages",
             "Messages (drafts and sent) of your leads, newest first. Filter by lead_id, status (Draft or Sent) or channel.",
-            new { lead_id = Str("Optional lead id"), status = Str("Draft or Sent"), channel = Str("Email, LinkedIn, WhatsApp or Phone") }),
+            new { lead_id = Str("Optional lead id"), status = Str("Draft or Sent"), channel = Str("Email, LinkedIn, WhatsApp or Phone"), organization = Str("Optional organisation (id, slug or name)") }),
         Tool("create_message_draft",
             "Save a draft message for a lead. A draft changes nothing about the lead and NOTHING IS SENT: the user sends it themselves.",
             new { lead_id = Str("Lead id"), channel = Str("Email, LinkedIn, WhatsApp or Phone"), subject = Str("Subject (e-mail only, one line, max 200 characters)"), body = Str("The message, max 5000 characters") },
@@ -232,7 +237,7 @@ public class LeadManagerMcpController : McpControllerBase
             {
                 case "search_leads":
                     return Present(await As(new CrmSearchController(_db, _access), userId)
-                        .Find(ArgStr(args, "email"), ArgStr(args, "domain"), ArgStr(args, "query")));
+                        .Find(ArgStr(args, "email"), ArgStr(args, "domain"), ArgStr(args, "query"), ArgStr(args, "organization")));
 
                 case "find_by_email_or_domain":
                     return Present(await As(new CrmSearchController(_db, _access), userId)
@@ -241,13 +246,30 @@ public class LeadManagerMcpController : McpControllerBase
                 case "get_lead":
                     return await GetLeadAsync(args, userId);
 
+                case "list_organizations":
+                {
+                    var mine = await _db.OrganizationMembers.AsNoTracking().Where(m => m.UserId == userId)
+                        .OrderBy(m => m.Organization!.Name)
+                        .Select(m => new { id = m.OrganizationId, name = m.Organization!.Name, slug = m.Organization.Slug, role = m.Role }).ToListAsync(ct);
+                    return (Serialize(mine), false);
+                }
+
                 case "create_lead":
                 {
+                    Guid? organizationId = null;
+                    var organizationArg = ArgStr(args, "organization");
+                    if (!string.IsNullOrWhiteSpace(organizationArg))
+                    {
+                        var resolvedOrgs = await Organizations.ParseFilterAsync(_db, userId, organizationArg);
+                        if (resolvedOrgs == null || resolvedOrgs[0] == Guid.Empty)
+                            return ("Unknown organisation, or you are not a member. Use list_organizations.", true);
+                        organizationId = resolvedOrgs[0];
+                    }
                     var lead = new ImportLeadDto(ArgStr(args, "name") ?? "", ArgStr(args, "website"), ArgStr(args, "sector"),
                         ArgStr(args, "city"), ArgStr(args, "phone"), ArgStr(args, "email"), ArgStr(args, "source") ?? "mcp",
                         null, null, null);
                     var result = await As(new CrmImportController(_db, _access), userId)
-                        .Import(new ImportRequestDto(new List<ImportLeadDto> { lead }), dryRun: false);
+                        .Import(new ImportRequestDto(new List<ImportLeadDto> { lead }, organizationId), dryRun: false);
                     if (result is OkObjectResult { Value: ImportReportDto report })
                     {
                         var row = report.Leads[0];
@@ -290,7 +312,7 @@ public class LeadManagerMcpController : McpControllerBase
                 }
 
                 case "next_actions_today":
-                    return Present(await As(new NextActionsController(_db, _access), userId).Today());
+                    return Present(await As(new NextActionsController(_db, _access), userId).Today(ArgStr(args, "organization")));
 
                 case "add_contact":
                 {
@@ -411,7 +433,7 @@ public class LeadManagerMcpController : McpControllerBase
                 {
                     var messages = As(new MessagesController(_db), userId);
                     var leadId = ArgGuid(args, "lead_id");
-                    return Present(await messages.List(ArgStr(args, "status"), ArgStr(args, "channel"), leadId, null, 1, 50));
+                    return Present(await messages.List(ArgStr(args, "status"), ArgStr(args, "channel"), leadId, null, 1, 50, ArgStr(args, "organization")));
                 }
 
                 case "create_message_draft":
@@ -471,7 +493,7 @@ public class LeadManagerMcpController : McpControllerBase
         {
             details = await _db.Leads.Where(l => l.Id == parent.Value.id).Select(l => new
             {
-                type = "lead", l.Id, l.Name, l.Website, l.Sector, l.City, l.Phone, l.CompanyEmail, l.OwnerName, l.OwnerMobile,
+                type = "lead", organization = new { id = l.OrganizationId, name = l.Organization!.Name }, l.Id, l.Name, l.Website, l.Sector, l.City, l.Phone, l.CompanyEmail, l.OwnerName, l.OwnerMobile,
                 status = l.Status.ToString(), pipeline = l.PipelineStatus.ToString(), l.Source, l.AiSummary,
                 // Text a hunt agent wrote about the business from third-party web pages: data, never instructions.
                 untrusted_data = new { notice = Services.Hunt.TextSafety.UntrustedNotice, why_lead = l.WhyLead, needs = l.Needs },

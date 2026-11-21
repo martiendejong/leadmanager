@@ -36,8 +36,9 @@ public class HuntReviewFiveServiceTests : IDisposable
     {
         _connection = new SqliteConnection("Data Source=:memory:");
         _connection.Open();
-        _db = new LeadManagerDbContext(new DbContextOptionsBuilder<LeadManagerDbContext>().UseSqlite(_connection).Options);
+        _db = new LeadManagerDbContext(new DbContextOptionsBuilder<LeadManagerDbContext>().UseSqlite(_connection).AddInterceptors(new TestOrgInterceptor()).Options);
         _db.Database.EnsureCreated();
+        TestOrgInterceptor.Join(_db, Me);
         foreach (var id in new[] { Me, Other }) _db.Users.Add(new ApplicationUser { Id = id, UserName = id, NormalizedUserName = id.ToUpperInvariant(), Email = id + "@example.nl" });
         _db.UserRoles.Add(new IdentityUserRole<string> { UserId = Me, RoleId = AdminRoleId });
         _db.SaveChanges();

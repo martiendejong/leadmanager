@@ -47,14 +47,14 @@ public record UpdateNextActionDto(
 /// <summary>A next action with enough parent context to start the call without opening the lead.</summary>
 public record TodayActionDto(
     Guid Id, string ParentType, Guid ParentId, string ParentName, string? Phone,
-    string Title, [property: JsonConverter(typeof(UtcDateTimeConverter))] DateTime DueAt, bool Overdue);
+    string Title, [property: JsonConverter(typeof(UtcDateTimeConverter))] DateTime DueAt, bool Overdue, Guid? OrganizationId = null);
 
 /// <summary>One action in the Acties tab: enough context to show it in a list or calendar and open its parent.</summary>
 public record ActionRowDto(
     Guid Id, string ParentType, Guid ParentId, string ParentName, string Title,
     [property: JsonConverter(typeof(UtcDateTimeConverter))] DateTime DueAt,
     [property: JsonConverter(typeof(UtcNullableDateTimeConverter))] DateTime? DoneAt,
-    bool Overdue);
+    bool Overdue, Guid? OrganizationId = null);
 
 public record CalendarFeedDto(string Token, string Url);
 
@@ -85,7 +85,7 @@ public record CreatedApiKeyDto(Guid Id, string Name, string Prefix, string Key);
 
 public record CrmMatchDto(
     string ParentType, Guid ParentId, string Name, string? Website, string? Email,
-    string? Phone, string MatchedOn);
+    string? Phone, string MatchedOn, Guid? OrganizationId = null);
 
 // ---- Import (task 8024) ----------------------------------------------------------------
 
@@ -104,7 +104,7 @@ public record ImportLeadDto(
     string? Source, List<ImportContactDto>? Contacts, List<ImportInteractionDto>? Interactions,
     List<ImportNextActionDto>? NextActions);
 
-public record ImportRequestDto(List<ImportLeadDto> Leads);
+public record ImportRequestDto(List<ImportLeadDto> Leads, Guid? OrganizationId = null);
 
 public record ImportLeadResultDto(
     string Name, string Action, Guid? LeadId, int ContactsCreated, int InteractionsCreated,

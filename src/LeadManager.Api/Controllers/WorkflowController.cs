@@ -1,3 +1,4 @@
+using LeadManager.Api.Services;
 using LeadManager.Api.Data;
 using LeadManager.Api.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -36,7 +37,7 @@ public class WorkflowController : ControllerBase
     [HttpPost("intake")]
     public async Task<IActionResult> RunIntake(Guid id)
     {
-        var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == UserId);
+        var lead = await _db.Leads.VisibleTo(_db, UserId).FirstOrDefaultAsync(l => l.Id == id);
         if (lead == null) return NotFound();
 
         var context = BuildLeadContext(lead);
@@ -86,7 +87,7 @@ public class WorkflowController : ControllerBase
     [HttpPost("proposal")]
     public async Task<IActionResult> RunProposal(Guid id)
     {
-        var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == UserId);
+        var lead = await _db.Leads.VisibleTo(_db, UserId).FirstOrDefaultAsync(l => l.Id == id);
         if (lead == null) return NotFound();
 
         var context = BuildLeadContext(lead);
@@ -142,7 +143,7 @@ public class WorkflowController : ControllerBase
     [HttpPost("poc")]
     public async Task<IActionResult> CreatePoc(Guid id)
     {
-        var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == UserId);
+        var lead = await _db.Leads.VisibleTo(_db, UserId).FirstOrDefaultAsync(l => l.Id == id);
         if (lead == null) return NotFound();
 
         var tasksBaseUrl = _config["JengoWork:BaseUrl"] ?? "https://tasks.prospergenics.com";

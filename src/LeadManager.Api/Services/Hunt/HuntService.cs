@@ -1,3 +1,4 @@
+using LeadManager.Api.Services;
 using System.Text;
 using System.Text.Json;
 using LeadManager.Api.Data;
@@ -73,18 +74,19 @@ public class HuntService
 
     public const int MaxNameLength = 160;
 
-    /// <summary>The domains of every lead of this user, so the agent does not research a company that is already known.</summary>
-    public async Task<List<string>> KnownDomainsAsync(string? userId, int max = 1500)
+    /// <summary>The domains of the leads of this user (within one organisation when given), so the agent does not research a company that is already known.</summary>
+    public async Task<List<string>> KnownDomainsAsync(string? userId, int max = 1500, Guid? organizationId = null)
     {
-        var sites = await _db.Leads.AsNoTracking().Where(l => l.ImportedByUserId == userId).Select(l => l.Website).ToListAsync();
+        var sites = await _db.Leads.AsNoTracking().VisibleTo(_db, userId)
+            .Where(l => organizationId == null || l.OrganizationId == organizationId).Select(l => l.Website).ToListAsync();
         return sites.Select(UrlGuard.DomainOf).Where(d => d != "").Distinct(StringComparer.OrdinalIgnoreCase).Take(max).ToList();
     }
 
     /// <summary>Of the given domains, the ones that are the website of a lead of this user.</summary>
-    public async Task<List<string>> KnownAmongAsync(string? userId, IReadOnlyCollection<string> domains)
+    public async Task<List<string>> KnownAmongAsync(string? userId, IReadOnlyCollection<string> domains, Guid? organizationId = null)
     {
         if (domains.Count == 0) return new();
-        var known = (await KnownDomainsAsync(userId, int.MaxValue)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var known = (await KnownDomainsAsync(userId, int.MaxValue, organizationId)).ToHashSet(StringComparer.OrdinalIgnoreCase);
         return domains.Where(known.Contains).ToList();
     }
 
@@ -121,7 +123,7 @@ public class HuntService
         var source = $"Lead hunt {DateTime.UtcNow:yyyy-MM-dd}";
         try
         {
-            var knownDomains = await KnownDomainsAsync(job.UserId, int.MaxValue);
+            var knownDomains = await KnownDomainsAsync(job.UserId, int.MaxValue, job.OrganizationId);
             if (knownDomains.Contains(domain, StringComparer.OrdinalIgnoreCase))
             {
                 cand.Outcome = HuntOutcomes.Duplicate;
@@ -143,7 +145,7 @@ public class HuntService
                     lead = new Lead
                     {
                         Name = name, Website = website, City = TextSafety.Clean(sub.City, 60, dropOrders: false), Sector = TextSafety.Clean(sub.Sector, 80, dropOrders: false), Source = source,
-                        ImportedByUserId = job.UserId, ImportedAt = DateTime.UtcNow, CreatedAt = DateTime.UtcNow,
+                        ImportedByUserId = job.UserId, OrganizationId = job.OrganizationId, ImportedAt = DateTime.UtcNow, CreatedAt = DateTime.UtcNow,
                     };
                     LeadVerifier.Apply(lead, result, clearUnverified: false, _scoring);
                     await ApplyGoogleAsync(lead, result, budget.Token);
@@ -216,7 +218,7 @@ public class HuntService
         if (!job.LeadIds.Contains(leadId)) return Done(HuntOutcomes.Rejected, "This lead is not part of this review.");
         if (await _db.HuntCandidates.AnyAsync(c => c.JobId == job.Id && c.LeadId == leadId, CancellationToken.None))
             return Done(HuntOutcomes.Duplicate, "This lead was already reviewed in this run.", dup: true);
-        var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == leadId && l.ImportedByUserId == job.UserId, CancellationToken.None);
+        var lead = await _db.Leads.VisibleTo(_db, job.UserId).FirstOrDefaultAsync(l => l.Id == leadId, CancellationToken.None);
         if (lead == null) return Done(HuntOutcomes.Rejected, "This lead does not exist.");
 
         job.CurrentCandidate = lead.Name;
@@ -415,7 +417,7 @@ public class HuntService
             _db.Entry(noteRow).State = EntityState.Detached;
             _db.Entry(lead).State = EntityState.Detached;
             cand.Score = null;
-            var duplicate = await _db.Leads.AnyAsync(l => l.ImportedByUserId == job.UserId && l.Name == lead.Name && l.Website == lead.Website, CancellationToken.None);
+            var duplicate = await _db.Leads.AnyAsync(l => l.OrganizationId == job.OrganizationId && l.Name == lead.Name && l.Website == lead.Website, CancellationToken.None);
             cand.Outcome = duplicate ? HuntOutcomes.Duplicate : HuntOutcomes.Error;
             cand.Reason = duplicate ? "A lead with this name and website already exists." : "The lead could not be saved.";
             return false;
@@ -438,7 +440,7 @@ public class HuntService
         {
             if (await StopRequested(job, ct)) return;
 
-            var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == job.UserId, ct);
+            var lead = await _db.Leads.VisibleTo(_db, job.UserId).FirstOrDefaultAsync(l => l.Id == id, ct);
             if (lead == null) continue;
 
             job.Screened++;

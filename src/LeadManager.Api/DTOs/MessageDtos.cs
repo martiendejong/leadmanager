@@ -2,7 +2,7 @@ namespace LeadManager.Api.DTOs;
 
 public record LeadMessageDto(
     Guid Id, Guid LeadId, string LeadName, string Channel, string Subject, string Body, string Status,
-    DateTime CreatedAt, DateTime UpdatedAt, DateTime? SentAt, string? LeadPipelineStatus, int? LeadScore);
+    DateTime CreatedAt, DateTime UpdatedAt, DateTime? SentAt, string? LeadPipelineStatus, int? LeadScore, Guid OrganizationId = default);
 
 public record CreateMessageDto(string? Channel, string? Subject, string? Body);
 public record UpdateMessageDto(string? Channel, string? Subject, string? Body);
@@ -16,6 +16,6 @@ public record PrefillDto(string Channel, string Subject, string Body, string Lan
 
 public record QueueItemDto(
     Guid Id, string Name, int? Score, string? Label, string? Sector, string? City, string? OwnerName, string? WhyLead, string? Needs,
-    IReadOnlyList<ProductFitDto>? ProductFit, bool HasDraft, DateTime? LastContactedAt);
+    IReadOnlyList<ProductFitDto>? ProductFit, bool HasDraft, DateTime? LastContactedAt, Guid OrganizationId = default);
 
 public record UpsertTemplateDto(string? Channel, string? ProductKey, string? Subject, string? Body);

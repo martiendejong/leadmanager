@@ -1,3 +1,4 @@
+using LeadManager.Api.Services;
 using LeadManager.Api.Data;
 using LeadManager.Api.DTOs;
 using LeadManager.Api.Models;
@@ -29,7 +30,7 @@ public class LeadNotesController : ControllerBase
         var userId = GetCurrentUserId();
 
         // Verify lead belongs to user
-        var leadExists = await _db.Leads.AnyAsync(l => l.Id == leadId && l.ImportedByUserId == userId);
+        var leadExists = await _db.Leads.VisibleTo(_db, userId).AnyAsync(l => l.Id == leadId);
         if (!leadExists) return NotFound("Lead not found");
 
         var notes = await _db.LeadNotes
@@ -55,7 +56,7 @@ public class LeadNotesController : ControllerBase
         if (userId == null) return Unauthorized();
 
         // Verify lead belongs to user
-        var leadExists = await _db.Leads.AnyAsync(l => l.Id == leadId && l.ImportedByUserId == userId);
+        var leadExists = await _db.Leads.VisibleTo(_db, userId).AnyAsync(l => l.Id == leadId);
         if (!leadExists) return NotFound("Lead not found");
 
         // Validate content
@@ -97,7 +98,7 @@ public class LeadNotesController : ControllerBase
         var userId = GetCurrentUserId();
 
         // Verify lead belongs to user
-        var leadExists = await _db.Leads.AnyAsync(l => l.Id == leadId && l.ImportedByUserId == userId);
+        var leadExists = await _db.Leads.VisibleTo(_db, userId).AnyAsync(l => l.Id == leadId);
         if (!leadExists) return NotFound("Lead not found");
 
         // Find note and verify it belongs to this lead and user created it

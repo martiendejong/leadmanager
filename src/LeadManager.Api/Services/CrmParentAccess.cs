@@ -32,7 +32,7 @@ public class CrmParentAccess
         switch (parentType.ToLowerInvariant())
         {
             case "leads":
-                return await _db.Leads.AnyAsync(l => l.Id == parentId && l.ImportedByUserId == userId)
+                return await _db.Leads.VisibleTo(_db, userId).AnyAsync(l => l.Id == parentId)
                     ? new CrmParent(CrmParentKind.Lead, parentId)
                     : null;
             case "clients":

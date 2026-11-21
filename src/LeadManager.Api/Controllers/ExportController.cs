@@ -1,3 +1,4 @@
+using LeadManager.Api.Services;
 using LeadManager.Api.Data;
 using LeadManager.Api.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -36,7 +37,7 @@ public class ExportController : ControllerBase
         }
 
         var leads = await _db.Leads
-            .Where(l => l.ImportedByUserId == userId && guidList.Contains(l.Id))
+            .VisibleTo(_db, userId).Where(l => guidList.Contains(l.Id))
             .OrderByDescending(l => l.SalesPriorityScore ?? 0)
             .ThenBy(l => l.Name)
             .ToListAsync();

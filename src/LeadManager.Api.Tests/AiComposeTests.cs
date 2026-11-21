@@ -48,7 +48,7 @@ public class AiComposeTests : IDisposable
     {
         _connection = new SqliteConnection("Data Source=:memory:");
         _connection.Open();
-        _db = new LeadManagerDbContext(new DbContextOptionsBuilder<LeadManagerDbContext>().UseSqlite(_connection).Options);
+        _db = new LeadManagerDbContext(new DbContextOptionsBuilder<LeadManagerDbContext>().UseSqlite(_connection).AddInterceptors(new TestOrgInterceptor()).Options);
         _db.Database.EnsureCreated();
         _db.Users.Add(new ApplicationUser { Id = Me, UserName = Me, Email = "me@x.test", FirstName = "Mia", LastName = "Sender", IsActive = true });
         _db.SaveChanges();

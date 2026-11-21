@@ -39,6 +39,8 @@ public class HuntJob
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public string? UserId { get; set; }
+    /// <summary>Leads this job creates belong to this organisation (a verify or review job: the organisation of its leads).</summary>
+    public Guid OrganizationId { get; set; }
     public string Kind { get; set; } = HuntKinds.Hunt;
     public string Status { get; set; } = HuntStatuses.Pending;
     public bool CancelRequested { get; set; }

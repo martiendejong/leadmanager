@@ -37,6 +37,8 @@
     <EmbeddedResource Include="..\..\docs\hunt\AGENT_PROMPT.md" LogicalName="AGENT_PROMPT.md" />
     <!-- The product catalog the hunt agent chooses from, and the keys a lead may name: one file. -->
     <EmbeddedResource Include="Agent\PRODUCTS.md" />
+    <!-- Seeded organisation memberships (people by e-mail): applied once per pair at start. -->
+    <EmbeddedResource Include="..\..\deploy\org_members.json" LogicalName="org_members.json" />
   </ItemGroup>
 
   <PropertyGroup>

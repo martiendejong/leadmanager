@@ -30,6 +30,11 @@ public class LeadManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<LeadDemoIdea> LeadDemoIdeas { get; set; }
     public DbSet<HuntCandidate> HuntCandidates { get; set; }
 
+    // Organisations: leads are divided per organisation of ours, visibility follows membership
+    public DbSet<Organization> Organizations { get; set; }
+    public DbSet<OrganizationMember> OrganizationMembers { get; set; }
+    public DbSet<OrganizationSeedLog> OrganizationSeedLog { get; set; }
+
     // Jengo Clients CRM core (task 8023)
     public DbSet<Contact> Contacts { get; set; }
     public DbSet<Interaction> Interactions { get; set; }
@@ -82,6 +87,7 @@ public class LeadManagerDbContext : IdentityDbContext<ApplicationUser>
                 v => System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions?)null),
                 v => System.Text.Json.JsonSerializer.Deserialize<List<Guid>>(v, (System.Text.Json.JsonSerializerOptions?)null) ?? new List<Guid>());
             e.HasIndex(j => new { j.UserId, j.CreatedAt });
+            e.HasOne<Organization>().WithMany().HasForeignKey(j => j.OrganizationId).OnDelete(DeleteBehavior.Restrict);
             // At most one active job per user, enforced by the database, so two requests at the same moment cannot both start.
             e.HasIndex(j => j.UserId).IsUnique().HasFilter("\"Status\" IN ('Pending', 'Running')").HasDatabaseName("IX_HuntJobs_OneActivePerUser");
             e.HasMany(j => j.Candidates).WithOne(c => c.Job).HasForeignKey(c => c.JobId).OnDelete(DeleteBehavior.Cascade);
@@ -135,10 +141,30 @@ public class LeadManagerDbContext : IdentityDbContext<ApplicationUser>
             }
         );
 
-        // Unique index scoped per user for deduplication
+        // Unique index scoped per organisation for deduplication (the same business may be a lead of two organisations)
         builder.Entity<Lead>()
-            .HasIndex(l => new { l.Name, l.Website, l.ImportedByUserId })
+            .HasIndex(l => new { l.Name, l.Website, l.OrganizationId })
             .IsUnique();
+
+        builder.Entity<Lead>()
+            .HasOne(l => l.Organization).WithMany().HasForeignKey(l => l.OrganizationId).OnDelete(DeleteBehavior.Restrict);
+
+        builder.Entity<Organization>(e =>
+        {
+            e.HasIndex(o => o.Slug).IsUnique();
+            e.Property(o => o.Name).HasMaxLength(100);
+            e.Property(o => o.Slug).HasMaxLength(100);
+            e.HasData(OrganizationSeed.All());
+        });
+        builder.Entity<OrganizationMember>(e =>
+        {
+            e.HasOne(m => m.Organization).WithMany().HasForeignKey(m => m.OrganizationId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(m => new { m.OrganizationId, m.Email }).IsUnique();
+            e.HasIndex(m => m.UserId);
+            e.Property(m => m.Email).HasMaxLength(254);
+            e.Property(m => m.Role).HasMaxLength(10);
+        });
+        builder.Entity<OrganizationSeedLog>(e => e.HasKey(x => x.Key));
 
         builder.Entity<LeadPageContent>()
             .HasOne(p => p.Lead)

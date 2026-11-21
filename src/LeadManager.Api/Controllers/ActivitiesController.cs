@@ -1,3 +1,4 @@
+using LeadManager.Api.Services;
 using LeadManager.Api.Data;
 using LeadManager.Api.DTOs;
 using LeadManager.Api.Models;
@@ -29,7 +30,7 @@ public class ActivitiesController : ControllerBase
         var userId = GetCurrentUserId();
 
         // Verify lead belongs to current user
-        var leadExists = await _db.Leads.AnyAsync(l => l.Id == leadId && l.ImportedByUserId == userId);
+        var leadExists = await _db.Leads.VisibleTo(_db, userId).AnyAsync(l => l.Id == leadId);
         if (!leadExists) return NotFound();
 
         var activities = await _db.Activities
@@ -54,7 +55,7 @@ public class ActivitiesController : ControllerBase
         var userId = GetCurrentUserId();
 
         // Verify lead belongs to current user
-        var leadExists = await _db.Leads.AnyAsync(l => l.Id == leadId && l.ImportedByUserId == userId);
+        var leadExists = await _db.Leads.VisibleTo(_db, userId).AnyAsync(l => l.Id == leadId);
         if (!leadExists) return NotFound();
 
         if (!Enum.TryParse<ActivityType>(dto.ActivityType, out var activityType))

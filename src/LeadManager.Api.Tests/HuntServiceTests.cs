@@ -31,8 +31,10 @@ public class HuntServiceTests : IDisposable
     {
         _connection = new SqliteConnection("Data Source=:memory:");
         _connection.Open();
-        _db = new LeadManagerDbContext(new DbContextOptionsBuilder<LeadManagerDbContext>().UseSqlite(_connection).Options);
+        _db = new LeadManagerDbContext(new DbContextOptionsBuilder<LeadManagerDbContext>().UseSqlite(_connection).AddInterceptors(new TestOrgInterceptor()).Options);
         _db.Database.EnsureCreated();
+        TestOrgInterceptor.Join(_db, Me);
+        TestOrgInterceptor.Join(_db, Other);
         foreach (var id in new[] { Me, Other }) _db.Users.Add(new ApplicationUser { Id = id, UserName = id, NormalizedUserName = id.ToUpperInvariant(), Email = id + "@example.nl" });
         _db.UserRoles.Add(new IdentityUserRole<string> { UserId = Me, RoleId = AdminRoleId });
         _db.SaveChanges();
@@ -907,7 +909,7 @@ public class HuntServiceTests : IDisposable
         var path = Path.Combine(Path.GetTempPath(), $"hunt-mig-{Guid.NewGuid():N}.db");
         try
         {
-            var options = new DbContextOptionsBuilder<LeadManagerDbContext>().UseSqlite($"Data Source={path};Pooling=False").Options;
+            var options = new DbContextOptionsBuilder<LeadManagerDbContext>().UseSqlite($"Data Source={path};Pooling=False").AddInterceptors(new TestOrgInterceptor()).Options;
             using (var db = new LeadManagerDbContext(options))
             {
                 var migrator = db.GetService<IMigrator>();
@@ -1072,7 +1074,7 @@ public class HuntServiceTests : IDisposable
         var path = Path.Combine(Path.GetTempPath(), $"hunt-token-mig-{Guid.NewGuid():N}.db");
         try
         {
-            var options = new DbContextOptionsBuilder<LeadManagerDbContext>().UseSqlite($"Data Source={path};Pooling=False").Options;
+            var options = new DbContextOptionsBuilder<LeadManagerDbContext>().UseSqlite($"Data Source={path};Pooling=False").AddInterceptors(new TestOrgInterceptor()).Options;
             var jobId = Guid.NewGuid();
             using (var db = new LeadManagerDbContext(options))
             {

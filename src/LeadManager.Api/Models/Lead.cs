@@ -46,6 +46,10 @@ public class Lead
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     public string? ImportedByUserId { get; set; }
 
+    /// <summary>The organisation this lead belongs to. Visibility and editing follow membership of this organisation, not the importer.</summary>
+    public Guid OrganizationId { get; set; }
+    public Organization? Organization { get; set; }
+
     // RAG enrichment fields
     public string? OwnerTitle { get; set; }
     public string? Description { get; set; }

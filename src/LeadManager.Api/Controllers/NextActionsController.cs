@@ -116,7 +116,7 @@ public class NextActionsController : CrmControllerBase
     // All my actions in a period (default: from 30 days ago to one year ahead) with the parent's name.
     // Feeds the Acties tab: a list and a calendar.
     [HttpGet("api/next-actions")]
-    public async Task<IActionResult> Range([FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] bool includeDone = false)
+    public async Task<IActionResult> Range([FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] bool includeDone = false, [FromQuery] string? organizationId = null)
     {
         var userId = GetCurrentUserId();
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
@@ -134,8 +134,11 @@ public class NextActionsController : CrmControllerBase
 
         var leadIds = actions.Where(a => a.LeadId.HasValue).Select(a => a.LeadId!.Value).Distinct().ToList();
         var clientIds = actions.Where(a => a.ClientId.HasValue).Select(a => a.ClientId!.Value).Distinct().ToList();
-        var leads = await _db.Leads.Where(l => leadIds.Contains(l.Id) && l.ImportedByUserId == userId)
-            .ToDictionaryAsync(l => l.Id, l => l.Name);
+        var orgs = await Organizations.ParseFilterAsync(_db, userId, organizationId);
+        var leadRows = await _db.Leads.VisibleTo(_db, userId).InOrganizations(orgs).Where(l => leadIds.Contains(l.Id))
+            .Select(l => new { l.Id, l.Name, l.OrganizationId }).ToListAsync();
+        var leads = leadRows.ToDictionary(l => l.Id, l => l.Name);
+        var leadOrgs = leadRows.ToDictionary(l => l.Id, l => l.OrganizationId);
         var clients = await _db.Clients.Where(c => clientIds.Contains(c.Id) && c.CreatedByUserId == userId)
             .ToDictionaryAsync(c => c.Id, c => c.Name);
 
@@ -144,10 +147,11 @@ public class NextActionsController : CrmControllerBase
         {
             string? name = null;
             if (a.LeadId.HasValue) leads.TryGetValue(a.LeadId.Value, out name);
-            else if (a.ClientId.HasValue) clients.TryGetValue(a.ClientId.Value, out name);
+            else if (a.ClientId.HasValue && orgs == null) clients.TryGetValue(a.ClientId.Value, out name);
             if (name == null) continue;
             rows.Add(new ActionRowDto(a.Id, a.LeadId.HasValue ? "leads" : "clients", (a.LeadId ?? a.ClientId)!.Value,
-                name, a.Title, a.DueAt, a.DoneAt, a.DoneAt == null && a.DueAt < now));
+                name, a.Title, a.DueAt, a.DoneAt, a.DoneAt == null && a.DueAt < now,
+                a.LeadId.HasValue ? leadOrgs.GetValueOrDefault(a.LeadId.Value) : null));
         }
         return Ok(rows);
     }
@@ -156,11 +160,11 @@ public class NextActionsController : CrmControllerBase
     // Open actions assigned to me that are due by the end of today (Dutch time), including overdue.
     // Each row carries name and phone so the call can start without opening the lead.
     [HttpGet("api/next-actions/today")]
-    public Task<IActionResult> Today() => TodayAsync(DateTime.UtcNow);
+    public Task<IActionResult> Today([FromQuery] string? organizationId = null) => TodayAsync(DateTime.UtcNow, organizationId);
 
     /// <summary>The reference time is not a request parameter: a caller must not be able to move "today".</summary>
     [NonAction]
-    public async Task<IActionResult> TodayAsync(DateTime utcNow)
+    public async Task<IActionResult> TodayAsync(DateTime utcNow, string? organizationId = null)
     {
         var userId = GetCurrentUserId();
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
@@ -177,9 +181,11 @@ public class NextActionsController : CrmControllerBase
         var clientIds = actions.Where(a => a.ClientId.HasValue).Select(a => a.ClientId!.Value).Distinct().ToList();
 
         // Only parents the caller owns: same rule as every other CRM endpoint.
+        // With an organisation filter only the leads of those organisations are listed (clients have no organisation).
+        var orgs = await Organizations.ParseFilterAsync(_db, userId, organizationId);
         var leads = await _db.Leads
-            .Where(l => leadIds.Contains(l.Id) && l.ImportedByUserId == userId)
-            .Select(l => new { l.Id, l.Name, l.Phone, l.OwnerMobile })
+            .VisibleTo(_db, userId).InOrganizations(orgs).Where(l => leadIds.Contains(l.Id))
+            .Select(l => new { l.Id, l.Name, l.Phone, l.OwnerMobile, l.OrganizationId })
             .ToDictionaryAsync(l => l.Id);
         var clients = await _db.Clients
             .Where(c => clientIds.Contains(c.Id) && c.CreatedByUserId == userId)
@@ -192,8 +198,8 @@ public class NextActionsController : CrmControllerBase
             if (a.LeadId.HasValue && leads.TryGetValue(a.LeadId.Value, out var l))
                 result.Add(new TodayActionDto(a.Id, "leads", l.Id, l.Name,
                     string.IsNullOrWhiteSpace(l.OwnerMobile) ? l.Phone : l.OwnerMobile,
-                    a.Title, a.DueAt, a.DueAt < utcNow));
-            else if (a.ClientId.HasValue && clients.TryGetValue(a.ClientId.Value, out var c))
+                    a.Title, a.DueAt, a.DueAt < utcNow, l.OrganizationId));
+            else if (orgs == null && a.ClientId.HasValue && clients.TryGetValue(a.ClientId.Value, out var c))
                 result.Add(new TodayActionDto(a.Id, "clients", c.Id, c.Name, c.PrimaryContactPhone,
                     a.Title, a.DueAt, a.DueAt < utcNow));
         }

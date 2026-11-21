@@ -28,7 +28,7 @@ public class HuntReviewTwoTests : IDisposable
     {
         _connection = new SqliteConnection("Data Source=:memory:");
         _connection.Open();
-        _db = new LeadManagerDbContext(new DbContextOptionsBuilder<LeadManagerDbContext>().UseSqlite(_connection).Options);
+        _db = new LeadManagerDbContext(new DbContextOptionsBuilder<LeadManagerDbContext>().UseSqlite(_connection).AddInterceptors(new TestOrgInterceptor()).Options);
         _db.Database.EnsureCreated();
         _db.Users.Add(new ApplicationUser { Id = Me, UserName = Me, NormalizedUserName = Me.ToUpperInvariant(), Email = Me + "@example.nl" });
         _db.SaveChanges();
@@ -313,7 +313,7 @@ public class HuntReviewTwoTests : IDisposable
         var path = Path.Combine(Path.GetTempPath(), $"hunt-mig2-{Guid.NewGuid():N}.db");
         try
         {
-            var options = new DbContextOptionsBuilder<LeadManagerDbContext>().UseSqlite($"Data Source={path};Pooling=False").Options;
+            var options = new DbContextOptionsBuilder<LeadManagerDbContext>().UseSqlite($"Data Source={path};Pooling=False").AddInterceptors(new TestOrgInterceptor()).Options;
             string oldest = Guid.NewGuid().ToString(), newest = Guid.NewGuid().ToString(), other = Guid.NewGuid().ToString(), done = Guid.NewGuid().ToString();
             using (var db = new LeadManagerDbContext(options))
             {
@@ -348,7 +348,7 @@ public class HuntReviewTwoTests : IDisposable
         var path = Path.Combine(Path.GetTempPath(), $"hunt-mig3-{Guid.NewGuid():N}.db");
         try
         {
-            var options = new DbContextOptionsBuilder<LeadManagerDbContext>().UseSqlite($"Data Source={path};Pooling=False").Options;
+            var options = new DbContextOptionsBuilder<LeadManagerDbContext>().UseSqlite($"Data Source={path};Pooling=False").AddInterceptors(new TestOrgInterceptor()).Options;
             using (var db = new LeadManagerDbContext(options))
             {
                 db.GetService<IMigrator>().Migrate("20261119164155_HuntActiveJobIndexAndConfirm");   // where test and acc stand

@@ -82,12 +82,19 @@ public class LeadsController : ControllerBase
         return url;
     }
 
+    /// <summary>The leads the person may see, narrowed to the organisation filter of the request (comma separated ids or slugs).</summary>
+    private async Task<IQueryable<Lead>> ScopedAsync(string? userId, string? organizationFilter)
+    {
+        var orgs = await Organizations.ParseFilterAsync(_db, userId, organizationFilter);
+        return _db.Leads.VisibleTo(_db, userId).InOrganizations(orgs);
+    }
+
     // GET /api/leads
     [HttpGet]
     public async Task<IActionResult> GetLeads([FromQuery] LeadFilterParams filters)
     {
         var userId = GetCurrentUserId();
-        var query = _db.Leads.Where(l => l.ImportedByUserId == userId);
+        var query = (await ScopedAsync(userId, filters.OrganizationId)).AsQueryable();
 
         if (filters.Enriched.HasValue)
             query = query.Where(l => l.IsEnriched == filters.Enriched.Value);
@@ -154,10 +161,10 @@ public class LeadsController : ControllerBase
 
     // GET /api/leads/stats
     [HttpGet("stats")]
-    public async Task<IActionResult> GetStats()
+    public async Task<IActionResult> GetStats([FromQuery] string? organizationId = null)
     {
         var userId = GetCurrentUserId();
-        var userLeads = _db.Leads.Where(l => l.ImportedByUserId == userId);
+        var userLeads = await ScopedAsync(userId, organizationId);
         var total = await userLeads.CountAsync();
         var enriched = await userLeads.CountAsync(l => l.IsEnriched);
         return Ok(new LeadStatsDto(total, enriched, total - enriched));
@@ -168,7 +175,7 @@ public class LeadsController : ControllerBase
     public async Task<IActionResult> GetLead(Guid id)
     {
         var userId = GetCurrentUserId();
-        var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == userId);
+        var lead = await _db.Leads.VisibleTo(_db, userId).FirstOrDefaultAsync(l => l.Id == id);
         if (lead == null) return NotFound();
         return Ok(ToDto(lead));
     }
@@ -178,8 +185,20 @@ public class LeadsController : ControllerBase
     public async Task<IActionResult> UpdateLead(Guid id, [FromBody] UpdateLeadDto dto)
     {
         var userId = GetCurrentUserId();
-        var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == userId);
+        var lead = await _db.Leads.VisibleTo(_db, userId).FirstOrDefaultAsync(l => l.Id == id);
         if (lead == null) return NotFound();
+
+        // Moving to another organisation: the person must be a member of the target as well, and the target must not
+        // already hold the same business (same name and website).
+        if (dto.OrganizationId.HasValue && dto.OrganizationId.Value != lead.OrganizationId)
+        {
+            if (!await Organizations.IsMemberAsync(_db, userId, dto.OrganizationId.Value))
+                return BadRequest(new { error = "You are not a member of that organisation." });
+            var site = NormalizeWebsiteUrl(dto.Website) ?? lead.Website;
+            if (await _db.Leads.AnyAsync(l => l.Id != lead.Id && l.OrganizationId == dto.OrganizationId.Value && l.Name == dto.Name && l.Website == site))
+                return Conflict(new { error = "That organisation already has a lead with this name and website." });
+            lead.OrganizationId = dto.OrganizationId.Value;
+        }
 
         lead.Name = dto.Name;
         lead.Website = NormalizeWebsiteUrl(dto.Website) ?? lead.Website;
@@ -208,7 +227,7 @@ public class LeadsController : ControllerBase
     public async Task<IActionResult> PatchProfile(Guid id, [FromBody] PatchLeadProfileDto dto)
     {
         var userId = GetCurrentUserId();
-        var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == userId);
+        var lead = await _db.Leads.VisibleTo(_db, userId).FirstOrDefaultAsync(l => l.Id == id);
         if (lead == null) return NotFound();
 
         string? error = null;
@@ -395,7 +414,7 @@ public class LeadsController : ControllerBase
     public async Task<IActionResult> UpdateLeadStatus(Guid id, [FromBody] UpdateLeadStatusDto dto)
     {
         var userId = GetCurrentUserId();
-        var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == userId);
+        var lead = await _db.Leads.VisibleTo(_db, userId).FirstOrDefaultAsync(l => l.Id == id);
         if (lead == null) return NotFound("Lead not found");
 
         // Parse target status
@@ -420,7 +439,7 @@ public class LeadsController : ControllerBase
     public async Task<IActionResult> DeleteLead(Guid id)
     {
         var userId = GetCurrentUserId();
-        var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == userId);
+        var lead = await _db.Leads.VisibleTo(_db, userId).FirstOrDefaultAsync(l => l.Id == id);
         if (lead == null) return NotFound();
 
         await Services.Hunt.HuntEvidence.ForgetAsync(_db, new[] { lead.Id });   // the quotes of a deleted lead do not stay in the hunt history
@@ -434,7 +453,7 @@ public class LeadsController : ControllerBase
     public async Task<IActionResult> UpdatePipelineStatus(Guid id, [FromBody] UpdatePipelineStatusDto dto)
     {
         var userId = GetCurrentUserId();
-        var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == userId);
+        var lead = await _db.Leads.VisibleTo(_db, userId).FirstOrDefaultAsync(l => l.Id == id);
         if (lead == null) return NotFound();
 
         if (!Enum.TryParse<PipelineStatus>(dto.PipelineStatus, out var status))
@@ -450,7 +469,7 @@ public class LeadsController : ControllerBase
     public async Task<IActionResult> UpdateWorkflow(Guid id, [FromBody] UpdateWorkflowDto dto)
     {
         var userId = GetCurrentUserId();
-        var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == userId);
+        var lead = await _db.Leads.VisibleTo(_db, userId).FirstOrDefaultAsync(l => l.Id == id);
         if (lead == null) return NotFound();
 
         if (dto.Step.HasValue)
@@ -483,6 +502,8 @@ public class LeadsController : ControllerBase
         }
 
         var userId = GetCurrentUserId();
+        var (orgId, orgError) = await Organizations.ResolveTargetAsync(_db, userId, dto.OrganizationId);
+        if (orgId == null) return BadRequest(new { error = orgError });
 
         // Duplicate detection (869ck3j4y) — skip when ?force=true
         if (!force)
@@ -492,8 +513,9 @@ public class LeadsController : ControllerBase
             var incomingNameLower = dto.Name?.ToLower() ?? "";
             var incomingEmailLower = dto.CompanyEmail?.ToLower() ?? "";
 
+            // Within the organisation the lead is created in: the same business may be a lead of another organisation.
             var userLeads = await _db.Leads
-                .Where(l => l.ImportedByUserId == userId)
+                .Where(l => l.OrganizationId == orgId.Value)
                 .ToListAsync();
 
             var duplicates = userLeads.Where(l =>
@@ -541,6 +563,7 @@ public class LeadsController : ControllerBase
             Source = dto.Source,
             ManualInput = dto.ManualInput,
             ImportedByUserId = userId,
+            OrganizationId = orgId.Value,
             ImportedAt = DateTime.UtcNow,
             CreatedAt = DateTime.UtcNow
         };
@@ -567,11 +590,13 @@ public class LeadsController : ControllerBase
     {
         var userId = GetCurrentUserId();
 
-        var target = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == userId);
+        var target = await _db.Leads.VisibleTo(_db, userId).FirstOrDefaultAsync(l => l.Id == id);
         if (target == null) return NotFound("Target lead not found.");
 
-        var source = await _db.Leads.FirstOrDefaultAsync(l => l.Id == dto.SourceLeadId && l.ImportedByUserId == userId);
+        var source = await _db.Leads.VisibleTo(_db, userId).FirstOrDefaultAsync(l => l.Id == dto.SourceLeadId);
         if (source == null) return NotFound("Source lead not found.");
+        if (source.OrganizationId != target.OrganizationId)
+            return BadRequest(new { error = "Leads of different organisations cannot be merged. Move one of them first." });
 
         // Merge: prefer non-null/non-empty existing value, else use source value
         static string MergeStr(string existing, string source) =>
@@ -646,8 +671,12 @@ public class LeadsController : ControllerBase
     public async Task<IActionResult> AssignLead(Guid id, [FromBody] AssignLeadDto dto)
     {
         var userId = GetCurrentUserId();
-        var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == userId);
+        var lead = await _db.Leads.VisibleTo(_db, userId).FirstOrDefaultAsync(l => l.Id == id);
         if (lead == null) return NotFound();
+
+        // Only a member of the lead's organisation can be assigned to it (or nobody, to clear it).
+        if (!string.IsNullOrEmpty(dto.UserId) && !await Organizations.IsMemberAsync(_db, dto.UserId, lead.OrganizationId))
+            return BadRequest(new { error = "That user is not a member of the organisation of this lead." });
 
         lead.AssignedToUserId = dto.UserId;
         await _db.SaveChangesAsync();
@@ -662,7 +691,7 @@ public class LeadsController : ControllerBase
         var userId = GetCurrentUserId();
 
         var assigneeCounts = await _db.Leads
-            .Where(l => l.ImportedByUserId == userId && l.AssignedToUserId != null)
+            .VisibleTo(_db, userId).Where(l => l.AssignedToUserId != null)
             .GroupBy(l => l.AssignedToUserId!)
             .Select(g => new { UserId = g.Key, LeadCount = g.Count() })
             .ToListAsync();
@@ -689,7 +718,7 @@ public class LeadsController : ControllerBase
     public async Task<IActionResult> UploadDocuments(Guid id, List<IFormFile> files)
     {
         var userId = GetCurrentUserId();
-        var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == userId);
+        var lead = await _db.Leads.VisibleTo(_db, userId).FirstOrDefaultAsync(l => l.Id == id);
 
         if (lead == null)
             return NotFound();
@@ -734,7 +763,7 @@ public class LeadsController : ControllerBase
     public async Task<IActionResult> RegenerateSalesApproach(Guid id)
     {
         var userId = GetCurrentUserId();
-        var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == userId);
+        var lead = await _db.Leads.VisibleTo(_db, userId).FirstOrDefaultAsync(l => l.Id == id);
 
         if (lead == null)
             return NotFound();
@@ -761,7 +790,7 @@ public class LeadsController : ControllerBase
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(CsvImportMaxBytes)]
     [RequestFormLimits(MultipartBodyLengthLimit = CsvImportMaxBytes)]
-    public async Task<IActionResult> ImportLeadsCsv(IFormFile file)
+    public async Task<IActionResult> ImportLeadsCsv(IFormFile file, [FromQuery] Guid? organizationId = null)
     {
         if (file == null || file.Length == 0)
             return BadRequest("No file provided.");
@@ -773,13 +802,18 @@ public class LeadsController : ControllerBase
             return BadRequest("Only .csv files are supported. For Excel (.xlsx), use the Excel import button.");
 
         var userId = GetCurrentUserId();
+        // The organisation can also be sent as a form field next to the file.
+        if (organizationId == null && Request.HasFormContentType && Guid.TryParse(Request.Form["organizationId"].ToString(), out var formOrg))
+            organizationId = formOrg;
+        var (orgId, orgError) = await Organizations.ResolveTargetAsync(_db, userId, organizationId);
+        if (orgId == null) return BadRequest(new { error = orgError });
         var leadsToInsert = new List<Lead>();
         var rowErrors = new List<CsvImportRowError>();
         int skipped = 0;
 
-        // Load existing website domains for dedup — scoped to this user
+        // Load existing website domains for dedup — scoped to the organisation the leads go to
         var existingWebsites = await _db.Leads
-            .Where(l => l.ImportedByUserId == userId && l.Website != null && l.Website != "")
+            .Where(l => l.OrganizationId == orgId.Value && l.Website != null && l.Website != "")
             .Select(l => l.Website.ToLower())
             .ToListAsync();
         var existingWebsiteSet = existingWebsites.ToHashSet();
@@ -863,6 +897,7 @@ public class LeadsController : ControllerBase
                     Phone = phone,
                     Source = "csv_import",
                     ImportedByUserId = userId,
+                    OrganizationId = orgId.Value,
                     ImportedAt = DateTime.UtcNow,
                     CreatedAt = DateTime.UtcNow
                 };
@@ -911,7 +946,7 @@ public class LeadsController : ControllerBase
     public async Task<IActionResult> ExportLeads([FromQuery] LeadFilterParams filters, [FromQuery] string format = "csv")
     {
         var userId = GetCurrentUserId();
-        var query = _db.Leads.Where(l => l.ImportedByUserId == userId);
+        var query = await ScopedAsync(userId, filters.OrganizationId);
 
         if (filters.Enriched.HasValue)
             query = query.Where(l => l.IsEnriched == filters.Enriched.Value);
@@ -1022,7 +1057,7 @@ public class LeadsController : ControllerBase
     public async Task<IActionResult> GenerateOutreachEmail(Guid id)
     {
         var userId = GetCurrentUserId();
-        var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == userId);
+        var lead = await _db.Leads.VisibleTo(_db, userId).FirstOrDefaultAsync(l => l.Id == id);
 
         if (lead == null)
             return NotFound();
@@ -1041,10 +1076,10 @@ public class LeadsController : ControllerBase
 
     // GET /api/leads/analytics
     [HttpGet("analytics")]
-    public async Task<IActionResult> GetAnalytics([FromQuery] string? from, [FromQuery] string? to)
+    public async Task<IActionResult> GetAnalytics([FromQuery] string? from, [FromQuery] string? to, [FromQuery] string? organizationId = null)
     {
         var userId = GetCurrentUserId();
-        var query = _db.Leads.Where(l => l.ImportedByUserId == userId);
+        var query = await ScopedAsync(userId, organizationId);
 
         // Parse date range
         DateTime? fromDate = null;
@@ -1090,8 +1125,8 @@ public class LeadsController : ControllerBase
 
         // Time series: group by date, cover last 30 days (or filtered range)
         var timeSeriesStart = fromDate ?? thirtyDaysAgo;
-        var timeSeriesLeads = await _db.Leads
-            .Where(l => l.ImportedByUserId == userId && l.CreatedAt >= timeSeriesStart)
+        var timeSeriesLeads = await (await ScopedAsync(userId, organizationId))
+            .Where(l => l.CreatedAt >= timeSeriesStart)
             .ToListAsync();
 
         var leadsOverTime = timeSeriesLeads
@@ -1193,10 +1228,12 @@ public class LeadsController : ControllerBase
             return BadRequest("No leads provided.");
 
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        var (orgId, orgError) = await Organizations.ResolveTargetAsync(_db, userId, request.OrganizationId);
+        if (orgId == null) return BadRequest(new { error = orgError });
 
-        // Load existing pairs for dedup — scoped to this user
+        // Load existing pairs for dedup — scoped to the organisation the leads go to
         var existingList = await _db.Leads
-            .Where(l => l.ImportedByUserId == userId)
+            .Where(l => l.OrganizationId == orgId.Value)
             .Select(l => new { NameLower = l.Name.ToLower(), WebsiteLower = l.Website.ToLower() })
             .ToListAsync();
         var existing = existingList.ToHashSet();
@@ -1227,6 +1264,7 @@ public class LeadsController : ControllerBase
                 Services = item.Services ?? "",
                 TargetAudience = item.TargetAudience ?? "",
                 ImportedByUserId = userId,
+                OrganizationId = orgId.Value,
                 ImportedAt = DateTime.UtcNow,
                 CreatedAt = DateTime.UtcNow
             });
@@ -1248,7 +1286,7 @@ public class LeadsController : ControllerBase
     public async Task<IActionResult> SetReminder(Guid id, [FromBody] SetReminderDto dto)
     {
         var userId = GetCurrentUserId();
-        var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == userId);
+        var lead = await _db.Leads.VisibleTo(_db, userId).FirstOrDefaultAsync(l => l.Id == id);
         if (lead == null) return NotFound();
 
         lead.ReminderDate = dto.ReminderDate;
@@ -1262,7 +1300,7 @@ public class LeadsController : ControllerBase
     public async Task<IActionResult> ConvertToClient(Guid id, [FromBody] ConvertLeadDto dto)
     {
         var userId = GetCurrentUserId();
-        var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.ImportedByUserId == userId);
+        var lead = await _db.Leads.VisibleTo(_db, userId).FirstOrDefaultAsync(l => l.Id == id);
         if (lead == null) return NotFound();
         if (lead.ConvertedToClientId.HasValue)
             return Conflict("Lead has already been converted to a client.");
@@ -1389,5 +1427,6 @@ public class LeadsController : ControllerBase
         l.WhyLead,
         l.Needs,
         LeadInsight.ParseFit(l.ProductFitJson)?.Select(e => new ProductFitDto(e.Product, e.Reason, e.EvidenceQuote, e.SourceUrl)).ToList(),
-        l.LastContactedAt);
+        l.LastContactedAt,
+        l.OrganizationId);
 }

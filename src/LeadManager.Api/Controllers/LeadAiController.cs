@@ -54,7 +54,7 @@ public class LeadAiController : ControllerBase
     private string? UserId => User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
 
     private async Task<Lead?> OwnLeadAsync(Guid leadId) =>
-        await _db.Leads.FirstOrDefaultAsync(l => l.Id == leadId && l.ImportedByUserId == UserId);
+        await _db.Leads.VisibleTo(_db, UserId).FirstOrDefaultAsync(l => l.Id == leadId);
 
     private IActionResult NotConfiguredResult() => StatusCode(503, new { error = NotConfigured, code = "ai_not_configured" });
 
@@ -138,7 +138,7 @@ public class LeadAiController : ControllerBase
     {
         var lead = await OwnLeadAsync(leadId);
         if (lead == null) return NotFound();
-        var items = await _db.LeadDemoIdeas.AsNoTracking().Where(d => d.LeadId == leadId && d.UserId == UserId).OrderBy(d => d.Position).ToListAsync();
+        var items = await _db.LeadDemoIdeas.AsNoTracking().Where(d => d.LeadId == leadId).OrderBy(d => d.Position).ToListAsync();
         return Ok(new { items = items.Select(ToDto), generatedAt = items.Count == 0 ? (DateTime?)null : items.Max(i => i.GeneratedAt), configured = _composer.IsConfigured });
     }
 
@@ -161,7 +161,7 @@ public class LeadAiController : ControllerBase
 
         var userId = UserId!;
         // One generation replaces the previous one (one SaveChanges: the old set is never half gone).
-        var old = await _db.LeadDemoIdeas.Where(d => d.LeadId == leadId && d.UserId == userId).ToListAsync();
+        var old = await _db.LeadDemoIdeas.Where(d => d.LeadId == leadId).ToListAsync();
         _db.LeadDemoIdeas.RemoveRange(old);
         var batch = Guid.NewGuid();
         var now = DateTime.UtcNow;
