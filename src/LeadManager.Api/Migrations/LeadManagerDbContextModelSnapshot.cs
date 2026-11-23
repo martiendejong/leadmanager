@@ -461,10 +461,14 @@ namespace LeadManager.Api.Migrations
                     b.ToTable("ClientIntakes");
                 });
 
-            modelBuilder.Entity("LeadManager.Api.Models.ClientService", b =>
+            modelBuilder.Entity("LeadManager.Api.Models.ClientInvoice", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("AmountExclVat")
+                        .HasPrecision(14, 2)
                         .HasColumnType("TEXT");
 
                     b.Property<Guid>("ClientId")
@@ -476,7 +480,97 @@ namespace LeadManager.Api.Migrations
                     b.Property<string>("CreatedByUserId")
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid?>("DocumentId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("InvoiceDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("PaidAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("PeriodEnd")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("PeriodStart")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SentTo")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("ServiceId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SourceRef")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("VatRate")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DocumentId");
+
+                    b.HasIndex("ServiceId");
+
+                    b.HasIndex("ClientId", "InvoiceDate");
+
+                    b.HasIndex("ClientId", "SourceRef");
+
+                    b.ToTable("ClientInvoices");
+                });
+
+            modelBuilder.Entity("LeadManager.Api.Models.ClientService", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("BillingAmount")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("BillingInterval")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("Monthly");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedByUserId")
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime?>("EndDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FreeReason")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("FreeUntil")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("HourlyRate")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("InvoiceNote")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Kind")
@@ -494,6 +588,9 @@ namespace LeadManager.Api.Migrations
                     b.Property<string>("Notes")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("PaidUntil")
+                        .HasColumnType("TEXT");
+
                     b.Property<Guid?>("ProjectId")
                         .HasColumnType("TEXT");
 
@@ -505,6 +602,10 @@ namespace LeadManager.Api.Migrations
 
                     b.Property<string>("Status")
                         .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("VatRate")
+                        .HasPrecision(5, 2)
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -2061,6 +2162,25 @@ namespace LeadManager.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("Client");
+                });
+
+            modelBuilder.Entity("LeadManager.Api.Models.ClientInvoice", b =>
+                {
+                    b.HasOne("LeadManager.Api.Models.Client", null)
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("LeadManager.Api.Models.ClientDocument", null)
+                        .WithMany()
+                        .HasForeignKey("DocumentId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("LeadManager.Api.Models.ClientService", null)
+                        .WithMany()
+                        .HasForeignKey("ServiceId")
+                        .OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("LeadManager.Api.Models.ClientService", b =>

@@ -45,6 +45,7 @@ public class LeadManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<ClientDocument> ClientDocuments { get; set; }
     public DbSet<ClientDocumentFile> ClientDocumentFiles { get; set; }
     public DbSet<ClientService> ClientServices { get; set; }
+    public DbSet<ClientInvoice> ClientInvoices { get; set; }
 
     // Every save that touches a lead stamps UpdatedAt, whoever made the change (screen, import, enrichment, API).
     private void StampLeads()
@@ -288,7 +289,24 @@ public class LeadManagerDbContext : IdentityDbContext<ApplicationUser>
             e.Property(x => x.Kind).HasConversion<string>();
             e.Property(x => x.Status).HasConversion<string>();
             e.Property(x => x.MonthlyAmount).HasPrecision(14, 2);
+            e.Property(x => x.BillingAmount).HasPrecision(14, 2);
+            e.Property(x => x.HourlyRate).HasPrecision(14, 2);
+            e.Property(x => x.VatRate).HasPrecision(5, 2);
+            e.Property(x => x.BillingInterval).HasConversion<string>().HasDefaultValue(BillingInterval.Monthly);
             e.HasIndex(x => new { x.ClientId, x.Kind });
+            e.HasIndex(x => new { x.ClientId, x.SourceRef });
+        });
+
+        builder.Entity<ClientInvoice>(e =>
+        {
+            e.HasOne<Client>().WithMany().HasForeignKey(x => x.ClientId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<ClientService>().WithMany().HasForeignKey(x => x.ServiceId).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne<ClientDocument>().WithMany().HasForeignKey(x => x.DocumentId).OnDelete(DeleteBehavior.SetNull);
+            e.Property(x => x.Status).HasConversion<string>();
+            e.Property(x => x.AmountExclVat).HasPrecision(14, 2);
+            e.Property(x => x.VatRate).HasPrecision(5, 2);
+            e.HasIndex(x => new { x.ClientId, x.InvoiceDate });
+            e.HasIndex(x => x.ServiceId);
             e.HasIndex(x => new { x.ClientId, x.SourceRef });
         });
 

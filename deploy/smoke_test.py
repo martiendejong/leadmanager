@@ -329,6 +329,22 @@ def main() -> int:
             mine = [c for c in r.json() if c["clientId"] == client_id] if r.status_code == 200 else []
             check(len(mine) == 1 and len(mine[0]["contracts"]) >= 1 and any(d["title"] == "Smoke concept NDA" for d in mine[0]["concepts"]),
                   "agreements overview lists the client with its contract and its concept")
+            # Billing: terms on the service, an invoice tied to it, and what is due next.
+            if svc_id:
+                r = s.put(f"{base}/api/services/{svc_id}", headers=jwt, timeout=30,
+                          json={"kind": "WebsiteManagement", "status": "Active", "startDate": "2026-11-01T00:00:00Z", "billingInterval": "Monthly", "billingAmount": 45})
+                check(r.status_code == 200 and r.json().get("billingAmount") == 45, "billing terms are stored on the service")
+                r = s.get(f"{base}/api/invoicing/due", headers=jwt, params={"clientId": client_id, "asOf": "2026-11-23"}, timeout=30)
+                items = r.json()[0]["items"] if r.status_code == 200 and r.json() else []
+                check(len(items) == 1 and items[0]["state"] == "Due" and items[0]["periodStart"].startswith("2026-11-01") and items[0]["amountExclVat"] == 45,
+                      "invoicing due derives the first period and amount from the terms")
+                inv = {"number": "smoke-1", "amountExclVat": 45, "status": "Sent", "serviceId": svc_id, "periodStart": "2026-11-01T00:00:00Z", "periodEnd": "2026-11-30T00:00:00Z", "sourceRef": "smoke:inv1"}
+                r = s.post(f"{base}/api/clients/{client_id}/invoices", headers=jwt, timeout=30, json=inv)
+                r2 = s.post(f"{base}/api/clients/{client_id}/invoices", headers=jwt, timeout=30, json=inv)
+                check(r.status_code == 201 and r2.status_code == 200 and r.json()["id"] == r2.json()["id"], "the same invoice number is recorded once")
+                r = s.get(f"{base}/api/invoicing/due", headers=jwt, params={"clientId": client_id, "asOf": "2026-11-23"}, timeout=30)
+                items = r.json()[0]["items"] if r.status_code == 200 and r.json() else []
+                check(len(items) == 1 and items[0]["periodStart"].startswith("2026-12-01"), "after the sent invoice the next period starts the day after it")
             r = s.post(f"{base}/api/clients/{client_id}/next-actions", headers=jwt, timeout=30, json={"title": "smoke actie", "dueAt": due})
             check(r.status_code == 201, "plan a next action on the client")
             r = s.get(base + "/api/next-actions", headers=jwt, timeout=30)

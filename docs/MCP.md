@@ -41,6 +41,11 @@ deactivated user is rejected. A JWT from the login page is not a valid MCP token
 | `create_project` | Add a project to a client; `log_interaction` then accepts `project_id` |
 | `list_documents` | A client's file: quotes, assignments, agreements, data processing agreements, NDAs with status, amount, dates, previous document and file names |
 | `add_document` | Record a document in the file (details and optionally a link); uploading files is done in the app. Chain with `predecessor_id`: quote, assignment, agreement |
+| `list_services` | The services of a client with their billing terms: interval, amount excl. VAT, hourly rate, VAT, paid-until, free-until with reason, invoice remark |
+| `upsert_service` | Record or change a service and its billing agreement; a repeated `source_ref` updates instead of duplicating. Only the billing fields you pass change. For example website management, Monthly, `billing_amount` 45; a year paid ahead: `paid_until`; a free year in a deal: `free_until` and `free_reason` |
+| `list_invoices` | The invoices recorded for a client, with service, period, amounts and status |
+| `add_invoice` | Record an invoice that was or will be sent (number, amount excl. VAT, service, inclusive period, status). The same number or `source_ref` updates it. Sent and Paid invoices cover their period. Never sends anything and does not write to the books |
+| `invoicing_due` | What to invoice next, derived from the terms and the invoices recorded: per service period, amount excl./incl. VAT, state and explanation. Use it to answer "make an invoice for X" |
 | `list_actions` | All open actions across leads and clients in a period, with name |
 | `add_contact` | Add a person to a lead or client |
 | `get_message_prefill` | A suggested message for a lead from the templates (deterministic, no AI), built only from what is stored on the lead, with warnings (do-not-contact note, missing address). Saves and sends nothing |
