@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../components/Toast'
 import api from '../api/client'
+import { afterLoginTarget } from '../api/oauthReturn'
 
 export default function LoginPage() {
   const { login } = useAuth()
@@ -41,7 +42,9 @@ export default function LoginPage() {
     try {
       await login(email, password)
       showToast('Logged in', 'success')
-      navigate('/today')
+      const target = afterLoginTarget()
+      if (target.startsWith('/oauth/')) window.location.replace(target)
+      else navigate(target)
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??

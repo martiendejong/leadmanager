@@ -89,8 +89,36 @@ def main() -> int:
     # The SPA fallback must never answer for the MCP endpoint or OAuth discovery with the app's HTML page.
     r = get("/mcp")
     check(r.status_code == 401 and "text/html" not in r.headers.get("content-type", ""), "GET /mcp without a token is a 401, not the app")
+    r = get("/mcp")
+    check("resource_metadata=" in r.headers.get("www-authenticate", "") and "/.well-known/oauth-protected-resource" in r.headers.get("www-authenticate", ""), "the 401 points at the protected-resource metadata")
     r = get("/.well-known/oauth-protected-resource")
-    check(r.status_code == 404 and "text/html" not in r.headers.get("content-type", ""), "OAuth discovery path is a 404, not the app")
+    prm = r.json() if r.status_code == 200 and "json" in r.headers.get("content-type", "") else {}
+    check(prm.get("resource", "").endswith("/mcp") and bool(prm.get("authorization_servers")), "protected-resource metadata (RFC 9728)")
+    r = get("/.well-known/oauth-authorization-server")
+    asm = r.json() if r.status_code == 200 and "json" in r.headers.get("content-type", "") else {}
+    check(bool(asm.get("registration_endpoint")) and bool(asm.get("token_endpoint")) and "S256" in asm.get("code_challenge_methods_supported", []), "authorization-server metadata (RFC 8414) with registration and S256")
+    for alias in ("/.well-known/oauth-protected-resource/mcp", "/.well-known/oauth-authorization-server/mcp"):
+        check(get(alias).status_code == 200, f"discovery alias {alias}")
+    chatgpt = "https://chatgpt.com/connector_platform_oauth_redirect"
+    r = s.post(base + "/oauth/register", json={"client_name": "Smoke", "redirect_uris": [chatgpt]}, timeout=30)
+    check(r.status_code in (200, 201) and r.json().get("client_id"), "dynamic client registration accepts the ChatGPT redirect")
+    client_id = r.json().get("client_id", "") if r.status_code in (200, 201) else ""
+    r = s.post(base + "/oauth/register", json={"redirect_uris": ["https://claude.ai/api/mcp/auth_callback", "https://claude.com/api/mcp/auth_callback"]}, timeout=30)
+    check(r.status_code in (200, 201), "dynamic client registration accepts the Claude redirects")
+    r = s.post(base + "/oauth/register", json={"redirect_uris": ["https://evil.example/cb"]}, timeout=30)
+    check(r.status_code == 400, "dynamic client registration refuses an unknown redirect")
+    auth_q = {"client_id": client_id, "redirect_uri": chatgpt, "response_type": "code", "state": "smoke",
+              "code_challenge": "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM", "code_challenge_method": "S256"}
+    r = s.get(base + "/oauth/authorize", params=auth_q, timeout=30, allow_redirects=False)
+    check(r.status_code == 200 and "lm_token" in r.text and "frame-ancestors" in r.headers.get("content-security-policy", ""), "authorize serves the consent page (the login is checked in the browser)")
+    r = s.get(base + "/oauth/authorize", params={**auth_q, "redirect_uri": "https://evil.example/cb"}, timeout=30, allow_redirects=False)
+    check(r.status_code == 400, "authorize refuses a redirect off the allowlist")
+    r = s.get(base + "/oauth/authorize", params={k: v for k, v in auth_q.items() if not k.startswith("code_challenge")}, timeout=30, allow_redirects=False)
+    check(r.status_code == 400, "authorize requires PKCE")
+    r = s.post(base + "/oauth/consent", json={"client_id": client_id, "redirect_uri": chatgpt, "code_challenge": auth_q["code_challenge"], "code_challenge_method": "S256"}, timeout=30)
+    check(r.status_code == 401, "consent without a login is a 401")
+    r = s.post(base + "/oauth/token", data={"grant_type": "authorization_code", "code": "nope", "client_id": client_id, "redirect_uri": chatgpt, "code_verifier": "x"}, timeout=30)
+    check(r.status_code == 400, "token refuses an unknown code")
     r = s.post(base + "/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "initialize"}, timeout=30)
     check(r.status_code == 401, "POST /mcp without a token is a 401")
 

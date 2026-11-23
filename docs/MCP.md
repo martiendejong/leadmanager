@@ -60,10 +60,30 @@ validation, limits, `SourceRef` idempotency and UTC times are therefore the same
 than the REST endpoint it wraps. Errors come back as a tool error (`isError: true`) with the reason, not as a
 server error.
 
+## ChatGPT and Claude.ai (custom connector, OAuth)
+
+Add the connector with only the URL `https://clients.prospergenics.com/mcp`: ChatGPT (Settings, Connectors, Developer
+mode, Create) or Claude.ai (Settings, Connectors, Add custom connector). Leave the OAuth client fields empty: both
+register themselves (dynamic client registration). You then land on the Clients consent page:
+
+1. If you are not signed in to Clients in that browser, the page offers **Sign in to Clients** (the normal login, SSO
+   included) and brings you back to the consent page afterwards.
+2. **Allow access** creates a personal `lm_` API key named "ChatGPT connector" (or "Claude connector"), hands it to the
+   connector as its access token and replaces the previous key of that connector. The key appears on **Integrations**
+   and can be revoked there at any time; the connector then stops working until you connect again.
+
+Because the token is your own API key, the connector sees exactly your leads, clients and organisations, and has the
+same limits as any key (no deleting, no file downloads). Existing keys and `claude mcp add` setups keep working.
+
+How it works: `Mcp/LeadManagerOAuthController.cs` on top of the shared connector (`OAuthControllerBase`, `OAuthService`).
+Endpoints: `/.well-known/oauth-protected-resource` (RFC 9728) and `/.well-known/oauth-authorization-server` (RFC 8414),
+both also under the `/mcp` aliases, `/oauth/register` (RFC 7591), `/oauth/authorize` (consent page), `/oauth/consent`
+(JWT bearer only, mints the key), `/oauth/token` (authorization code + PKCE S256; PKCE is mandatory). Redirects are
+limited to https `chatgpt.com`, `chat.openai.com`, `claude.ai` and `claude.com` (the allowlist is enforced at
+registration and at authorize, whatever was registered). Registered clients and authorization codes live in memory
+(10 minutes), so a restart only costs a reconnect in the middle of a consent; issued keys survive restarts.
+ChatGPT caches the tool list per connector: after tool changes use "Reconnect" in the connector menu.
+
 ## Not yet
 
-- **No OAuth.** ChatGPT and Claude.ai connectors require OAuth (authorization code with PKCE). The connector
-  has a base for it (`OAuthControllerBase`), but LeadManager has no consent screen yet.
-  Claude Code, agents and other tools already work with the key. The 401 already points to
-  `/.well-known/oauth-protected-resource`, which does not exist yet.
 - Each tool works for one owner at a time; sharing leads between users does not exist in the app yet.
