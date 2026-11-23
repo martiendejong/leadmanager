@@ -1,4 +1,4 @@
-// Copied from jengo-components dotnet/mcp-connector (commit aac7103, 2026-09-25), unchanged except this header.
+// Copied from jengo-components dotnet/mcp-connector (commit aac7103, 2026-09-25), changed only here: loopback http and platform.openai.com in IsAllowedRedirect, 201 on registration.
 // Keep in sync: when a NuGet/project reference replaces the copy, delete this folder.
 using Microsoft.AspNetCore.Mvc;
 
@@ -106,7 +106,7 @@ public abstract class OAuthControllerBase(McpConnectorOptions options, OAuthServ
                     + "(chatgpt.com / chat.openai.com / claude.ai plus configured extra hosts).",
             });
         var (clientId, _) = oauth.RegisterClient(req.ClientName, redirectUris);
-        return Ok(new
+        return StatusCode(201, new
         {
             client_id = clientId,
             redirect_uris = redirectUris,

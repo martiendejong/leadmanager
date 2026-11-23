@@ -85,7 +85,9 @@ public class McpOAuthTests : IDisposable
     private string Register(string redirect)
     {
         var result = Controller().Register(new ClientRegistrationRequest { ClientName = "ChatGPT", RedirectUris = [redirect] });
-        var json = JsonSerializer.SerializeToElement(Assert.IsType<OkObjectResult>(result).Value);
+        var obj = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(201, obj.StatusCode);
+        var json = JsonSerializer.SerializeToElement(obj.Value);
         return json.GetProperty("client_id").GetString()!;
     }
 
@@ -149,6 +151,8 @@ public class McpOAuthTests : IDisposable
     [InlineData("https://chatgpt.com.evil.example/cb")]
     [InlineData("http://chatgpt.com/cb")]
     [InlineData("https://notclaude.com/cb")]
+    [InlineData("http://evil.example/cb")]
+    [InlineData("http://localhost.evil.example/cb")]
     public void Registration_RefusesOtherRedirects(string redirect)
     {
         var result = Controller().Register(new ClientRegistrationRequest { RedirectUris = [redirect] });
