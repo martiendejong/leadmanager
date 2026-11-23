@@ -12,7 +12,7 @@ public class Client
     public string? City { get; set; }
     public string? Sector { get; set; }
     public string? Notes { get; set; }
-    // Engagement category: Active / Maintenance (maintenance contract) / Reactive (paid requests only)
+    // Engagement category, see EngagementCategories (Active, Maintenance, Reactive, Prospect, WarmLead, OneOff, Conflict, RelationshipEnded, Inactive)
     public string? EngagementCategory { get; set; }
     // Priority sub-scores, same idea as JengoWork: score = value * urgency / effort^2 (Fibonacci scale).
     public int? PriorityValue { get; set; }

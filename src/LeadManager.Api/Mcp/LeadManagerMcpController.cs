@@ -138,7 +138,7 @@ public class LeadManagerMcpController : McpControllerBase
             {
                 name = Str("Client name"), contact_name = Str("Main contact"), email = Str("Contact e-mail"), phone = Str("Contact phone"),
                 city = Str("City"), sector = Str("Sector"), website = Str("Website"), notes = Str("Notes"),
-                engagement_category = new { type = "string", @enum = new[] { "Active", "Maintenance", "Reactive" } },
+                engagement_category = new { type = "string", @enum = Models.EngagementCategories.All },
             },
             "name"),
         Tool("set_client_priority",

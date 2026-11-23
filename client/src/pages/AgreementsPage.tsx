@@ -101,10 +101,16 @@ export default function AgreementsPage() {
                   </span>
                 ))}
               </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <DocList title="Contracts" docs={r.contracts} empty="None sent or signed yet" />
+              <div className="grid gap-4 sm:grid-cols-3">
+                <DocList title="Signed" docs={r.contracts.filter((d) => d.status === 'Signed')} empty="Nothing signed yet" />
+                <DocList title="Sent, no answer yet" docs={r.contracts.filter((d) => d.status === 'Sent')} empty="Nothing waiting for an answer" />
                 <DocList title="Concepts" docs={r.concepts} empty="No concepts" />
               </div>
+              {r.contracts.some((d) => !['Signed', 'Sent'].includes(d.status)) && (
+                <div className="mt-3">
+                  <DocList title="Rejected, expired or cancelled" docs={r.contracts.filter((d) => !['Signed', 'Sent'].includes(d.status))} empty="" />
+                </div>
+              )}
             </section>
           ))}
         </div>
