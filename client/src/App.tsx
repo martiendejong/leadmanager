@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useEffect } from 'react'
+import { afterLoginTarget } from './api/oauthReturn'
 import { AuthProvider } from './contexts/AuthContext'
 import { OrganizationProvider } from './contexts/OrganizationContext'
 import { ToastProvider } from './components/Toast'
@@ -32,7 +33,7 @@ function SsoTokenHandler() {
     const ssoError = new URLSearchParams(hash.slice(1)).get('sso_error')
     if (ssoToken) {
       localStorage.setItem('lm_token', ssoToken)
-      window.location.replace('/today')
+      window.location.replace(afterLoginTarget())
     } else if (ssoError) {
       window.location.replace(`/login?sso_error=${encodeURIComponent(ssoError)}`)
     }

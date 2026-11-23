@@ -1,3 +1,4 @@
+using JengoComponents.McpConnector;
 using Hangfire;
 using Hangfire.MemoryStorage;
 using LeadManager.Api.Data;
@@ -160,11 +161,13 @@ builder.Services.Configure<LeadManager.Api.Services.Track.TrackOptions>(
 builder.Services.AddHttpClient<LeadManager.Api.Services.Track.TrackGateway>(c => c.Timeout = TimeSpan.FromSeconds(6));
 
 // MCP server (/mcp): agents and other Jengo tools. The access token is one of the user's API keys.
-builder.Services.AddSingleton(new JengoComponents.McpConnector.McpConnectorOptions
+// Registers the options and the in-memory OAuth state (dynamic clients, auth codes) for ChatGPT / Claude.ai connectors.
+builder.Services.AddMcpConnector(o =>
 {
-    ServerName = "jengo-clients",
-    ServerVersion = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0",
-    Realm = "JengoClients",
+    o.ServerName = "jengo-clients";
+    o.ServerVersion = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0";
+    o.Realm = "JengoClients";
+    o.ExtraAllowedRedirectHosts.Add("claude.com"); // https://claude.com/api/mcp/auth_callback
 });
 builder.Services.AddScoped<JengoComponents.McpConnector.IMcpTokenValidator, LeadManager.Api.Mcp.ApiKeyTokenValidator>();
 
@@ -462,7 +465,7 @@ app.MapHub<EnrichmentHub>("/hubs/enrichment");
 // GET and HEAD only, and /mcp and /.well-known (OAuth discovery) stay out: they must answer as themselves
 // (or with a 404), never with the app's index.html.
 if (spaEnabled)
-    app.MapFallbackToFile(@"{*path:regex(^(?!api(/|$)|hubs(/|$)|mcp(/|$)|\.well-known(/|$)|hangfire|swagger).*$)}", "index.html", staticFiles)
+    app.MapFallbackToFile(@"{*path:regex(^(?!api(/|$)|hubs(/|$)|mcp(/|$)|oauth(/|$)|\.well-known(/|$)|hangfire|swagger).*$)}", "index.html", staticFiles)
        .WithMetadata(new Microsoft.AspNetCore.Routing.HttpMethodMetadata(new[] { "GET", "HEAD" }));
 
 // Health endpoint
