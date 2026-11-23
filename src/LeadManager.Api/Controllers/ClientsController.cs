@@ -86,7 +86,7 @@ public class ClientsController : ControllerBase
         if (CrmRules.TooLong(name, CrmRules.MaxName)) return "Name is too long.";
         if (website != null && !website.Contains("://")) website = "https://" + website;
         if (website != null && !CrmRules.IsSafeHttpUrl(website)) return "Website must be a valid http(s) address.";
-        if (category != null && !new[] { "Active", "Maintenance", "Reactive" }.Contains(category)) return "Unknown engagement category.";
+        if (category != null && !EngagementCategories.All.Contains(category)) return "Unknown engagement category.";
         if (email != null && (email.Length > 320 || !System.Net.Mail.MailAddress.TryCreate(email, out _))) return "Email address is not valid.";
         if (shortFields.Select(CrmRules.Clean).Any(f => CrmRules.TooLong(f, CrmRules.MaxName)) || CrmRules.TooLong(notes, CrmRules.MaxNotes))
             return "A field is too long.";

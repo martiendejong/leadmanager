@@ -93,8 +93,8 @@ public class DashboardController : ControllerBase
             lastContact.TryGetValue(c.Id, out var l) ? UtcDateTimeConverter.Normalize(l) : null);
 
         var rows = clients.Select(Row).ToList();
-        // Reactive clients are paid-requests-only: they are never "needs attention".
-        var attentionPool = rows.Where(r => r.EngagementCategory != "Reactive").ToList();
+        // Reactive (paid requests only), Inactive, Conflict and ended relationships are never "needs attention".
+        var attentionPool = rows.Where(r => !EngagementCategories.QuietCategories.Contains(r.EngagementCategory)).ToList();
 
         var documents = await _db.ClientDocuments.AsNoTracking()
             .Where(d => clientIds.Contains(d.ClientId)).ToListAsync();
