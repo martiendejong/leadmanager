@@ -27,6 +27,7 @@ public class LeadManagerMcpController : McpControllerBase
         "search_leads", "find_by_email_or_domain", "get_lead", "create_lead", "log_interaction",
         "add_next_action", "complete_next_action", "next_actions_today", "add_contact", "link_item",
         "start_lead_hunt", "get_lead_hunt", "list_organizations",
+        "list_services", "upsert_service", "list_invoices", "add_invoice", "invoicing_due",
         "get_message_prefill", "list_messages", "create_message_draft", "update_message_draft", "mark_message_sent",
     };
 
@@ -207,6 +208,57 @@ public class LeadManagerMcpController : McpControllerBase
             "Record that the USER sent a message themselves. Only call this after the user told you they sent it, and pass confirmed true. It moves a lead from New to Contacted (never back from a later status) and writes an activity. The app and this tool never send anything.",
             new { message_id = Str("Message id"), confirmed = new { type = "boolean", description = "Must be true: the user confirms they sent this message themselves" } },
             "message_id", "confirmed"),
+        Tool("list_services",
+            "The services we deliver to a client with their agreed billing terms: interval, amount excl. VAT, hourly rate, VAT, paid-until, free-until and why, invoice note.",
+            new { client_id = Str("Id of the client") },
+            "client_id"),
+        Tool("upsert_service",
+            "Record or change a service of a client and its billing agreement. Repeating the same source_ref updates the service instead of duplicating it. Only the billing fields you pass are changed. Example: website management, Monthly, billing_amount 45; a year paid ahead: paid_until; a free year as part of a deal: free_until and free_reason.",
+            new
+            {
+                client_id = Str("Id of the client"),
+                kind = new { type = "string", @enum = Enum.GetNames<Models.ServiceKind>() },
+                name = Str("Service name, e.g. Website management"),
+                status = new { type = "string", @enum = Enum.GetNames<Models.ServiceStatus>() },
+                start_date = Str("ISO 8601 date the service starts"),
+                end_date = Str("ISO 8601 date the service ends"),
+                billing_interval = new { type = "string", @enum = Enum.GetNames<Models.BillingInterval>() },
+                billing_amount = new { type = "number", description = "Amount per billing period in euro excluding VAT" },
+                hourly_rate = new { type = "number", description = "Hourly rate in euro excluding VAT (interval Hourly)" },
+                vat_rate = new { type = "number", description = "VAT percentage, default 21" },
+                paid_until = Str("ISO 8601 date up to and including which it is paid (e.g. a year paid ahead)"),
+                free_until = Str("ISO 8601 date up to and including which it is free (e.g. a free year in a deal)"),
+                free_reason = Str("Why it is free, e.g. part of the deal"),
+                invoice_note = Str("Remark for the invoice"),
+                notes = Str("Notes"),
+                source_ref = Str("Stable id from the reporting system, makes repeats idempotent"),
+            },
+            "client_id", "kind"),
+        Tool("list_invoices",
+            "The invoices recorded for a client, with the service, period, amounts and status.",
+            new { client_id = Str("Id of the client") },
+            "client_id"),
+        Tool("add_invoice",
+            "Record an invoice that was or will be sent, tied to a service and its period (period_start and period_end inclusive). The same number or source_ref updates the existing invoice. Sent and Paid invoices count as covering their period. This never sends an invoice or writes to the books.",
+            new
+            {
+                client_id = Str("Id of the client"),
+                number = Str("Invoice number, e.g. 2026-15"),
+                amount_excl_vat = new { type = "number", description = "Amount in euro excluding VAT" },
+                service_id = Str("Service this invoice is for"),
+                invoice_date = Str("ISO 8601 date"),
+                period_start = Str("First day covered (ISO 8601)"),
+                period_end = Str("Last day covered, inclusive (ISO 8601)"),
+                vat_rate = new { type = "number", description = "VAT percentage, default 21" },
+                status = new { type = "string", @enum = Enum.GetNames<Models.InvoiceStatus>() },
+                sent_to = Str("Who it was sent to"),
+                notes = Str("Notes"),
+                source_ref = Str("Stable id, e.g. fedha:2026-15"),
+            },
+            "client_id", "number", "amount_excl_vat"),
+        Tool("invoicing_due",
+            "What to invoice next, derived from the agreed billing terms and the invoices already sent: per service the next period, amount excl. and incl. VAT, state (Due, Upcoming, Covered, NeedsInput, Nothing) and an explanation. Use it to answer a request to make an invoice. Pass client_id for one client.",
+            new { client_id = Str("Optional: one client"), state = new { type = "string", @enum = new[] { "Due", "Upcoming", "Covered", "NeedsInput", "Nothing" } } }),
         Tool("link_item",
             "Link a lead or client to something in another Jengo tool: a JengoWork board or task, a JengoKnowledge project, a mail thread, a Meet session.",
             new
@@ -395,6 +447,55 @@ public class LeadManagerMcpController : McpControllerBase
                     return Present(await As(new DocumentsController(_db, _storage), userId).Create(id.Value, new UpsertDocumentDto(
                         ArgStr(args, "kind") ?? "", ArgStr(args, "title") ?? "", ArgStr(args, "status"), ArgStr(args, "reference"),
                         docDate, signedAt, validUntil, amount, ArgStr(args, "notes"), ArgStr(args, "url"), projectId, predecessorId)));
+                }
+
+                case "list_services":
+                {
+                    var id = ArgGuid(args, "client_id");
+                    if (id == null) return ("client_id is required and must be a GUID", true);
+                    return Present(await As(new ServicesController(_db), userId).List(id.Value));
+                }
+
+                case "upsert_service":
+                {
+                    var id = ArgGuid(args, "client_id");
+                    if (id == null) return ("client_id is required and must be a GUID", true);
+                    if (!TryDate(args, "start_date", out var startDate, out var error) || !TryDate(args, "end_date", out var endDate, out error)
+                        || !TryDate(args, "paid_until", out var paidUntil, out error) || !TryDate(args, "free_until", out var freeUntil, out error)
+                        || !TryNumber(args, "billing_amount", out var billingAmount, out error) || !TryNumber(args, "hourly_rate", out var hourly, out error)
+                        || !TryNumber(args, "vat_rate", out var vat, out error))
+                        return (error!, true);
+                    return Present(await As(new ServicesController(_db), userId).Create(id.Value, new UpsertServiceDto(
+                        ArgStr(args, "kind") ?? "", ArgStr(args, "name"), ArgStr(args, "status"), startDate, endDate, null,
+                        ArgStr(args, "notes"), null, ArgStr(args, "source_ref"), ArgStr(args, "billing_interval"), billingAmount, hourly, vat,
+                        paidUntil, freeUntil, ArgStr(args, "free_reason"), ArgStr(args, "invoice_note"))));
+                }
+
+                case "list_invoices":
+                {
+                    var id = ArgGuid(args, "client_id");
+                    if (id == null) return ("client_id is required and must be a GUID", true);
+                    return Present(await As(new InvoicesController(_db), userId).List(id.Value));
+                }
+
+                case "add_invoice":
+                {
+                    var id = ArgGuid(args, "client_id");
+                    if (id == null) return ("client_id is required and must be a GUID", true);
+                    if (!TryDate(args, "invoice_date", out var invDate, out var error) || !TryDate(args, "period_start", out var pStart, out error)
+                        || !TryDate(args, "period_end", out var pEnd, out error) || !TryNumber(args, "amount_excl_vat", out var amount, out error)
+                        || !TryNumber(args, "vat_rate", out var vat, out error) || !TryOptionalGuid(args, "service_id", out var serviceId, out error))
+                        return (error!, true);
+                    if (amount == null) return ("amount_excl_vat is required", true);
+                    return Present(await As(new InvoicesController(_db), userId).Create(id.Value, new UpsertInvoiceDto(
+                        ArgStr(args, "number") ?? "", amount.Value, invDate, pStart, pEnd, vat, ArgStr(args, "status"), ArgStr(args, "sent_to"),
+                        null, ArgStr(args, "notes"), serviceId, null, ArgStr(args, "source_ref"))));
+                }
+
+                case "invoicing_due":
+                {
+                    if (!TryOptionalGuid(args, "client_id", out var clientId, out var error)) return (error!, true);
+                    return Present(await As(new InvoicesController(_db), userId).Due(clientId, ArgStr(args, "state"), null));
                 }
 
                 case "list_actions":
@@ -601,6 +702,16 @@ public class LeadManagerMcpController : McpControllerBase
 
     private static Guid? ArgGuid(JsonElement args, string name) =>
         Guid.TryParse(ArgStr(args, name), out var g) ? g : null;
+
+    private static bool TryNumber(JsonElement args, string name, out decimal? value, out string? error)
+    {
+        value = null;
+        error = null;
+        if (args.ValueKind != JsonValueKind.Object || !args.TryGetProperty(name, out var e) || e.ValueKind == JsonValueKind.Null) return true;
+        if (e.ValueKind != JsonValueKind.Number || !e.TryGetDecimal(out var dec)) { error = $"{name} must be a number"; return false; }
+        value = dec;
+        return true;
+    }
 
     /// <summary>Parses an optional ISO 8601 argument. A value without a zone is taken as UTC.</summary>
     private static bool TryDate(JsonElement args, string name, out DateTime? value, out string? error)

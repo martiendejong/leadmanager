@@ -13,13 +13,21 @@ public record ServiceDto(
     Guid Id, Guid ClientId, string Kind, string Status, string Name, Guid? ProjectId,
     [property: JsonConverter(typeof(UtcNullableDateTimeConverter))] DateTime? StartDate,
     [property: JsonConverter(typeof(UtcNullableDateTimeConverter))] DateTime? EndDate,
-    decimal? MonthlyAmount, string? Notes, string? SourceRef);
+    decimal? MonthlyAmount, string? Notes, string? SourceRef,
+    string BillingInterval = "Monthly", decimal? BillingAmount = null, decimal? HourlyRate = null, decimal? VatRate = null,
+    [property: JsonConverter(typeof(UtcNullableDateTimeConverter))] DateTime? PaidUntil = null,
+    [property: JsonConverter(typeof(UtcNullableDateTimeConverter))] DateTime? FreeUntil = null,
+    string? FreeReason = null, string? InvoiceNote = null);
 
 public record UpsertServiceDto(
     string Kind, string? Name, string? Status,
     [property: JsonConverter(typeof(UtcNullableDateTimeConverter))] DateTime? StartDate,
     [property: JsonConverter(typeof(UtcNullableDateTimeConverter))] DateTime? EndDate,
-    decimal? MonthlyAmount, string? Notes, Guid? ProjectId, string? SourceRef = null);
+    decimal? MonthlyAmount, string? Notes, Guid? ProjectId, string? SourceRef = null,
+    string? BillingInterval = null, decimal? BillingAmount = null, decimal? HourlyRate = null, decimal? VatRate = null,
+    [property: JsonConverter(typeof(UtcNullableDateTimeConverter))] DateTime? PaidUntil = null,
+    [property: JsonConverter(typeof(UtcNullableDateTimeConverter))] DateTime? FreeUntil = null,
+    string? FreeReason = null, string? InvoiceNote = null);
 
 /// <summary>The services we deliver to a client, such as website management. Documents link to them.</summary>
 [ApiController]
@@ -36,7 +44,8 @@ public class ServicesController : ControllerBase
 
     public static ServiceDto ToDto(ClientService s) => new(
         s.Id, s.ClientId, s.Kind.ToString(), s.Status.ToString(), s.Name, s.ProjectId, s.StartDate, s.EndDate,
-        s.MonthlyAmount, s.Notes, s.SourceRef);
+        s.MonthlyAmount, s.Notes, s.SourceRef,
+        s.BillingInterval.ToString(), s.BillingAmount, s.HourlyRate, s.VatRate, s.PaidUntil, s.FreeUntil, s.FreeReason, s.InvoiceNote);
 
     private async Task<bool> OwnsClient(Guid clientId)
     {
@@ -78,6 +87,24 @@ public class ServicesController : ControllerBase
         if (dto.ProjectId.HasValue && !await _db.Projects.AnyAsync(p => p.Id == dto.ProjectId && p.ClientId == s.ClientId))
             return "Project does not belong to this client.";
 
+        // Billing terms. Only fields that are sent change, so a client that knows nothing of billing keeps them.
+        var interval = s.BillingInterval;
+        if (!string.IsNullOrWhiteSpace(dto.BillingInterval) && !TryParseName(dto.BillingInterval, out interval)) return "Unknown billing interval.";
+        if (dto.BillingAmount is < 0 or > 1_000_000_000m || dto.HourlyRate is < 0 or > 1_000_000m) return "Billing amount is not valid.";
+        if (dto.VatRate is < 0 or > 100m) return "VAT rate is not valid.";
+        var freeReason = Clean(dto.FreeReason);
+        var invoiceNote = Clean(dto.InvoiceNote);
+        if (TooLong(freeReason, MaxTitle) || TooLong(invoiceNote, MaxNotes)) return "Free reason or invoice note is too long.";
+
+        s.BillingInterval = interval;
+        if (dto.BillingAmount.HasValue) s.BillingAmount = Math.Round(dto.BillingAmount.Value, 2);
+        if (dto.HourlyRate.HasValue) s.HourlyRate = Math.Round(dto.HourlyRate.Value, 2);
+        if (dto.VatRate.HasValue) s.VatRate = dto.VatRate;
+        if (dto.PaidUntil.HasValue) s.PaidUntil = UtcDateTimeConverter.Normalize(dto.PaidUntil.Value);
+        if (dto.FreeUntil.HasValue) s.FreeUntil = UtcDateTimeConverter.Normalize(dto.FreeUntil.Value);
+        if (freeReason != null) s.FreeReason = freeReason;
+        if (invoiceNote != null) s.InvoiceNote = invoiceNote;
+
         s.Kind = kind;
         s.Status = status;
         s.Name = name;
@@ -85,6 +112,9 @@ public class ServicesController : ControllerBase
         s.SourceRef = sref;
         s.ProjectId = dto.ProjectId;
         s.MonthlyAmount = dto.MonthlyAmount.HasValue ? Math.Round(dto.MonthlyAmount.Value, 2) : null;
+        // Keep the informative monthly figure in line with the billing amount when only the latter is sent.
+        if (!dto.MonthlyAmount.HasValue && s.BillingAmount.HasValue && BillingCalculator.Months(interval) > 0)
+            s.MonthlyAmount = Math.Round(s.BillingAmount.Value / BillingCalculator.Months(interval), 2);
         s.StartDate = dto.StartDate.HasValue ? UtcDateTimeConverter.Normalize(dto.StartDate.Value) : null;
         s.EndDate = dto.EndDate.HasValue ? UtcDateTimeConverter.Normalize(dto.EndDate.Value) : null;
         return null;
