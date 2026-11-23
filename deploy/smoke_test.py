@@ -100,11 +100,13 @@ def main() -> int:
     for alias in ("/.well-known/oauth-protected-resource/mcp", "/.well-known/oauth-authorization-server/mcp"):
         check(get(alias).status_code == 200, f"discovery alias {alias}")
     chatgpt = "https://chatgpt.com/connector_platform_oauth_redirect"
-    r = s.post(base + "/oauth/register", json={"client_name": "Smoke", "redirect_uris": [chatgpt]}, timeout=30)
-    check(r.status_code in (200, 201) and r.json().get("client_id"), "dynamic client registration accepts the ChatGPT redirect")
-    client_id = r.json().get("client_id", "") if r.status_code in (200, 201) else ""
-    r = s.post(base + "/oauth/register", json={"redirect_uris": ["https://claude.ai/api/mcp/auth_callback", "https://claude.com/api/mcp/auth_callback"]}, timeout=30)
-    check(r.status_code in (200, 201), "dynamic client registration accepts the Claude redirects")
+    client_id = ""
+    for uri in (chatgpt, "https://chatgpt.com/connector/oauth/smoke123", "https://platform.openai.com/apps-manage/oauth",
+                "https://claude.ai/api/mcp/auth_callback", "https://claude.com/api/mcp/auth_callback", "http://localhost:54321/callback"):
+        r = s.post(base + "/oauth/register", json={"client_name": "Smoke", "redirect_uris": [uri]}, timeout=30)
+        check(r.status_code == 201 and bool(r.json().get("client_id")), f"dynamic client registration returns 201 for {uri}")
+        if uri == chatgpt and r.status_code == 201:
+            client_id = r.json()["client_id"]
     r = s.post(base + "/oauth/register", json={"redirect_uris": ["https://evil.example/cb"]}, timeout=30)
     check(r.status_code == 400, "dynamic client registration refuses an unknown redirect")
     auth_q = {"client_id": client_id, "redirect_uri": chatgpt, "response_type": "code", "state": "smoke",

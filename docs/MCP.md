@@ -79,7 +79,7 @@ How it works: `Mcp/LeadManagerOAuthController.cs` on top of the shared connector
 Endpoints: `/.well-known/oauth-protected-resource` (RFC 9728) and `/.well-known/oauth-authorization-server` (RFC 8414),
 both also under the `/mcp` aliases, `/oauth/register` (RFC 7591), `/oauth/authorize` (consent page), `/oauth/consent`
 (JWT bearer only, mints the key), `/oauth/token` (authorization code + PKCE S256; PKCE is mandatory). Redirects are
-limited to https `chatgpt.com`, `chat.openai.com`, `claude.ai` and `claude.com` (the allowlist is enforced at
+limited to https `chatgpt.com` (including `/connector/oauth/<id>`), `chat.openai.com`, `platform.openai.com`, `claude.ai` and `claude.com`, plus http loopback (`localhost`/`127.0.0.1`, any port) for Claude Code (the allowlist is enforced at
 registration and at authorize, whatever was registered). Registered clients and authorization codes live in memory
 (10 minutes), so a restart only costs a reconnect in the middle of a consent; issued keys survive restarts.
 ChatGPT caches the tool list per connector: after tool changes use "Reconnect" in the connector menu.

@@ -40,7 +40,7 @@ public class LeadManagerOAuthController : OAuthControllerBase
     {
         if (!Uri.TryCreate(redirectUri, UriKind.Absolute, out var u)) return OtherKeyName;
         var h = u.Host;
-        if (h == "chatgpt.com" || h.EndsWith(".chatgpt.com", StringComparison.Ordinal) || h == "chat.openai.com") return ChatGptKeyName;
+        if (h == "chatgpt.com" || h.EndsWith(".chatgpt.com", StringComparison.Ordinal) || h == "chat.openai.com" || h == "platform.openai.com") return ChatGptKeyName;
         if (h == "claude.ai" || h.EndsWith(".claude.ai", StringComparison.Ordinal)
             || h == "claude.com" || h.EndsWith(".claude.com", StringComparison.Ordinal)) return ClaudeKeyName;
         return OtherKeyName;

@@ -1,4 +1,4 @@
-// Copied from jengo-components dotnet/mcp-connector (commit aac7103, 2026-09-25), unchanged except this header.
+// Copied from jengo-components dotnet/mcp-connector (commit aac7103, 2026-09-25), changed only here: loopback http and platform.openai.com in IsAllowedRedirect, 201 on registration.
 // Keep in sync: when a NuGet/project reference replaces the copy, delete this folder.
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
@@ -66,9 +66,11 @@ public class OAuthService(McpConnectorOptions options)
     public bool IsAllowedRedirect(string? uri)
     {
         if (uri == null || !Uri.TryCreate(uri, UriKind.Absolute, out var u)) return false;
+        // RFC 8252 section 8.3: loopback redirects (any port) for native clients such as Claude Code.
+        if (u.Scheme == Uri.UriSchemeHttp) return u.Host == "localhost" || u.Host == "127.0.0.1";
         if (u.Scheme != Uri.UriSchemeHttps) return false;
         var host = u.Host;
-        if (HostMatches(host, "chatgpt.com") || host == "chat.openai.com" || HostMatches(host, "claude.ai"))
+        if (HostMatches(host, "chatgpt.com") || host == "chat.openai.com" || host == "platform.openai.com" || HostMatches(host, "claude.ai"))
             return true;
         return options.ExtraAllowedRedirectHosts.Any(allowed => HostMatches(host, allowed));
     }
