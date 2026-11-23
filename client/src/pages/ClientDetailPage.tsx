@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { safeHref } from '../api/crm'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { getClient, updateClient, type Client } from '../api/clients'
@@ -8,6 +8,7 @@ import ProjectsSection from '../components/crm/ProjectsSection'
 import PriorityCard from '../components/crm/PriorityCard'
 import DocumentsSection from '../components/crm/DocumentsSection'
 import ServicesSection from '../components/crm/ServicesSection'
+import InvoicesSection from '../components/crm/InvoicesSection'
 import {
   ENGAGEMENT_CATEGORIES,
   CATEGORY_DESCRIPTIONS,
@@ -24,6 +25,8 @@ export default function ClientDetailPage() {
   const [client, setClient] = useState<Client | null>(null)
   const [loading, setLoading] = useState(true)
   const [historyTick, setHistoryTick] = useState(0)
+  const [billingTick, setBillingTick] = useState(0)
+  const bumpBilling = useCallback(() => setBillingTick((k) => k + 1), [])
   const [intakes, setIntakes] = useState<ClientIntake[]>([])
   const [bundle, setBundle] = useState<ClientBundle | null>(null)
 
@@ -296,7 +299,12 @@ export default function ClientDetailPage() {
       />
 
       <div className="mt-6">
-        <ServicesSection clientId={client.id} />
+        <ServicesSection clientId={client.id} onChanged={bumpBilling} />
+      </div>
+
+      {/* Invoices sent, tied to the service, and what is due next */}
+      <div className="mt-6">
+        <InvoicesSection clientId={client.id} refreshKey={billingTick} />
       </div>
 
       {/* Quotes, orders and signed agreements with their files */}

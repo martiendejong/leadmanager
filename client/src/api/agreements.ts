@@ -31,6 +31,19 @@ export interface ClientService {
   monthlyAmount?: number | null
   notes?: string | null
   sourceRef?: string | null
+  billingInterval: BillingInterval
+  billingAmount?: number | null
+  hourlyRate?: number | null
+  vatRate?: number | null
+  paidUntil?: string | null
+  freeUntil?: string | null
+  freeReason?: string | null
+  invoiceNote?: string | null
+}
+
+export type BillingInterval = 'Monthly' | 'Quarterly' | 'Yearly' | 'OneOff' | 'Hourly'
+export const INTERVAL_LABELS: Record<BillingInterval, string> = {
+  Monthly: 'Monthly', Quarterly: 'Quarterly', Yearly: 'Yearly', OneOff: 'One-off', Hourly: 'Hourly',
 }
 
 export interface UpsertService {
@@ -42,6 +55,14 @@ export interface UpsertService {
   monthlyAmount?: number | null
   notes?: string | null
   projectId?: string | null
+  billingInterval?: BillingInterval | null
+  billingAmount?: number | null
+  hourlyRate?: number | null
+  vatRate?: number | null
+  paidUntil?: string | null
+  freeUntil?: string | null
+  freeReason?: string | null
+  invoiceNote?: string | null
 }
 
 export interface AgreementDoc {
@@ -93,3 +114,87 @@ export async function updateService(id: string, body: UpsertService): Promise<Cl
 export async function deleteService(id: string): Promise<void> {
   await apiClient.delete(`/api/services/${id}`)
 }
+
+export type InvoiceStatus = 'Draft' | 'Sent' | 'Paid' | 'Cancelled'
+
+export interface ClientInvoice {
+  id: string
+  clientId: string
+  serviceId?: string | null
+  number: string
+  invoiceDate: string
+  periodStart?: string | null
+  periodEnd?: string | null
+  amountExclVat: number
+  vatRate: number
+  amountInclVat: number
+  status: InvoiceStatus
+  sentTo?: string | null
+  notes?: string | null
+  sourceRef?: string | null
+}
+
+export interface UpsertInvoice {
+  number: string
+  amountExclVat: number
+  invoiceDate?: string | null
+  periodStart?: string | null
+  periodEnd?: string | null
+  vatRate?: number | null
+  status?: InvoiceStatus | null
+  sentTo?: string | null
+  notes?: string | null
+  serviceId?: string | null
+}
+
+export type DueState = 'Due' | 'Upcoming' | 'Covered' | 'NeedsInput' | 'Nothing'
+
+export interface DueItem {
+  serviceId: string
+  clientId: string
+  serviceName: string
+  interval: string
+  periodStart?: string | null
+  periodEnd?: string | null
+  amountExclVat?: number | null
+  vatRate: number
+  amountInclVat?: number | null
+  state: DueState
+  periodsOverdue: number
+  isFree: boolean
+  freeUntil?: string | null
+  coveredThrough?: string | null
+  explanation: string
+}
+
+export interface ClientDue {
+  clientId: string
+  clientName: string
+  items: DueItem[]
+}
+
+export async function getInvoices(clientId: string): Promise<ClientInvoice[]> {
+  const res = await apiClient.get<ClientInvoice[]>(`/api/clients/${clientId}/invoices`)
+  return res.data
+}
+
+export async function createInvoice(clientId: string, body: UpsertInvoice): Promise<ClientInvoice> {
+  const res = await apiClient.post<ClientInvoice>(`/api/clients/${clientId}/invoices`, body)
+  return res.data
+}
+
+export async function updateInvoice(id: string, body: UpsertInvoice): Promise<ClientInvoice> {
+  const res = await apiClient.put<ClientInvoice>(`/api/invoices/${id}`, body)
+  return res.data
+}
+
+export async function deleteInvoice(id: string): Promise<void> {
+  await apiClient.delete(`/api/invoices/${id}`)
+}
+
+export async function getInvoicingDue(clientId?: string): Promise<ClientDue[]> {
+  const res = await apiClient.get<ClientDue[]>('/api/invoicing/due', { params: { clientId } })
+  return res.data
+}
+
+export const eur = (n?: number | null) => (n == null ? '' : n.toLocaleString('en-GB', { style: 'currency', currency: 'EUR' }))

@@ -2,9 +2,13 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useToast } from '../components/Toast'
 import { errorMessage } from '../api/crm'
+import { DueRow } from '../components/crm/InvoicesSection'
+import { termsLine } from '../components/crm/ServicesSection'
 import {
   SERVICE_LABELS,
   getAgreements,
+  getInvoicingDue,
+  type ClientDue,
   type AgreementDoc,
   type ClientAgreements,
   type ServiceKind,
@@ -40,6 +44,11 @@ export default function AgreementsPage() {
   const { showToast } = useToast()
   const [rows, setRows] = useState<ClientAgreements[] | null>(null)
   const [service, setService] = useState<ServiceKind | ''>('')
+  const [due, setDue] = useState<ClientDue[]>([])
+
+  useEffect(() => {
+    getInvoicingDue().then(setDue).catch(() => setDue([]))
+  }, [])
 
   useEffect(() => {
     getAgreements(service)
@@ -59,6 +68,22 @@ export default function AgreementsPage() {
           </select>
         </label>
       </div>
+      {due.some((c) => c.items.some((i) => i.state === 'Due' || i.state === 'Upcoming' || i.state === 'NeedsInput')) && (
+        <section className="bg-white border border-gray-200 rounded-xl p-4 mb-4" aria-label="Invoicing due">
+          <h2 className="text-sm font-semibold text-gray-800 mb-1">Invoicing due</h2>
+          <p className="text-xs text-gray-500 mb-2">Derived from the agreed terms and the invoices recorded. Nothing is sent from here.</p>
+          {due.map((c) => {
+            const items = c.items.filter((i) => i.state === 'Due' || i.state === 'Upcoming' || i.state === 'NeedsInput')
+            if (items.length === 0) return null
+            return (
+              <div key={c.clientId} className="mb-2">
+                <Link to={`/clients/${c.clientId}`} className="text-sm font-semibold text-indigo-700 hover:underline">{c.clientName}</Link>
+                <ul className="divide-y divide-gray-100">{items.map((i) => <DueRow key={i.serviceId} d={i} />)}</ul>
+              </div>
+            )
+          })}
+        </section>
+      )}
       {rows == null ? (
         <p className="text-sm text-gray-500">Loading...</p>
       ) : rows.length === 0 ? (
@@ -72,7 +97,7 @@ export default function AgreementsPage() {
                 {r.services.length === 0 && <span className="text-xs text-gray-400">no services recorded</span>}
                 {r.services.map((s) => (
                   <span key={s.id} className={`text-xs px-2 py-0.5 rounded-full border ${s.status === 'Active' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-50 text-gray-600 border-gray-200'}`}>
-                    {s.name} · {s.status}
+                    {s.name} · {s.status}{termsLine(s) ? ` · ${termsLine(s)}` : ''}
                   </span>
                 ))}
               </div>
