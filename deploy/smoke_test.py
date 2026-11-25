@@ -329,6 +329,10 @@ def main() -> int:
             mine = [c for c in r.json() if c["clientId"] == client_id] if r.status_code == 200 else []
             check(len(mine) == 1 and len(mine[0]["contracts"]) >= 1 and any(d["title"] == "Smoke concept NDA" for d in mine[0]["concepts"]),
                   "agreements overview lists the client with its contract and its concept")
+            check(len(mine) == 1 and isinstance(mine[0].get("billing"), dict) and "sendUnknown" in mine[0]["billing"], "agreements overview carries a billing summary per client")
+            r = s.get(f"{base}/api/fedha-sync/status", headers=jwt, timeout=30)
+            check(r.status_code == 200 and "configured" in r.json() and isinstance(r.json().get("unmatched"), list), "Fedha sync status answers (configured or not)")
+            check(s.get(f"{base}/api/fedha-sync/status", timeout=30).status_code == 401, "Fedha sync status needs a login")
             # Billing: terms on the service, an invoice tied to it, and what is due next.
             if svc_id:
                 r = s.put(f"{base}/api/services/{svc_id}", headers=jwt, timeout=30,

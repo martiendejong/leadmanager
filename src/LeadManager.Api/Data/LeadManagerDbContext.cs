@@ -46,6 +46,8 @@ public class LeadManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<ClientDocumentFile> ClientDocumentFiles { get; set; }
     public DbSet<ClientService> ClientServices { get; set; }
     public DbSet<ClientInvoice> ClientInvoices { get; set; }
+    public DbSet<FedhaContactLink> FedhaContactLinks { get; set; }
+    public DbSet<FedhaSyncRun> FedhaSyncRuns { get; set; }
 
     // Every save that touches a lead stamps UpdatedAt, whoever made the change (screen, import, enrichment, API).
     private void StampLeads()
@@ -308,6 +310,17 @@ public class LeadManagerDbContext : IdentityDbContext<ApplicationUser>
             e.HasIndex(x => new { x.ClientId, x.InvoiceDate });
             e.HasIndex(x => x.ServiceId);
             e.HasIndex(x => new { x.ClientId, x.SourceRef });
+        });
+
+        builder.Entity<FedhaContactLink>(e =>
+        {
+            e.HasOne<Client>().WithMany().HasForeignKey(x => x.ClientId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => new { x.UserId, x.FedhaContactId }).IsUnique();
+        });
+
+        builder.Entity<FedhaSyncRun>(e =>
+        {
+            e.HasIndex(x => new { x.UserId, x.StartedAt });
         });
 
         builder.Entity<ClientDocumentFile>(e =>

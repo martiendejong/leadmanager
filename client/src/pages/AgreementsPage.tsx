@@ -8,6 +8,11 @@ import {
   SERVICE_LABELS,
   getAgreements,
   getInvoicingDue,
+  getFedhaSyncStatus,
+  runFedhaSync,
+  linkFedhaContact,
+  eur,
+  type FedhaSyncStatus,
   type ClientDue,
   type AgreementDoc,
   type ClientAgreements,
@@ -39,22 +44,106 @@ function DocList({ title, docs, empty }: { title: string; docs: AgreementDoc[]; 
   )
 }
 
+/** Last Fedha sync, a button to run it, and the Fedha contacts that have invoices but no client yet. */
+function FedhaSyncPanel({ clients, onSynced }: { clients: { id: string; name: string }[]; onSynced: () => void }) {
+  const { showToast } = useToast()
+  const [st, setSt] = useState<FedhaSyncStatus | null>(null)
+  const [busy, setBusy] = useState(false)
+  const load = () => getFedhaSyncStatus().then(setSt).catch(() => setSt(null))
+  useEffect(() => { load() }, [])
+
+  async function run() {
+    setBusy(true)
+    try {
+      const r = await runFedhaSync()
+      showToast(`Fedha sync: ${r.created} new, ${r.updated} updated, ${r.unchanged} unchanged`, 'success')
+      await load()
+      onSynced()
+    } catch (e) {
+      showToast(errorMessage(e, 'Fedha sync failed'), 'error')
+    } finally { setBusy(false) }
+  }
+
+  async function link(contactId: number, name: string, clientId: string) {
+    if (!clientId) return
+    try { await linkFedhaContact(contactId, name, clientId); showToast(`${name} linked. Run the sync to bring in its invoices.`, 'success'); await load() }
+    catch (e) { showToast(errorMessage(e, 'Could not link'), 'error') }
+  }
+
+  if (!st) return null
+  const last = st.lastRun
+  return (
+    <section className="bg-white border border-gray-200 rounded-xl p-4 mb-4" aria-label="Fedha sync">
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="text-sm font-semibold text-gray-800 mr-auto">Invoices from Fedha</h2>
+        {st.configured ? (
+          <button type="button" disabled={busy} onClick={run} className="text-sm px-3 py-1 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">{busy ? 'Syncing...' : 'Sync now'}</button>
+        ) : <span className="text-xs text-gray-500">Not connected to Fedha on this environment</span>}
+      </div>
+      <p className="text-xs text-gray-500 mt-1">
+        Read-only copy of the Fedha invoices (concept, sent, open, paid), refreshed daily. {st.lastSuccessAt ? `Last successful sync ${fmtDate(st.lastSuccessAt)}.` : 'No successful sync yet.'}
+        {last?.error ? ` Last run failed: ${last.error}` : ''}
+      </p>
+      {st.unmatched.length > 0 && (
+        <div className="mt-3">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Fedha contacts without a client</h3>
+          <ul className="divide-y divide-gray-100">
+            {st.unmatched.map((u) => (
+              <li key={u.fedhaContactId} className="py-1.5 flex flex-wrap items-center gap-2 text-sm">
+                <span className="font-medium text-gray-800">{u.name}</span>
+                <span className="text-xs text-gray-500">{u.invoiceCount} invoice{u.invoiceCount > 1 ? 's' : ''}{u.openAmount > 0 ? ` · ${eur(u.openAmount)} open` : ''}</span>
+                <select className="ml-auto text-xs border border-gray-300 rounded-md px-1 py-1" defaultValue="" onChange={(e) => link(u.fedhaContactId, u.name, e.target.value)} aria-label={`Link ${u.name} to a client`}>
+                  <option value="">Link to client...</option>
+                  {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </section>
+  )
+}
+
+function BillingLine({ r }: { r: ClientAgreements }) {
+  const b = r.billing
+  if (!b || (b.concepts + b.sent + b.paid + b.cancelled) === 0) return <p className="text-xs text-gray-400 mt-3">No invoices recorded</p>
+  return (
+    <div className="mt-3 border-t border-gray-100 pt-2">
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <span className="font-semibold uppercase tracking-wide text-gray-500">Invoices</span>
+        {b.concepts > 0 && <span className="px-2 py-0.5 rounded-full border bg-gray-50 text-gray-700 border-gray-200">{b.concepts} concept</span>}
+        {b.sent > 0 && <span className="px-2 py-0.5 rounded-full border bg-amber-50 text-amber-800 border-amber-200">{b.sent} sent, {eur(b.openAmount)} open</span>}
+        {b.paid > 0 && <span className="px-2 py-0.5 rounded-full border bg-green-50 text-green-700 border-green-200">{b.paid} paid</span>}
+        {b.sendUnknown > 0 && <span className="px-2 py-0.5 rounded-full border bg-gray-50 text-gray-600 border-gray-300" title="Marked sent in the books but no send date recorded">{b.sendUnknown} send unknown</span>}
+        {b.lastInvoiceDate && <span className="text-gray-400">last invoice {fmtDate(b.lastInvoiceDate)}</span>}
+      </div>
+      <ul className="mt-1 text-xs text-gray-600">
+        {b.recent.map((i) => (
+          <li key={i.id}>{i.number} · {i.status}{i.status === 'Sent' && i.outstandingAmount ? ` · ${eur(i.outstandingAmount)} open` : ''}{i.sendUnknown ? ' · send unknown' : ''} · {fmtDate(i.invoiceDate)} · {eur(i.amountInclVat)} incl.</li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 /** One view over all clients: services (such as website management), contracts sent or signed, and concepts. */
 export default function AgreementsPage() {
   const { showToast } = useToast()
   const [rows, setRows] = useState<ClientAgreements[] | null>(null)
   const [service, setService] = useState<ServiceKind | ''>('')
   const [due, setDue] = useState<ClientDue[]>([])
+  const [reload, setReload] = useState(0)
 
   useEffect(() => {
     getInvoicingDue().then(setDue).catch(() => setDue([]))
-  }, [])
+  }, [reload])
 
   useEffect(() => {
     getAgreements(service)
       .then(setRows)
       .catch((e) => { setRows([]); showToast(errorMessage(e, 'Something went wrong'), 'error') })
-  }, [service, showToast])
+  }, [service, showToast, reload])
 
   return (
     <div className="p-4 sm:p-6 max-w-5xl">
@@ -68,6 +157,7 @@ export default function AgreementsPage() {
           </select>
         </label>
       </div>
+      <FedhaSyncPanel clients={(rows ?? []).map((r) => ({ id: r.clientId, name: r.clientName }))} onSynced={() => setReload((n) => n + 1)} />
       {due.some((c) => c.items.some((i) => i.state === 'Due' || i.state === 'Upcoming' || i.state === 'NeedsInput')) && (
         <section className="bg-white border border-gray-200 rounded-xl p-4 mb-4" aria-label="Invoicing due">
           <h2 className="text-sm font-semibold text-gray-800 mb-1">Invoicing due</h2>
@@ -106,6 +196,7 @@ export default function AgreementsPage() {
                 <DocList title="Sent, no answer yet" docs={r.contracts.filter((d) => d.status === 'Sent')} empty="Nothing waiting for an answer" />
                 <DocList title="Concepts" docs={r.concepts} empty="No concepts" />
               </div>
+              <BillingLine r={r} />
               {r.contracts.some((d) => !['Signed', 'Sent'].includes(d.status)) && (
                 <div className="mt-3">
                   <DocList title="Rejected, expired or cancelled" docs={r.contracts.filter((d) => !['Signed', 'Sent'].includes(d.status))} empty="" />

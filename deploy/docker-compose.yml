@@ -60,6 +60,11 @@ services:
       JengoTrack__WebhookSecret: ${TRACK_WEBHOOK_SECRET:-}
       JengoTrack__HotThreshold: ${TRACK_HOT_THRESHOLD:-2}
       MinoxPoc__BaseUrl: ${MINOX_POC_BASE_URL:-}
+      # Read-only link to Fedha (task 8360): copies invoices into the clients' invoice lists, daily 05:30 UTC for FEDHA_SYNC_USER_EMAIL.
+      # Empty FEDHA_API_KEY = the sync is off (button says "Not connected"). Key: vault project 9, read-only scopes.
+      Fedha__BaseUrl: ${FEDHA_BASE_URL:-https://fedha.martiendejong.nl/api}
+      Fedha__ApiKey: ${FEDHA_API_KEY:-}
+      Fedha__SyncUserEmail: ${FEDHA_SYNC_USER_EMAIL:-}
     volumes:
       - ./data:/data
     networks:

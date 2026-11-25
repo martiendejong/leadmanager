@@ -15,7 +15,10 @@ public record InvoiceDto(
     [property: JsonConverter(typeof(UtcNullableDateTimeConverter))] DateTime? PeriodStart,
     [property: JsonConverter(typeof(UtcNullableDateTimeConverter))] DateTime? PeriodEnd,
     decimal AmountExclVat, decimal VatRate, decimal AmountInclVat, string Status, string? SentTo,
-    [property: JsonConverter(typeof(UtcNullableDateTimeConverter))] DateTime? PaidAt, string? Notes, string? SourceRef);
+    [property: JsonConverter(typeof(UtcNullableDateTimeConverter))] DateTime? PaidAt, string? Notes, string? SourceRef,
+    [property: JsonConverter(typeof(UtcNullableDateTimeConverter))] DateTime? SentAt = null,
+    bool SendUnknown = false, decimal? OutstandingAmount = null,
+    [property: JsonConverter(typeof(UtcNullableDateTimeConverter))] DateTime? SyncedAt = null);
 
 public record UpsertInvoiceDto(
     string Number, decimal AmountExclVat,
@@ -46,7 +49,8 @@ public class InvoicesController : ControllerBase
 
     public static InvoiceDto ToDto(ClientInvoice i) => new(
         i.Id, i.ClientId, i.ServiceId, i.DocumentId, i.Number, i.InvoiceDate, i.PeriodStart, i.PeriodEnd,
-        i.AmountExclVat, i.VatRate, Math.Round(i.AmountExclVat * (1 + i.VatRate / 100m), 2), i.Status.ToString(), i.SentTo, i.PaidAt, i.Notes, i.SourceRef);
+        i.AmountExclVat, i.VatRate, Math.Round(i.AmountExclVat * (1 + i.VatRate / 100m), 2), i.Status.ToString(), i.SentTo, i.PaidAt, i.Notes, i.SourceRef,
+        i.SentAt, i.SendUnknown, i.OutstandingAmount, i.SyncedAt);
 
     private async Task<bool> OwnsClient(Guid clientId)
     {
