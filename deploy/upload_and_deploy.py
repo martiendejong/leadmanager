@@ -46,7 +46,8 @@ VAULT_TOOLS = os.environ.get("JENGO_VAULT_TOOLS", r"F:\projects\jengo\jengo-syst
 VAULT_PROJECT = 12  # "Lead Generator"
 
 TEST_ACC_IP = "46.224.114.149"
-PROD_IP = "46.62.219.14"
+PROD_IP = "46.62.219.14"          # IAM, CoachOS, MaaRide etc. still live here
+PROD_CORE_IP = "159.69.192.97"    # Clients prod since 2026-11-23 (gateway /opt/jengo-gateway, net proxy_net)
 
 ENVS = {
     "test": dict(ip=TEST_ACC_IP, url="https://clients-test.martiendejong.nl", host="clients-test.martiendejong.nl", aliases=[],
@@ -58,10 +59,11 @@ ENVS = {
     # Since 2026-11-19 prod replaced the old Windows installation of leads.prospergenics.com, and since the same
     # day the canonical address is clients.prospergenics.com (PUBLIC_URL, SSO callback). api.leads... keeps
     # serving the same container (old API address); leads... redirects (308, keeps the method) to the canonical host.
-    "prod": dict(ip=PROD_IP, url="https://clients.prospergenics.com", host="clients.prospergenics.com",
+    # 2026-11-23: moved from 46.62.219.14 to prod-core. The old stack on 46.62 stays STOPPED as a fallback: never deploy there.
+    "prod": dict(ip=PROD_CORE_IP, url="https://clients.prospergenics.com", host="clients.prospergenics.com",
                  aliases=["api.leads.prospergenics.com"], redirects=["leads.prospergenics.com"],
-                 zone="prospergenics.com", network="maaride_net", gateway_dir="/opt/maaride-gateway",
-                 caddy="maaride-gateway-caddy-1"),
+                 zone="prospergenics.com", network="proxy_net", gateway_dir="/opt/jengo-gateway",
+                 caddy="jengo-gateway-caddy-1"),
 }
 
 
