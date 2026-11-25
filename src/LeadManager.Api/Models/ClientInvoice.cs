@@ -26,6 +26,14 @@ public class ClientInvoice
     public string? Notes { get; set; }
     /// <summary>Stable id from the reporting system (for example fedha:2026-15). Makes imports idempotent.</summary>
     public string? SourceRef { get; set; }
+    /// <summary>When the invoice was sent according to the books (Fedha lastSentAt). Null together with SendUnknown means: not proven.</summary>
+    public DateTime? SentAt { get; set; }
+    /// <summary>True when the books say Sent, Overdue or Paid but hold no send date, so the sending cannot be proven.</summary>
+    public bool SendUnknown { get; set; }
+    /// <summary>Amount still open, including VAT, as reported by the books. Null for concepts and manual invoices.</summary>
+    public decimal? OutstandingAmount { get; set; }
+    /// <summary>Last time the Fedha sync touched this invoice.</summary>
+    public DateTime? SyncedAt { get; set; }
     public string? CreatedByUserId { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

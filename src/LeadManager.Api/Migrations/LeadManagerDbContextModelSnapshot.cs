@@ -493,6 +493,9 @@ namespace LeadManager.Api.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<decimal?>("OutstandingAmount")
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime?>("PaidAt")
                         .HasColumnType("TEXT");
 
@@ -500,6 +503,12 @@ namespace LeadManager.Api.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("PeriodStart")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("SendUnknown")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("SentAt")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("SentTo")
@@ -513,6 +522,9 @@ namespace LeadManager.Api.Migrations
 
                     b.Property<string>("Status")
                         .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("SyncedAt")
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("VatRate")
@@ -833,6 +845,84 @@ namespace LeadManager.Api.Migrations
                         {
                             t.HasCheckConstraint("CK_EntityLinks_OneParent", "(\"LeadId\" IS NULL) <> (\"ClientId\" IS NULL)");
                         });
+                });
+
+            modelBuilder.Entity("LeadManager.Api.Models.FedhaContactLink", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("FedhaContactId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("FedhaContactName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClientId");
+
+                    b.HasIndex("UserId", "FedhaContactId")
+                        .IsUnique();
+
+                    b.ToTable("FedhaContactLinks");
+                });
+
+            modelBuilder.Entity("LeadManager.Api.Models.FedhaSyncRun", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Created")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Error")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("FinishedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Trigger")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Unchanged")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Unmatched")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("UnmatchedJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Updated")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "StartedAt");
+
+                    b.ToTable("FedhaSyncRuns");
                 });
 
             modelBuilder.Entity("LeadManager.Api.Models.HuntCandidate", b =>
@@ -2226,6 +2316,15 @@ namespace LeadManager.Api.Migrations
                         .WithMany()
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Cascade);
+                });
+
+            modelBuilder.Entity("LeadManager.Api.Models.FedhaContactLink", b =>
+                {
+                    b.HasOne("LeadManager.Api.Models.Client", null)
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("LeadManager.Api.Models.HuntCandidate", b =>

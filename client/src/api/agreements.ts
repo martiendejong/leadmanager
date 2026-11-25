@@ -87,6 +87,7 @@ export interface ClientAgreements {
   services: ClientService[]
   contracts: AgreementDoc[]
   concepts: AgreementDoc[]
+  billing?: BillingSummary | null
 }
 
 export async function getAgreements(service?: ServiceKind | '', onlyWithServices = false): Promise<ClientAgreements[]> {
@@ -132,6 +133,22 @@ export interface ClientInvoice {
   sentTo?: string | null
   notes?: string | null
   sourceRef?: string | null
+  paidAt?: string | null
+  sentAt?: string | null
+  sendUnknown?: boolean
+  outstandingAmount?: number | null
+  syncedAt?: string | null
+}
+
+export interface BillingSummary {
+  concepts: number
+  sent: number
+  openAmount: number
+  paid: number
+  sendUnknown: number
+  cancelled: number
+  lastInvoiceDate?: string | null
+  recent: ClientInvoice[]
 }
 
 export interface UpsertInvoice {
@@ -198,3 +215,32 @@ export async function getInvoicingDue(clientId?: string): Promise<ClientDue[]> {
 }
 
 export const eur = (n?: number | null) => (n == null ? '' : n.toLocaleString('en-GB', { style: 'currency', currency: 'EUR' }))
+
+export interface UnmatchedContact {
+  fedhaContactId: number
+  name: string
+  invoiceCount: number
+  openAmount: number
+  numbers: string[]
+}
+
+export interface FedhaSyncStatus {
+  configured: boolean
+  lastRun?: { startedAt: string; finishedAt?: string | null; trigger: string; created: number; updated: number; unchanged: number; unmatched: number; error?: string | null } | null
+  lastSuccessAt?: string | null
+  unmatched: UnmatchedContact[]
+}
+
+export async function getFedhaSyncStatus(): Promise<FedhaSyncStatus> {
+  const res = await apiClient.get<FedhaSyncStatus>('/api/fedha-sync/status')
+  return res.data
+}
+
+export async function runFedhaSync(): Promise<{ created: number; updated: number; unchanged: number; unmatched: UnmatchedContact[] }> {
+  const res = await apiClient.post('/api/fedha-sync/run')
+  return res.data
+}
+
+export async function linkFedhaContact(fedhaContactId: number, fedhaContactName: string, clientId: string): Promise<void> {
+  await apiClient.post('/api/fedha-sync/links', { fedhaContactId, fedhaContactName, clientId })
+}

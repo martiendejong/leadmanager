@@ -229,6 +229,12 @@ builder.Services.AddScoped<LeadManager.Api.Services.Hunt.LeadVerifier>();
 builder.Services.AddScoped<LeadManager.Api.Services.Hunt.HuntService>();
 builder.Services.AddSingleton<LeadManager.Api.Services.Hunt.HuntQueue>();
 builder.Services.AddSingleton<LeadManager.Api.Services.Hunt.HuntRegistry>();
+// Fedha read-only invoice sync (task 8360). Key and user come from the environment (Fedha__ApiKey, Fedha__SyncUserEmail).
+var fedhaOptions = builder.Configuration.GetSection("Fedha").Get<LeadManager.Api.Services.Fedha.FedhaOptions>() ?? new LeadManager.Api.Services.Fedha.FedhaOptions();
+builder.Services.AddSingleton(fedhaOptions);
+builder.Services.AddHttpClient<LeadManager.Api.Services.Fedha.IFedhaClient, LeadManager.Api.Services.Fedha.HttpFedhaClient>(c => c.Timeout = TimeSpan.FromSeconds(30));
+builder.Services.AddScoped<LeadManager.Api.Services.Fedha.FedhaSyncService>();
+builder.Services.AddHostedService<LeadManager.Api.Services.Fedha.FedhaSyncBackgroundService>();
 builder.Services.AddHostedService<LeadManager.Api.Services.Hunt.HuntBackgroundService>();
 builder.Services.AddHostedService<LeadManager.Api.Services.Hunt.HuntSweepService>();
 // The agent endpoints answer to a token only, so they are rate limited per hunt (a guessed id or token gets nowhere fast).

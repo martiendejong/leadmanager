@@ -135,6 +135,10 @@ export default function InvoicesSection({ clientId, refreshKey = 0 }: { clientId
               <span className="text-gray-700">{eur(i.amountExclVat)} excl. · {eur(i.amountInclVat)} incl.</span>
               {i.periodStart && i.periodEnd && <span className="text-xs text-gray-500">{fmt(i.periodStart)} to {fmt(i.periodEnd)}</span>}
               {i.serviceId && <span className="text-xs text-gray-500">{svcName(i.serviceId)}</span>}
+              {i.status === 'Sent' && i.outstandingAmount != null && i.outstandingAmount > 0 && <span className="text-xs px-2 py-0.5 rounded-full border bg-amber-50 text-amber-800 border-amber-200">open {eur(i.outstandingAmount)}</span>}
+              {i.sendUnknown && <span className="text-xs px-2 py-0.5 rounded-full border bg-gray-50 text-gray-600 border-gray-300" title="The books mark this invoice as sent but hold no send date">send unknown</span>}
+              {i.sentAt && <span className="text-xs text-gray-500">sent {fmt(i.sentAt)}</span>}
+              {i.sourceRef?.startsWith('fedha:') && <span className="text-xs text-gray-400" title="Kept in line with Fedha by the sync; edit it in Fedha">Fedha</span>}
               <span className="ml-auto flex items-center gap-1">
                 <select className="text-xs border border-gray-200 rounded-md px-1 py-0.5" value={i.status} onChange={(e) => setStatus(i, e.target.value as InvoiceStatus)} aria-label={`Status of ${i.number}`}>
                   {STATES.map((s) => <option key={s} value={s}>{s}</option>)}
