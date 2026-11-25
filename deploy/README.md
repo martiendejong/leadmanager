@@ -8,7 +8,7 @@ The server's shared Caddy gateway reaches the container through a Docker network
 |---|---|---|---|---|---|
 | test | https://clients-test.martiendejong.nl | 46.224.114.149 | `/opt/clients-test` | `/opt/jengo-gateway` (`proxy_net`) | `test-clients` |
 | acc | https://clients-acc.martiendejong.nl | 46.224.114.149 | `/opt/clients-acc` | same | `acc-clients` |
-| prod | https://clients.prospergenics.com (`leads.prospergenics.com` redirects, `api.leads...` serves the same app) | 46.62.219.14 | `/opt/clients-prod` | `/opt/maaride-gateway` (`maaride_net`) | `prod-clients` |
+| prod | https://clients.prospergenics.com (`leads.prospergenics.com` redirects, `api.leads...` serves the same app) | 159.69.192.97 (prod-core, since 2026-11-23) | `/opt/clients-prod` | `/opt/jengo-gateway` (`proxy_net`) | `prod-clients` |
 
 Test and acc start empty, without AI keys and without integrations. Prod has run on the data of the old Windows
 installation since 19-11-2026 (see "Migration" below).
